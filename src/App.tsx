@@ -31,9 +31,10 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
       {/* @ts-ignore: strictly typed react-webcam missing optional internal props */}
       <Webcam
         audio={false}
+        muted={true}
         ref={webcamRef}
         screenshotFormat="image/jpeg"
-        videoConstraints={{ facingMode: "environment" }}
+        videoConstraints={{ facingMode: { ideal: "environment" } }}
         className="absolute inset-0 w-full h-full object-cover"
         onUserMediaError={(err) => {
           console.error("Camera error:", err);
