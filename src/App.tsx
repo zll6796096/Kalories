@@ -34,13 +34,21 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
         muted={true}
         ref={webcamRef}
         screenshotFormat="image/jpeg"
-        videoConstraints={{ facingMode: { ideal: "environment" } }}
+        videoConstraints={{ facingMode: "environment" }}  // 去除 ideal 强制使用后置，避免部分安卓手机 fallback 到前置
         className="absolute inset-0 w-full h-full object-cover"
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }} // 增加显式内联样式防部分老浏览器抛弃类名
+        onUserMedia={() => {
+          // 这里如果是静默成功就可以不弹窗，但为了排错先不填 alert 干扰正常体验
+        }}
         onUserMediaError={(err) => {
           console.error("Camera error:", err);
           alert("无法访问相机: " + err);
         }}
         playsInline={true}
+        // 以下三个是针对中国特色浏览器（微信内置浏览器 X5 内核）的同层播放防黑屏属性
+        x5-video-player-type="h5"
+        x5-video-player-fullscreen="true"
+        webkit-playsinline="true"
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle,transparent_20%,rgba(14,14,14,0.6)_100%)]"></div>
 
