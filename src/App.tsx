@@ -2,51 +2,22 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Aperture, Microscope, Activity } from 'lucide-react';
 
+import Webcam from "react-webcam";
+
 type AppState = 'camera' | 'analyzing' | 'result';
 
 const IMG_ANALYZING = "https://lh3.googleusercontent.com/aida-public/AB6AXuBLlu2z-9xZpknZUyg84ueHFU56V3GsBxXOkIatGh6GFIM861Z-hzQ_bbDcOsSiMYam0G-g7IPO5Bx-Or1fn2r8RJB8tvXbrfzhrXFOoYl0k4N1gpQImEWxbhExILOiLLb_IVXPujZeu7jriNq-kVFw80AF9t7jc33iC0_npQgKNjI4xV9CF3d5K2UPm58omACEe1O85H-0RPt3X8KzxdLWraT7iQA66d7fX0scKOQBk_QSerHXAkJgMAnrcKDpsSnvAmepwZisHeY";
 const IMG_RESULT = "https://lh3.googleusercontent.com/aida-public/AB6AXuBrEBx6KywdOUY7JewDWBDftWH0Pwscxv1sfYr8nplT161TbSa4mIQxUtM0fF2VEcmHEWJfUD5VlvawnGx_dT6yaHzPiXbsbwcWf4vl32zXHeERXggw4eV4idw21H4QIYniJfyd1r9rDM9y25UZdU8MM-JJ1kpIT-Y1UMPqLpZFt2HEKZzNdxO2srn6maMXczjT4SoVlDsmKqPNyOeausWIm9W0A8wk44Y21HrojevRGwZr67cHfZs70wk7aUA2oM94_jEaVyeuMzM";
 
 const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => void, error: string | null, key?: string }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    const startCamera = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch(e => console.error('Video play error:', e));
-          };
-        }
-      } catch (err: any) {
-        console.error("Error accessing camera:", err);
-        alert("无法访问相机: " + err.message);
-      }
-    };
-    startCamera();
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
+  const webcamRef = useRef<Webcam>(null);
 
   const handleCaptureClick = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const base64Img = canvas.toDataURL('image/jpeg');
-        onCapture(base64Img);
-      }
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      onCapture(imageSrc);
+    } else {
+      alert("错误：无法截取画面，请确保相机已开启");
     }
   };
 
@@ -57,12 +28,18 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-0 flex flex-col"
     >
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
+      {/* @ts-ignore: strictly typed react-webcam missing optional internal props */}
+      <Webcam
+        audio={false}
+        ref={webcamRef}
+        screenshotFormat="image/jpeg"
+        videoConstraints={{ facingMode: "environment" }}
         className="absolute inset-0 w-full h-full object-cover"
+        onUserMediaError={(err) => {
+          console.error("Camera error:", err);
+          alert("无法访问相机: " + err);
+        }}
+        playsInline={true}
       />
       <div className="absolute inset-0 bg-[radial-gradient(circle,transparent_20%,rgba(14,14,14,0.6)_100%)]"></div>
 
@@ -278,11 +255,8 @@ export default function App() {
     setAppState('analyzing');
     setErrorMsg(null);
     try {
-      const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-          ? 'http://localhost:8000/api/analyze' 
-          : `http://${window.location.hostname}:8000/api/analyze`;
-          
-      const response = await fetch(apiUrl, {
+      // 通过刚才配置的 vite proxy，相对路径 /api 会自动转发到 8000 端口
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64Img })
