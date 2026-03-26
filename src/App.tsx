@@ -19,9 +19,13 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => console.error('Video play error:', e));
+          };
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error accessing camera:", err);
+        alert("无法访问相机: " + err.message);
       }
     };
     startCamera();
@@ -274,7 +278,11 @@ export default function App() {
     setAppState('analyzing');
     setErrorMsg(null);
     try {
-      const response = await fetch('http://localhost:8000/api/analyze', {
+      const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+          ? 'http://localhost:8000/api/analyze' 
+          : `http://${window.location.hostname}:8000/api/analyze`;
+          
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64Img })
