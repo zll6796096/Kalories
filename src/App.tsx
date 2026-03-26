@@ -4,10 +4,41 @@ import { Aperture, Microscope, Activity } from 'lucide-react';
 
 import Webcam from "react-webcam";
 
-type AppState = 'camera' | 'analyzing' | 'result';
+type AppState = 'intro' | 'camera' | 'analyzing' | 'result';
 
+const IMG_START = "https://lh3.googleusercontent.com/aida-public/AB6AXuDQqT0j58tU_wO5j2kP4kP6eO6fD7xP7bO5j5YQ9g7q9zU4R2sN_P5k2fO6P_S5q9n6N4gP2r9v_mX0wO_w8lY2o8xY0x1v_P_g2N4L_W_S1L5X2fO9bW9eQ5h2b_O0lQ3f_Z_G";
 const IMG_ANALYZING = "https://lh3.googleusercontent.com/aida-public/AB6AXuBLlu2z-9xZpknZUyg84ueHFU56V3GsBxXOkIatGh6GFIM861Z-hzQ_bbDcOsSiMYam0G-g7IPO5Bx-Or1fn2r8RJB8tvXbrfzhrXFOoYl0k4N1gpQImEWxbhExILOiLLb_IVXPujZeu7jriNq-kVFw80AF9t7jc33iC0_npQgKNjI4xV9CF3d5K2UPm58omACEe1O85H-0RPt3X8KzxdLWraT7iQA66d7fX0scKOQBk_QSerHXAkJgMAnrcKDpsSnvAmepwZisHeY";
 const IMG_RESULT = "https://lh3.googleusercontent.com/aida-public/AB6AXuBrEBx6KywdOUY7JewDWBDftWH0Pwscxv1sfYr8nplT161TbSa4mIQxUtM0fF2VEcmHEWJfUD5VlvawnGx_dT6yaHzPiXbsbwcWf4vl32zXHeERXggw4eV4idw21H4QIYniJfyd1r9rDM9y25UZdU8MM-JJ1kpIT-Y1UMPqLpZFt2HEKZzNdxO2srn6maMXczjT4SoVlDsmKqPNyOeausWIm9W0A8wk44Y21HrojevRGwZr67cHfZs70wk7aUA2oM94_jEaVyeuMzM";
+
+const IntroScreen = ({ onStart, key }: { onStart: () => void, key?: string }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-0 flex flex-col items-center justify-center bg-black cursor-pointer"
+      onClick={onStart}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle,transparent_20%,rgba(14,14,14,0.8)_100%)]"></div>
+      
+      <div className="relative z-10 flex flex-col items-center">
+        <div className="w-24 h-24 bg-cyan-500/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(6,182,212,0.5)]">
+          <Aperture className="text-cyan-300" size={48} />
+        </div>
+        <h1 className="text-3xl font-extrabold text-white tracking-widest mb-2 drop-shadow-lg">
+          卡路里扫描仪
+        </h1>
+        <p className="text-gray-400 text-sm tracking-widest uppercase mb-12">
+          Kalories Vision Start
+        </p>
+        
+        <button className="px-8 py-4 bg-cyan-300 text-black font-bold rounded-full shadow-[0_0_20px_rgba(103,232,249,0.3)] hover:scale-105 active:scale-95 transition-all animate-pulse">
+          点击任意处唤醒相机
+        </button>
+      </div>
+    </motion.div>
+  );
+};
 
 const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => void, error: string | null, key?: string }) => {
   const webcamRef = useRef<Webcam>(null);
@@ -18,20 +49,6 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
       onCapture(imageSrc);
     } else {
       alert("错误：无法截取画面，请确保相机已开启");
-    }
-  };
-
-  const handleForcePlay = async () => {
-    // 强制 iOS 以用户交互为触发源播放视频
-    if (webcamRef.current && webcamRef.current.video) {
-        try {
-           await webcamRef.current.video.play();
-        } catch(e) {
-           console.error("Force play failed:", e);
-           alert("仍被系统拦截: " + String(e));
-        }
-    } else {
-        alert("组件尚未就绪");
     }
   };
 
@@ -51,7 +68,7 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
         ref={webcamRef}
         screenshotFormat="image/jpeg"
         forceScreenshotSourceSize={true}
-        videoConstraints={{ facingMode: "environment" }}  // 去除 ideal 强制使用后置，避免部分安卓手机 fallback 到前置
+        videoConstraints={{ facingMode: "environment" }}
         className="absolute inset-0 w-full h-full object-cover"
         style={{ width: '100%', height: '100%', objectFit: 'cover' }} // 增加显式内联样式防部分老浏览器抛弃类名
         onUserMedia={() => {
@@ -114,18 +131,11 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
       </div>
 
       <main className="relative z-20 flex flex-col items-center pb-20 mt-auto">
-        <div className="mb-4 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+        <div className="mb-10 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
           <p className="text-gray-300 text-sm font-medium tracking-wide">
             将食物置于取景框中心
           </p>
         </div>
-        
-        <button 
-          onClick={handleForcePlay} 
-          className="mb-8 px-4 py-1.5 bg-red-500/20 text-red-300 text-xs rounded-full border border-red-500/30 active:scale-95 transition"
-        >
-          [如果在 iPhone 遇到黑屏，请点击此处强行唤醒]
-        </button>
 
         <div className="relative flex items-center justify-center group cursor-pointer" onClick={handleCaptureClick}>
           <div className="absolute w-24 h-24 rounded-full border-4 border-cyan-300 transition-transform duration-300 group-active:scale-110"></div>
@@ -280,7 +290,7 @@ const ResultScreen = ({ onReturn, data }: { onReturn: () => void, data: any, key
 };
 
 export default function App() {
-  const [appState, setAppState] = useState<AppState>('camera');
+  const [appState, setAppState] = useState<AppState>('intro');
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -295,7 +305,8 @@ export default function App() {
         body: JSON.stringify({ image: base64Img })
       });
       if (!response.ok) {
-        throw new Error('API request failed: ' + response.statusText);
+        const errText = await response.text();
+        throw new Error(`请求失败 (Status ${response.status})\n${errText}`);
       }
       const data = await response.json();
       setAnalysisResult(data);
@@ -310,6 +321,7 @@ export default function App() {
   return (
     <div className="bg-black text-white font-sans min-h-screen overflow-hidden relative selection:bg-cyan-500 selection:text-white">
       <AnimatePresence mode="wait">
+        {appState === 'intro' && <IntroScreen key="intro" onStart={() => setAppState('camera')} />}
         {appState === 'camera' && <CameraScreen key="camera" onCapture={handleCapture} error={errorMsg} />}
         {appState === 'analyzing' && <AnalyzingScreen key="analyzing" />}
         {appState === 'result' && <ResultScreen key="result" data={analysisResult} onReturn={() => setAppState('camera')} />}

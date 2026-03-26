@@ -34,6 +34,7 @@ class AnalyzeResponse(BaseModel):
     fat: int = Field(description="脂肪含量 (克)")
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
+@app.post("/", response_model=AnalyzeResponse)
 async def analyze_food(request: AnalyzeRequest):
     try:
         if not os.environ.get("GEMINI_API_KEY"):
