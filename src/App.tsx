@@ -21,19 +21,36 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
     }
   };
 
+  const handleForcePlay = async () => {
+    // 强制 iOS 以用户交互为触发源播放视频
+    if (webcamRef.current && webcamRef.current.video) {
+        try {
+           await webcamRef.current.video.play();
+        } catch(e) {
+           console.error("Force play failed:", e);
+           alert("仍被系统拦截: " + String(e));
+        }
+    } else {
+        alert("组件尚未就绪");
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-0 flex flex-col"
+      className="fixed inset-0 z-0 flex flex-col bg-black"
     >
       {/* @ts-ignore: strictly typed react-webcam missing optional internal props */}
       <Webcam
         audio={false}
         muted={true}
+        width="100%"
+        height="100%"
         ref={webcamRef}
         screenshotFormat="image/jpeg"
+        forceScreenshotSourceSize={true}
         videoConstraints={{ facingMode: "environment" }}  // 去除 ideal 强制使用后置，避免部分安卓手机 fallback 到前置
         className="absolute inset-0 w-full h-full object-cover"
         style={{ width: '100%', height: '100%', objectFit: 'cover' }} // 增加显式内联样式防部分老浏览器抛弃类名
@@ -97,11 +114,18 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
       </div>
 
       <main className="relative z-20 flex flex-col items-center pb-20 mt-auto">
-        <div className="mb-10 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+        <div className="mb-4 px-6 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
           <p className="text-gray-300 text-sm font-medium tracking-wide">
             将食物置于取景框中心
           </p>
         </div>
+        
+        <button 
+          onClick={handleForcePlay} 
+          className="mb-8 px-4 py-1.5 bg-red-500/20 text-red-300 text-xs rounded-full border border-red-500/30 active:scale-95 transition"
+        >
+          [如果在 iPhone 遇到黑屏，请点击此处强行唤醒]
+        </button>
 
         <div className="relative flex items-center justify-center group cursor-pointer" onClick={handleCaptureClick}>
           <div className="absolute w-24 h-24 rounded-full border-4 border-cyan-300 transition-transform duration-300 group-active:scale-110"></div>
