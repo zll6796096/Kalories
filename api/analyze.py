@@ -54,7 +54,7 @@ async def analyze_food(request: AnalyzeRequest):
         prompt = "分析图片中的食物，如果识别成功，返回这道菜的名称、热量（kcal）、蛋白质（g）、碳水化合物（g）、脂肪（g）。如果是多种食物，可以估算总和或者主要部分的数值。"
         
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3-flash-preview',
             contents=[
                 types.Part.from_bytes(
                     data=file_bytes,
