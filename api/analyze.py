@@ -50,11 +50,11 @@ async def analyze_food(request: AnalyzeRequest):
             
         file_bytes = base64.b64decode(base64_data)
         
-        client = genai.Client()
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
         prompt = "分析图片中的食物，如果识别成功，返回这道菜的名称、热量（kcal）、蛋白质（g）、碳水化合物（g）、脂肪（g）。如果是多种食物，可以估算总和或者主要部分的数值。"
         
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=[
                 types.Part.from_bytes(
                     data=file_bytes,
