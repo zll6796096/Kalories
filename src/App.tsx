@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Aperture, Microscope, Activity } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 import Webcam from "react-webcam";
 
 type AppState = 'intro' | 'camera' | 'analyzing' | 'result';
-
-const IMG_START = "https://lh3.googleusercontent.com/aida-public/AB6AXuDQqT0j58tU_wO5j2kP4kP6eO6fD7xP7bO5j5YQ9g7q9zU4R2sN_P5k2fO6P_S5q9n6N4gP2r9v_mX0wO_w8lY2o8xY0x1v_P_g2N4L_W_S1L5X2fO9bW9eQ5h2b_O0lQ3f_Z_G";
-const IMG_ANALYZING = "https://lh3.googleusercontent.com/aida-public/AB6AXuBLlu2z-9xZpknZUyg84ueHFU56V3GsBxXOkIatGh6GFIM861Z-hzQ_bbDcOsSiMYam0G-g7IPO5Bx-Or1fn2r8RJB8tvXbrfzhrXFOoYl0k4N1gpQImEWxbhExILOiLLb_IVXPujZeu7jriNq-kVFw80AF9t7jc33iC0_npQgKNjI4xV9CF3d5K2UPm58omACEe1O85H-0RPt3X8KzxdLWraT7iQA66d7fX0scKOQBk_QSerHXAkJgMAnrcKDpsSnvAmepwZisHeY";
-const IMG_RESULT = "https://lh3.googleusercontent.com/aida-public/AB6AXuBrEBx6KywdOUY7JewDWBDftWH0Pwscxv1sfYr8nplT161TbSa4mIQxUtM0fF2VEcmHEWJfUD5VlvawnGx_dT6yaHzPiXbsbwcWf4vl32zXHeERXggw4eV4idw21H4QIYniJfyd1r9rDM9y25UZdU8MM-JJ1kpIT-Y1UMPqLpZFt2HEKZzNdxO2srn6maMXczjT4SoVlDsmKqPNyOeausWIm9W0A8wk44Y21HrojevRGwZr67cHfZs70wk7aUA2oM94_jEaVyeuMzM";
 
 const IntroScreen = ({ onStart, key }: { onStart: () => void, key?: string }) => {
   return (
@@ -150,7 +147,7 @@ const CameraScreen = ({ onCapture, error }: { onCapture: (base64Img: string) => 
   );
 };
 
-const AnalyzingScreen = ({ key }: { key?: string }) => {
+const AnalyzingScreen = ({ capturedImage, key }: { capturedImage: string | null, key?: string }) => {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -158,12 +155,14 @@ const AnalyzingScreen = ({ key }: { key?: string }) => {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-0 flex flex-col p-6 pt-16"
     >
-      <img
-        src={IMG_ANALYZING}
-        alt="Analyzing"
-        className="absolute inset-0 w-full h-full object-cover"
-        referrerPolicy="no-referrer"
-      />
+      {capturedImage && (
+        <img
+          src={capturedImage}
+          alt="Analyzing"
+          className="absolute inset-0 w-full h-full object-cover blur-sm brightness-50"
+          referrerPolicy="no-referrer"
+        />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] via-transparent to-[#0e0e0e] opacity-80"></div>
 
       <div className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center">
@@ -224,20 +223,42 @@ const AnalyzingScreen = ({ key }: { key?: string }) => {
   );
 };
 
-const ResultScreen = ({ onReturn, data }: { onReturn: () => void, data: any, key?: string }) => {
+const ResultScreen = ({ onReturn, data, capturedImage, key }: { onReturn: () => void, data: any, capturedImage: string | null, key?: string }) => {
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  const handleSaveAndReturn = async () => {
+    if (resultRef.current) {
+      try {
+        const canvas = await html2canvas(resultRef.current, { useCORS: true, backgroundColor: '#000' });
+        const image = canvas.toDataURL("image/jpeg", 1.0);
+        const link = document.createElement('a');
+        link.download = `kalories-result-${Date.now()}.jpg`;
+        link.href = image;
+        link.click();
+      } catch (err) {
+        console.error("Failed to save image", err);
+        alert("保存图片失败，请重试");
+      }
+    }
+    onReturn();
+  };
+
   return (
     <motion.div
+      ref={resultRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className="fixed inset-0 z-0 flex flex-col items-center justify-end min-h-screen p-6 pb-12"
     >
-      <img
-        src={IMG_RESULT}
-        alt="Result"
-        className="absolute inset-0 w-full h-full object-cover brightness-50 contrast-125"
-        referrerPolicy="no-referrer"
-      />
+      {capturedImage && (
+        <img
+          src={capturedImage}
+          alt="Result"
+          className="absolute inset-0 w-full h-full object-cover blur-md brightness-50 contrast-125"
+          referrerPolicy="no-referrer"
+        />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] via-transparent to-transparent opacity-90"></div>
 
       <div className="relative z-20 bg-black/60 backdrop-blur-2xl bg-gradient-to-br from-cyan-300/10 to-cyan-500/5 w-full max-w-md rounded-2xl p-8 space-y-8 shadow-2xl border border-white/10">
@@ -273,7 +294,7 @@ const ResultScreen = ({ onReturn, data }: { onReturn: () => void, data: any, key
         <div className="flex flex-col gap-3 pt-4">
           <button 
             className="w-full bg-cyan-300 text-black font-bold py-4 rounded-full text-lg shadow-[0_0_20px_rgba(103,232,249,0.3)] hover:scale-[0.98] transition-transform active:scale-95"
-            onClick={onReturn}
+            onClick={handleSaveAndReturn}
           >
             保存并返回
           </button>
@@ -293,8 +314,10 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>('intro');
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   const handleCapture = async (base64Img: string) => {
+    setCapturedImage(base64Img);
     setAppState('analyzing');
     setErrorMsg(null);
     try {
@@ -323,8 +346,11 @@ export default function App() {
       <AnimatePresence mode="wait">
         {appState === 'intro' && <IntroScreen key="intro" onStart={() => setAppState('camera')} />}
         {appState === 'camera' && <CameraScreen key="camera" onCapture={handleCapture} error={errorMsg} />}
-        {appState === 'analyzing' && <AnalyzingScreen key="analyzing" />}
-        {appState === 'result' && <ResultScreen key="result" data={analysisResult} onReturn={() => setAppState('camera')} />}
+        {appState === 'analyzing' && <AnalyzingScreen key="analyzing" capturedImage={capturedImage} />}
+        {appState === 'result' && <ResultScreen key="result" data={analysisResult} capturedImage={capturedImage} onReturn={() => {
+          setAppState('camera');
+          setCapturedImage(null);
+        }} />}
       </AnimatePresence>
     </div>
   );
