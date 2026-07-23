@@ -2,6 +2,7 @@
 
 import base64
 import inspect
+import json
 import os
 import unittest
 import warnings
@@ -157,6 +158,30 @@ class ImageDecodingTests(unittest.TestCase):
 
 
 class SchemaValidationTests(unittest.TestCase):
+    def test_model_analysis_rejects_stringly_typed_provider_values(self):
+        invalid_payloads = []
+
+        string_boolean = model_analysis().model_dump()
+        string_boolean["food_detected"] = "false"
+        invalid_payloads.append(string_boolean)
+
+        string_portion = model_analysis().model_dump()
+        string_portion["portion_grams"] = "320"
+        invalid_payloads.append(string_portion)
+
+        string_nutrient = model_analysis().model_dump()
+        string_nutrient["nutrients"]["calories_kcal"] = "600"
+        invalid_payloads.append(string_nutrient)
+
+        boolean_nutrient = model_analysis().model_dump()
+        boolean_nutrient["nutrients"]["protein_g"] = True
+        invalid_payloads.append(boolean_nutrient)
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValidationError):
+                    analyze.ModelAnalysis.model_validate(payload)
+
     def test_nutrients_reject_nan_and_infinite_values(self):
         for value in (float("nan"), float("inf"), float("-inf")):
             with self.subTest(value=value):
@@ -289,6 +314,19 @@ class GeminiProviderTests(unittest.TestCase):
             actual = analyze.call_gemini("configured-key", "image/png", PNG_BYTES)
 
         self.assertEqual("chicken rice", actual.food_names.en)
+
+    def test_call_gemini_rejects_stringly_typed_text_json(self):
+        stringly_typed = model_analysis().model_dump()
+        stringly_typed["food_detected"] = "false"
+        stringly_typed["portion_grams"] = "320"
+        stringly_typed["nutrients"]["calories_kcal"] = "600"
+        response = SimpleNamespace(parsed=None, text=json.dumps(stringly_typed))
+
+        with patch.object(analyze.genai, "Client") as client_class:
+            client = client_class.return_value.__enter__.return_value
+            client.models.generate_content.return_value = response
+            with self.assertRaises(ValidationError):
+                analyze.call_gemini("configured-key", "image/png", PNG_BYTES)
 
     def test_call_gemini_rejects_invalid_provider_model_values(self):
         invalid = model_analysis().model_dump()
@@ -430,6 +468,43 @@ class ApplicationContractTests(unittest.TestCase):
         self.assertEqual(200, success.status_code)
         self.assertEqual("chicken rice", success.json()["food_names"]["en"])
         self.assertIn("assessment", success.json())
+
+    def test_stringly_typed_or_assessment_provider_json_maps_to_owned_error(self):
+        stringly_typed = model_analysis().model_dump()
+        stringly_typed["food_detected"] = "false"
+        stringly_typed["portion_grams"] = "320"
+        stringly_typed["nutrients"]["calories_kcal"] = "600"
+
+        provider_assessment = model_analysis().model_dump()
+        provider_assessment["score"] = "82"
+
+        with TestClient(analyze.app) as client:
+            for label, provider_payload in (
+                ("stringly typed facts", stringly_typed),
+                ("provider supplied score", provider_assessment),
+            ):
+                with self.subTest(label=label):
+                    provider_response = SimpleNamespace(
+                        parsed=None,
+                        text=json.dumps(provider_payload),
+                    )
+                    with patch.dict(
+                        os.environ,
+                        {"GEMINI_API_KEY": "configured"},
+                    ):
+                        with patch.object(analyze.genai, "Client") as client_class:
+                            provider = client_class.return_value.__enter__.return_value
+                            provider.models.generate_content.return_value = provider_response
+                            response = client.post(
+                                "/api/analyze",
+                                json={"image": image_data_uri()},
+                            )
+
+                    self.assertEqual(502, response.status_code)
+                    self.assertEqual(
+                        {"detail": {"code": "ANALYSIS_FAILED"}},
+                        response.json(),
+                    )
 
     def test_malformed_requests_return_only_the_owned_invalid_image_error(self):
         cases = (

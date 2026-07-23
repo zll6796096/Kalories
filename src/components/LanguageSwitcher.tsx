@@ -2,6 +2,7 @@ import type {Locale} from '../types';
 
 interface LanguageSwitcherProps {
   locale: Locale;
+  label: string;
   onChange: (locale: Locale) => void;
 }
 
@@ -11,9 +12,13 @@ const languageOptions: ReadonlyArray<{locale: Locale; label: string}> = [
   {locale: 'en', label: 'EN'},
 ];
 
-export function LanguageSwitcher({locale, onChange}: LanguageSwitcherProps) {
+export function LanguageSwitcher({
+  locale,
+  label,
+  onChange,
+}: LanguageSwitcherProps) {
   return (
-    <div className="language-switcher" role="group" aria-label="Language">
+    <div className="language-switcher" role="group" aria-label={label}>
       {languageOptions.map((option) => (
         <button
           key={option.locale}

@@ -183,47 +183,53 @@ The response is conceptually:
 {
   "food_detected": true,
   "food_names": {
-    "zh": "烤鸡胸藜麦碗",
-    "ja": "グリルチキンとキヌア",
-    "en": "Grilled chicken quinoa bowl"
+    "zh": "烤鲑鱼套餐",
+    "ja": "焼き鮭定食",
+    "en": "Grilled salmon set"
   },
-  "portion_grams": 430,
+  "portion_grams": 420,
   "nutrients": {
-    "calories_kcal": 486,
-    "protein_g": 36,
-    "carbs_g": 54,
-    "fat_g": 25,
-    "fiber_g": 5,
-    "sugar_g": 8,
-    "sodium_mg": 920
+    "calories_kcal": 640,
+    "protein_g": 34,
+    "carbs_g": 68,
+    "fat_g": 24,
+    "fiber_g": 8.4,
+    "sugar_g": 12,
+    "sodium_mg": 980
   },
   "confidence": {
-    "overall": "medium",
+    "overall": "high",
     "portion": "medium",
     "nutrients": {
-      "calories_kcal": "medium",
-      "protein_g": "medium",
+      "calories_kcal": "high",
+      "protein_g": "high",
       "carbs_g": "medium",
       "fat_g": "medium",
-      "fiber_g": "low",
+      "fiber_g": "medium",
       "sugar_g": "low",
       "sodium_mg": "low"
     }
   },
-  "assumption_keys": ["visible_portion_only", "seasoning_estimated"],
+  "assumption_keys": [],
   "assessment": {
-    "score": 82,
-    "tier": "balanced",
+    "score": 64,
+    "tier": "mostly_balanced",
     "statuses": {
-      "protein_g": "appropriate",
-      "carbs_g": "appropriate",
+      "calories_kcal": "appropriate",
+      "protein_g": "high",
+      "carbs_g": "low",
       "fat_g": "high",
-      "fiber_g": "low",
-      "sugar_g": "indeterminate",
+      "fiber_g": "appropriate",
+      "sugar_g": "appropriate",
       "sodium_mg": "high"
     },
-    "suggestion_keys": ["reduce_sauce", "add_vegetables"],
-    "scoring_reasons": ["macro_balance_good", "sodium_high", "fiber_low"],
+    "suggestion_keys": ["reduce_sauce", "adjust_staple"],
+    "scoring_reasons": [
+      "protein_g_high",
+      "fat_g_high",
+      "carbs_g_low",
+      "sodium_high"
+    ],
     "insufficient_data": false
   }
 }

@@ -4,6 +4,7 @@ export const LOCALE_STORAGE_KEY = 'kalories.locale';
 
 export interface Messages {
   appName: string;
+  languageLabel: string;
   introEyebrow: string;
   introTitle: string;
   introBody: string;
@@ -71,6 +72,7 @@ export interface Messages {
 export const messages: Record<Locale, Messages> = {
   zh: {
     appName: 'Kalories',
+    languageLabel: '语言',
     introEyebrow: 'AI 饮食分析',
     introTitle: '一张照片，更了解这一餐。',
     introBody: '通过照片估算热量与营养结构。',
@@ -136,6 +138,7 @@ export const messages: Record<Locale, Messages> = {
   },
   ja: {
     appName: 'Kalories',
+    languageLabel: '言語',
     introEyebrow: 'AI 食事分析',
     introTitle: '一枚の写真から、食事をもっと理解する。',
     introBody: 'カロリーと栄養バランスを写真から推定します。',
@@ -202,6 +205,7 @@ export const messages: Record<Locale, Messages> = {
   },
   en: {
     appName: 'Kalories',
+    languageLabel: 'Language',
     introEyebrow: 'AI meal analysis',
     introTitle: 'Understand your meal from one photo.',
     introBody: 'Estimate calories and nutritional balance from a photo.',
@@ -271,6 +275,15 @@ export const messages: Record<Locale, Messages> = {
 };
 
 const supportedLocales = new Set<Locale>(['zh', 'ja', 'en']);
+const documentLanguages: Record<Locale, string> = {
+  zh: 'zh-CN',
+  ja: 'ja',
+  en: 'en',
+};
+
+export function documentLanguage(locale: Locale): string {
+  return documentLanguages[locale];
+}
 
 function supportedLocale(value: string | null | undefined): Locale | null {
   const baseLanguage = value?.trim().toLowerCase().split('-')[0];

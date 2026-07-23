@@ -37,19 +37,24 @@ const result: AnalysisResult = {
   },
   assumption_keys: [],
   assessment: {
-    score: 82,
-    tier: 'balanced',
+    score: 64,
+    tier: 'mostly_balanced',
     statuses: {
       calories_kcal: 'appropriate',
-      protein_g: 'appropriate',
-      carbs_g: 'appropriate',
-      fat_g: 'appropriate',
+      protein_g: 'high',
+      carbs_g: 'low',
+      fat_g: 'high',
       fiber_g: 'appropriate',
-      sugar_g: 'low',
+      sugar_g: 'appropriate',
       sodium_mg: 'high',
     },
-    suggestion_keys: ['add_vegetables', 'reduce_sauce'],
-    scoring_reasons: [],
+    suggestion_keys: ['reduce_sauce', 'adjust_staple'],
+    scoring_reasons: [
+      'protein_g_high',
+      'fat_g_high',
+      'carbs_g_low',
+      'sodium_high',
+    ],
     insufficient_data: false,
   },
 };
@@ -83,9 +88,9 @@ describe('ResultScreen', () => {
 
     expect(html).toContain('<main class="result-page"');
     expect(html).toContain('Grilled salmon set');
-    expect(html).toContain('82');
+    expect(html).toContain('64');
     expect(html).toContain('/100');
-    expect(html).toContain('Balanced');
+    expect(html).toContain('Mostly balanced');
 
     for (const value of [
       '640 kcal',
@@ -108,8 +113,8 @@ describe('ResultScreen', () => {
 
     expect(html).toContain(messages.en.disclaimer);
     expect(html).toContain(messages.en.referenceBasis);
-    expect(html).toContain(messages.en.suggestionAddVegetables);
     expect(html).toContain(messages.en.suggestionReduceSauce);
+    expect(html).toContain(messages.en.suggestionAdjustStaple);
     expect(html.match(/Estimate confidence/g)?.length).toBeGreaterThanOrEqual(9);
     expect(html).toContain('Low');
     expect(html).toContain(
@@ -227,12 +232,27 @@ describe('ResultScreen', () => {
   });
 
   it.each([
-    ['zh', messages.zh.assumptionsTitle, messages.zh.assumptionVisiblePortionOnly],
-    ['ja', messages.ja.assumptionsTitle, messages.ja.assumptionVisiblePortionOnly],
-    ['en', messages.en.assumptionsTitle, messages.en.assumptionVisiblePortionOnly],
+    [
+      'zh',
+      messages.zh.assumptionsTitle,
+      messages.zh.assumptionVisiblePortionOnly,
+      '语言',
+    ],
+    [
+      'ja',
+      messages.ja.assumptionsTitle,
+      messages.ja.assumptionVisiblePortionOnly,
+      '言語',
+    ],
+    [
+      'en',
+      messages.en.assumptionsTitle,
+      messages.en.assumptionVisiblePortionOnly,
+      'Language',
+    ],
   ] as const)(
     'switches assumption copy to %s without changing analysis data',
-    (locale, title, assumption) => {
+    (locale, title, assumption, languageLabel) => {
       const html = renderToStaticMarkup(
         <ResultScreen
           locale={locale}
@@ -249,6 +269,7 @@ describe('ResultScreen', () => {
       expect(html).toContain(title);
       expect(html).toContain(assumption);
       expect(html).toContain('640 kcal');
+      expect(html).toContain(`aria-label="${languageLabel}"`);
     },
   );
 
@@ -259,6 +280,30 @@ describe('ResultScreen', () => {
     expect(html.match(/<button/g)?.length).toBeGreaterThanOrEqual(5);
     expect(html).toContain('aria-pressed="true"');
     expect(html).not.toContain('role="tab"');
+  });
+
+  it('keeps the canonical evaluator output visible without fixture drift', () => {
+    expect(result.assessment).toEqual({
+      score: 64,
+      tier: 'mostly_balanced',
+      statuses: {
+        calories_kcal: 'appropriate',
+        protein_g: 'high',
+        carbs_g: 'low',
+        fat_g: 'high',
+        fiber_g: 'appropriate',
+        sugar_g: 'appropriate',
+        sodium_mg: 'high',
+      },
+      suggestion_keys: ['reduce_sauce', 'adjust_staple'],
+      scoring_reasons: [
+        'protein_g_high',
+        'fat_g_high',
+        'carbs_g_low',
+        'sodium_high',
+      ],
+      insufficient_data: false,
+    });
   });
 
   it('renders the save action initially enabled and not busy', () => {

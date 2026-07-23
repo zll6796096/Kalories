@@ -1002,6 +1002,9 @@ export const resolveInitialLocale = (
 export const persistLocale = (locale: Locale): void => {
   window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
 };
+
+export const documentLanguage = (locale: Locale): string =>
+  ({ zh: 'zh-CN', ja: 'ja', en: 'en' })[locale];
 ```
 
 Define and export a `Messages` interface and complete `messages` dictionaries containing these exact keys:
@@ -1009,6 +1012,7 @@ Define and export a `Messages` interface and complete `messages` dictionaries co
 ```typescript
 export interface Messages {
   appName: string;
+  languageLabel: string;
   introEyebrow: string;
   introTitle: string;
   introBody: string;
@@ -1075,6 +1079,7 @@ Use this exact translation content:
 export const messages: Record<Locale, Messages> = {
   ja: {
     appName: 'Kalories',
+    languageLabel: '言語',
     introEyebrow: 'AI 食事分析',
     introTitle: '一枚の写真から、食事をもっと理解する。',
     introBody: 'カロリーと栄養バランスを写真から推定します。',
@@ -1135,6 +1140,7 @@ export const messages: Record<Locale, Messages> = {
   },
   zh: {
     appName: 'Kalories',
+    languageLabel: '语言',
     introEyebrow: 'AI 饮食分析',
     introTitle: '一张照片，更了解这一餐。',
     introBody: '通过照片估算热量与营养结构。',
@@ -1195,6 +1201,7 @@ export const messages: Record<Locale, Messages> = {
   },
   en: {
     appName: 'Kalories',
+    languageLabel: 'Language',
     introEyebrow: 'AI meal analysis',
     introTitle: 'Understand your meal from one photo.',
     introBody: 'Estimate calories and nutritional balance from a photo.',
@@ -1343,48 +1350,53 @@ import { ResultScreen } from './ResultScreen';
 const fixture: AnalysisResult = {
   food_detected: true,
   food_names: {
-    zh: '烤鸡胸藜麦碗',
-    ja: 'グリルチキンとキヌア',
-    en: 'Grilled chicken quinoa bowl',
+    zh: '烤鲑鱼套餐',
+    ja: '焼き鮭定食',
+    en: 'Grilled salmon set',
   },
-  portion_grams: 430,
+  portion_grams: 420,
   nutrients: {
-    calories_kcal: 486,
-    protein_g: 36,
-    carbs_g: 54,
-    fat_g: 25,
-    fiber_g: 5,
-    sugar_g: 8,
-    sodium_mg: 920,
+    calories_kcal: 640,
+    protein_g: 34,
+    carbs_g: 68,
+    fat_g: 24,
+    fiber_g: 8.4,
+    sugar_g: 12,
+    sodium_mg: 980,
   },
   confidence: {
-    overall: 'medium',
+    overall: 'high',
     portion: 'medium',
     nutrients: {
-      calories_kcal: 'medium',
-      protein_g: 'medium',
+      calories_kcal: 'high',
+      protein_g: 'high',
       carbs_g: 'medium',
       fat_g: 'medium',
-      fiber_g: 'low',
+      fiber_g: 'medium',
       sugar_g: 'low',
       sodium_mg: 'low',
     },
   },
-  assumption_keys: ['seasoning_estimated'],
+  assumption_keys: [],
   assessment: {
-    score: 82,
-    tier: 'balanced',
+    score: 64,
+    tier: 'mostly_balanced',
     statuses: {
       calories_kcal: 'appropriate',
-      protein_g: 'appropriate',
-      carbs_g: 'appropriate',
+      protein_g: 'high',
+      carbs_g: 'low',
       fat_g: 'high',
-      fiber_g: 'low',
-      sugar_g: 'low',
+      fiber_g: 'appropriate',
+      sugar_g: 'appropriate',
       sodium_mg: 'high',
     },
-    suggestion_keys: ['reduce_sauce', 'add_vegetables'],
-    scoring_reasons: ['sodium_high', 'fiber_low'],
+    suggestion_keys: ['reduce_sauce', 'adjust_staple'],
+    scoring_reasons: [
+      'protein_g_high',
+      'fat_g_high',
+      'carbs_g_low',
+      'sodium_high',
+    ],
     insufficient_data: false,
   },
 };
@@ -1402,9 +1414,9 @@ describe('ResultScreen', () => {
         onSaveError={() => undefined}
       />,
     );
-    expect(html).toContain('グリルチキンとキヌア');
-    expect(html).toContain('82');
-    for (const value of ['486', '36', '54', '25', '5', '8', '920', '430']) {
+    expect(html).toContain('焼き鮭定食');
+    expect(html).toContain('64');
+    for (const value of ['640', '34', '68', '24', '8.4', '12', '980', '420']) {
       expect(html).toContain(value);
     }
     expect(html).toContain(messages.ja.disclaimer);
@@ -1457,13 +1469,15 @@ const options: Array<{ locale: Locale; label: string }> = [
 
 export function LanguageSwitcher({
   locale,
+  label,
   onChange,
 }: {
   locale: Locale;
+  label: string;
   onChange: (locale: Locale) => void;
 }) {
   return (
-    <div className="language-switcher" aria-label="Language">
+    <div className="language-switcher" role="group" aria-label={label}>
       {options.map((option) => (
         <button
           type="button"

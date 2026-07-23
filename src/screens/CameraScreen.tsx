@@ -93,7 +93,11 @@ export function CameraScreen({
           <span className="wordmark wordmark-light">{text.appName}</span>
           <h1>{text.cameraTitle}</h1>
         </div>
-        <LanguageSwitcher locale={locale} onChange={onLocaleChange} />
+        <LanguageSwitcher
+          locale={locale}
+          label={text.languageLabel}
+          onChange={onLocaleChange}
+        />
       </header>
 
       <div className="camera-viewport">

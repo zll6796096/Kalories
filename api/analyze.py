@@ -59,7 +59,12 @@ AssessmentTier = Literal[
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        allow_inf_nan=False,
+        str_strip_whitespace=True,
+        strict=True,
+    )
 
 
 class ImageValidationError(ValueError):

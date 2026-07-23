@@ -1,7 +1,13 @@
 import {useEffect, useReducer, useRef} from 'react';
 
 import {AnalysisApiError, analyzeImage} from './api';
-import {messages, persistLocale, resolveLocale, type Messages} from './i18n';
+import {
+  documentLanguage,
+  messages,
+  persistLocale,
+  resolveLocale,
+  type Messages,
+} from './i18n';
 import {
   ImagePreparationError,
   prepareImageForAnalysis,
@@ -182,6 +188,12 @@ export default function App() {
   const requestSequence = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   const text = messages[model.locale];
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = documentLanguage(model.locale);
+    }
+  }, [model.locale]);
 
   useEffect(
     () => () => {

@@ -182,7 +182,11 @@ export function ResultScreen({
       <header className="result-hero">
         <div className="result-toolbar">
           <span className="wordmark">{text.appName}</span>
-          <LanguageSwitcher locale={locale} onChange={onLocaleChange} />
+          <LanguageSwitcher
+            locale={locale}
+            label={text.languageLabel}
+            onChange={onLocaleChange}
+          />
         </div>
         {capturedImage && (
           <img className="result-photo" src={capturedImage} alt={foodName} />

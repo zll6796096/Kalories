@@ -21,7 +21,11 @@ export function AnalyzingScreen({
     <main className="app-screen analyzing-screen">
       <header className="screen-toolbar">
         <span className="wordmark">{text.appName}</span>
-        <LanguageSwitcher locale={locale} onChange={onLocaleChange} />
+        <LanguageSwitcher
+          locale={locale}
+          label={text.languageLabel}
+          onChange={onLocaleChange}
+        />
       </header>
 
       <section className="analyzing-card" aria-labelledby="analyzing-title">

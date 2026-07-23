@@ -21,7 +21,11 @@ export function IntroScreen({
     <main className="app-screen intro-screen">
       <header className="screen-toolbar">
         <span className="wordmark">{text.appName}</span>
-        <LanguageSwitcher locale={locale} onChange={onLocaleChange} />
+        <LanguageSwitcher
+          locale={locale}
+          label={text.languageLabel}
+          onChange={onLocaleChange}
+        />
       </header>
 
       <section className="intro-card" aria-labelledby="intro-title">

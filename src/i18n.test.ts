@@ -6,9 +6,11 @@ import {
   persistLocale,
   resolveLocale,
 } from './i18n';
+import * as i18n from './i18n';
 
 const expectedMessageKeys = [
   'appName',
+  'languageLabel',
   'introEyebrow',
   'introTitle',
   'introBody',
@@ -74,6 +76,24 @@ const expectedMessageKeys = [
 ] as const;
 
 describe('locale resolution', () => {
+  it('maps app locales to standards-compatible document language tags', () => {
+    const documentLanguage = (
+      i18n as unknown as {
+        documentLanguage?: (locale: 'zh' | 'ja' | 'en') => string;
+      }
+    ).documentLanguage;
+
+    expect(documentLanguage).toBeTypeOf('function');
+    if (!documentLanguage) {
+      return;
+    }
+    expect({
+      zh: documentLanguage('zh'),
+      ja: documentLanguage('ja'),
+      en: documentLanguage('en'),
+    }).toEqual({zh: 'zh-CN', ja: 'ja', en: 'en'});
+  });
+
   it('uses a saved supported locale before device preferences', () => {
     expect(resolveLocale('zh', ['en-US', 'ja-JP'])).toBe('zh');
   });
@@ -127,6 +147,14 @@ describe('message dictionaries', () => {
     expect(messages.en.referenceBasis).toBe(
       'Based on the Dietary Reference Intakes for Japanese (2025) and WHO guidance.',
     );
+  });
+
+  it('contains the exact localized language control labels', () => {
+    expect({
+      zh: messages.zh.languageLabel,
+      ja: messages.ja.languageLabel,
+      en: messages.en.languageLabel,
+    }).toEqual({zh: '语言', ja: '言語', en: 'Language'});
   });
 
   it('contains the exact approved assumption copy in every language', () => {
