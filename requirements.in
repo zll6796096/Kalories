@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+google-genai
+python-multipart
+pydantic
+python-dotenv
+Pillow>=11,<13

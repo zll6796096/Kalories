@@ -49,7 +49,7 @@
 - `src/main.tsx`
 - `index.html`
 - `.env.example`
-- `requirements.txt` unless a genuinely missing runtime dependency is discovered by a clean install check.
+- `requirements.in` is the human-maintained direct dependency input; `requirements.txt` is the exact Python 3.12 deployment lock and changes only when a clean resolution check requires it.
 
 ---
 
@@ -1841,7 +1841,7 @@ sauces, sugar, sodium, fillings, and portion size can materially change the resu
 ## Local development
 
 1. Install frontend dependencies: `npm install`
-2. Install Python dependencies: `python -m pip install -r requirements.txt`
+2. Create the pinned runtime and install Python deployment dependencies: `uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt`
 3. Add `GEMINI_API_KEY` to `.env`
 4. Start the API:
    `python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000`

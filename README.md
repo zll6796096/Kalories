@@ -17,15 +17,15 @@ Kalories 是一个相机优先的餐食营养估算器。拍摄一餐后，应�
 
 ## 本地运行
 
-需要 Node.js、npm 和 Python 3。
+需要 Node.js、npm 和 `uv`。仓库通过 `.python-version` 将本地干净验证和 Vercel 部署统一到 Python 3.12。
 
 ```bash
 npm install
-python3 -m venv venv
-venv/bin/python -m pip install -r requirements.lock
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
-`requirements.txt` 是人工维护的直接依赖输入；`requirements.lock` 锁定已验证的完整传递依赖，供日常开发和部署复现环境。
+`requirements.in` 是人工维护的七项直接依赖输入；Vercel 识别的 `requirements.txt` 是 Python 3.12、Linux 目标下生成并验证的完整精确部署锁。部署和本地验收都必须安装 `requirements.txt`，不能绕过锁文件解析直接依赖。
 
 在仓库根目录创建 `.env`，仅供后端读取：
 
@@ -38,7 +38,7 @@ GEMINI_API_KEY=your_backend_key
 分别启动 API 和界面：
 
 ```bash
-venv/bin/python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000
 ```
 
 ```bash
@@ -59,9 +59,10 @@ API 接受 JPEG、PNG 和 WebP。前端会在上传前缩放并压缩照片；�
 npm test
 npm run lint
 npm run build
-venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
-venv/bin/python -m compileall -q api lib tests
-venv/bin/python -m pip check
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m compileall -q api lib tests
+.venv/bin/python -c "import api.analyze, lib.nutrition"
+.venv/bin/python -m pip check
 git diff --check
 ```
 
@@ -69,10 +70,10 @@ git diff --check
 
 ### 更新 Python 依赖
 
-1. 编辑作为输入的 `requirements.txt`。
-2. 在干净的虚拟环境中安装输入依赖，并用 `pip freeze` 重新生成精确版本的 `requirements.lock`。
-3. 使用新 lock 重建环境，运行后端测试、`compileall` 和 `pip check`。
-4. 运行 `pip-audit --no-deps --disable-pip -r requirements.lock`（lock 已包含全部精确传递依赖），确认安全审计结果后再提交两个依赖文件。
+1. 只编辑人工输入 `requirements.in`，不要手工升级单个传递依赖。
+2. 用 `uv pip compile --python 3.12 --python-platform x86_64-manylinux_2_28 --only-binary=:all: --no-annotate requirements.in -o requirements.txt` 重新生成 Vercel 部署锁；生成结果必须保持精确 `==` 版本且不含本地、URL 或 editable 依赖。
+3. 用 `uv venv --python 3.12 .venv` 创建干净环境，再以 `uv pip install --python .venv/bin/python -r requirements.txt` 安装部署锁，运行后端测试、`compileall`、导入检查和 `.venv/bin/python -m pip check`，并比较 `pip freeze` 与 `requirements.txt` 的包版本。
+4. 分别确认 CPython 3.12 的 macOS arm64 与 manylinux x86_64 wheel 可用；运行 `pip-audit --no-deps --disable-pip -r requirements.txt`，结果无已知漏洞后再提交输入和部署锁。
 
 ## 参考依据
 

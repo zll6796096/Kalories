@@ -14,6 +14,12 @@ const metadata = JSON.parse(
 const packageManifest = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
 ) as {name?: unknown};
+const repositoryFile = (name: string) =>
+  new URL(`../${name}`, import.meta.url);
+const readRepositoryFile = (name: string) => {
+  const url = repositoryFile(name);
+  return existsSync(url) ? readFileSync(url, 'utf8') : '';
+};
 
 describe('product metadata', () => {
   it('uses the Kalories identity across product and npm manifests', () => {
@@ -43,5 +49,76 @@ describe('product metadata', () => {
     expect(faviconSvg).toContain('</svg>');
     expect(faviconSvg).not.toContain('<script');
     expect(faviconSvg).not.toMatch(/(?:href|src)=["']https?:\/\//);
+  });
+});
+
+describe('Python deployment metadata', () => {
+  it('targets Python 3.12 for deployment and clean verification', () => {
+    expect(existsSync(repositoryFile('.python-version'))).toBe(true);
+    expect(readRepositoryFile('.python-version').trim()).toBe('3.12');
+  });
+
+  it('keeps only the seven human-maintained direct dependencies in requirements.in', () => {
+    expect(existsSync(repositoryFile('requirements.in'))).toBe(true);
+    expect(
+      readRepositoryFile('requirements.in')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ).toEqual([
+      'fastapi',
+      'uvicorn',
+      'google-genai',
+      'python-multipart',
+      'pydantic',
+      'python-dotenv',
+      'Pillow>=11,<13',
+    ]);
+  });
+
+  it('uses requirements.txt as the exact deployment lock', () => {
+    expect(existsSync(repositoryFile('requirements.lock'))).toBe(false);
+    const lines = readRepositoryFile('requirements.txt')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+
+    expect(lines.length).toBeGreaterThan(7);
+    expect(
+      lines.every((line) =>
+        /^[A-Za-z0-9_.-]+==[A-Za-z0-9][A-Za-z0-9.!+_-]*$/.test(line),
+      ),
+    ).toBe(true);
+    expect(lines.some((line) => /(?:^|[\s])(?:-e|--editable|--find-links)\b/.test(line))).toBe(
+      false,
+    );
+    expect(lines.some((line) => /(?:file:|https?:|git\+)/i.test(line))).toBe(
+      false,
+    );
+
+    const packageNames = new Set(
+      lines.map((line) => line.split('==', 1)[0].toLowerCase().replaceAll('_', '-')),
+    );
+    for (const excludedPackage of [
+      'pip',
+      'setuptools',
+      'wheel',
+      'pip-audit',
+      'pytest',
+      'ruff',
+    ]) {
+      expect(packageNames.has(excludedPackage), excludedPackage).toBe(false);
+    }
+    for (const directPackage of [
+      'fastapi',
+      'uvicorn',
+      'google-genai',
+      'python-multipart',
+      'pydantic',
+      'python-dotenv',
+      'pillow',
+    ]) {
+      expect(packageNames.has(directPackage), directPackage).toBe(true);
+    }
   });
 });

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import unittest
 
+from api.analyze import AnalyzeResponse
 from lib.nutrition import assess_nutrition
 
 CANONICAL_FIXTURE_PATH = (
@@ -33,9 +34,11 @@ def high_confidence(*, nutrients=None, **overrides):
 class AssessNutritionTests(unittest.TestCase):
     def test_canonical_salmon_fixture_matches_the_documented_contract(self):
         fixture = json.loads(CANONICAL_FIXTURE_PATH.read_text(encoding="utf-8"))
+        validated_fixture = AnalyzeResponse.model_validate(fixture)
+
+        self.assertEqual(fixture, validated_fixture.model_dump(mode="json"))
 
         result = assess_nutrition(fixture["nutrients"], fixture["confidence"])
-
         self.assertEqual(fixture["assessment"], result)
 
     def test_representative_meal_is_balanced_with_appropriate_macros(self):
