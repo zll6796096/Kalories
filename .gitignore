@@ -14,3 +14,7 @@ __pycache__/
 
 # Isolated feature workspaces
 .worktrees/
+
+# Local test and agent artifacts
+.superpowers/
+output/playwright/
