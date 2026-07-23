@@ -202,6 +202,24 @@ describe('analyzeImage', () => {
     ).rejects.toMatchObject({code: 'ANALYSIS_FAILED'});
   });
 
+  it.each([true, false])(
+    'maps a transport failure while reading a response body to NETWORK_ERROR (ok=%s)',
+    async (ok) => {
+      const fetcher = vi.fn<typeof fetch>();
+      fetcher.mockResolvedValue({
+        ok,
+        json: vi.fn().mockRejectedValue(new TypeError('terminated')),
+      } as unknown as Response);
+
+      const error = await analyzeImage('data:image/jpeg;base64,AA==', {
+        fetcher,
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({code: 'NETWORK_ERROR'});
+      expect(String(error)).not.toContain('terminated');
+    },
+  );
+
   it('rejects a success body that does not match the analysis contract', async () => {
     const fetcher = vi.fn<typeof fetch>();
     fetcher.mockResolvedValue(response({food_detected: true}));

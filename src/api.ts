@@ -125,6 +125,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function hasOwn(value: object, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function hasExactKeys(
   value: unknown,
   keys: readonly string[],
@@ -136,7 +140,7 @@ function hasExactKeys(
   const actualKeys = Object.keys(value);
   return (
     actualKeys.length === keys.length &&
-    keys.every((key) => Object.hasOwn(value, key))
+    keys.every((key) => hasOwn(value, key))
   );
 }
 
@@ -390,7 +394,10 @@ async function readJsonSafely(
       }
       throw new AnalysisApiError('NETWORK_ERROR');
     }
-    return null;
+    if (error instanceof SyntaxError) {
+      return null;
+    }
+    throw new AnalysisApiError('NETWORK_ERROR');
   }
 }
 
