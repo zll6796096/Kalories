@@ -33,6 +33,10 @@ const expectedMessageKeys = [
   'assumptionSeasoningEstimated',
   'assumptionHiddenIngredientsPossible',
   'estimatedScore',
+  'strongestPositive',
+  'mainConcern',
+  'noClearPositive',
+  'noMajorConcern',
   'tierBalanced',
   'tierMostlyBalanced',
   'tierNeedsAttention',
@@ -155,6 +159,48 @@ describe('message dictionaries', () => {
       ja: messages.ja.languageLabel,
       en: messages.en.languageLabel,
     }).toEqual({zh: '语言', ja: '言語', en: 'Language'});
+  });
+
+  it('contains the exact localized deterministic finding copy', () => {
+    expect({
+      zh: {
+        strongestPositive: messages.zh.strongestPositive,
+        mainConcern: messages.zh.mainConcern,
+        noClearPositive: messages.zh.noClearPositive,
+        noMajorConcern: messages.zh.noMajorConcern,
+      },
+      ja: {
+        strongestPositive: messages.ja.strongestPositive,
+        mainConcern: messages.ja.mainConcern,
+        noClearPositive: messages.ja.noClearPositive,
+        noMajorConcern: messages.ja.noMajorConcern,
+      },
+      en: {
+        strongestPositive: messages.en.strongestPositive,
+        mainConcern: messages.en.mainConcern,
+        noClearPositive: messages.en.noClearPositive,
+        noMajorConcern: messages.en.noMajorConcern,
+      },
+    }).toEqual({
+      zh: {
+        strongestPositive: '主要优点',
+        mainConcern: '主要关注点',
+        noClearPositive: '暂时无法判断明确优点。',
+        noMajorConcern: '未发现明显需要关注的项目。',
+      },
+      ja: {
+        strongestPositive: '主な良い点',
+        mainConcern: '主な注目点',
+        noClearPositive: 'はっきりした良い点を判断できません。',
+        noMajorConcern: '大きな見直し点は見つかりませんでした。',
+      },
+      en: {
+        strongestPositive: 'Strongest positive',
+        mainConcern: 'Main concern',
+        noClearPositive: 'Not enough information to identify a clear positive.',
+        noMajorConcern: 'No major concern was identified.',
+      },
+    });
   });
 
   it('contains the exact approved assumption copy in every language', () => {

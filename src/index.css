@@ -569,6 +569,7 @@ p {
 
 .result-summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   padding: clamp(1.25rem, 5vw, 2rem);
@@ -615,6 +616,38 @@ p {
 .score-display.tier-indeterminate {
   color: #5f5f64;
   background: #eeeeF2;
+}
+
+.result-findings {
+  display: grid;
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  gap: 0.8rem;
+}
+
+.result-finding {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(6.5rem, 0.38fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.result-finding > span {
+  color: #6e6e73;
+  font-size: 0.72rem;
+  font-weight: 680;
+}
+
+.result-finding p {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 0.86rem;
+  font-weight: 620;
+  line-height: 1.4;
 }
 
 .energy-summary,
@@ -691,6 +724,65 @@ p {
 .status-high {
   color: #765700;
   background: #fff2c2;
+}
+
+.status-rail {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+  height: 0.32rem;
+  margin-top: 0.35rem;
+  gap: 0.18rem;
+}
+
+.status-rail-segment {
+  position: relative;
+  min-width: 0;
+  border-radius: 999px;
+}
+
+.status-rail-segment-low {
+  background: #cae9f7;
+}
+
+.status-rail-segment-appropriate {
+  background: #ccebd8;
+}
+
+.status-rail-segment-high {
+  background: #f7dfa0;
+}
+
+.status-rail-indeterminate .status-rail-segment {
+  background: #dedee3;
+}
+
+.status-rail-segment-active::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.7rem;
+  height: 0.7rem;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  content: "";
+  background: currentColor;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.status-rail-segment-low.status-rail-segment-active {
+  color: #0071a8;
+}
+
+.status-rail-segment-appropriate.status-rail-segment-active {
+  color: #198754;
+}
+
+.status-rail-segment-high.status-rail-segment-active {
+  color: #b27a00;
 }
 
 .advice-card {
@@ -841,6 +933,15 @@ p {
 
   .score-display {
     align-self: flex-end;
+  }
+
+  .result-findings {
+    margin-top: 0.15rem;
+  }
+
+  .result-finding {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
   }
 }
 

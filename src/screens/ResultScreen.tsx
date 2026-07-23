@@ -11,6 +11,7 @@ import type {
   ConfidenceLevel,
   Locale,
   NutrientKey,
+  NutrientStatus,
 } from '../types';
 
 interface ResultScreenProps {
@@ -39,15 +40,72 @@ const tierMessageKeys: Record<AssessmentTier, keyof Messages> = {
   indeterminate: 'tierIndeterminate',
 };
 
-const suggestionMessageKeys: Readonly<Record<string, keyof Messages>> = {
-  add_vegetables: 'suggestionAddVegetables',
-  reduce_sauce: 'suggestionReduceSauce',
-  reduce_sweet_items: 'suggestionReduceSweetItems',
-  reduce_fat: 'suggestionReduceFat',
-  add_protein: 'suggestionAddProtein',
-  adjust_staple: 'suggestionAdjustStaple',
-  reduce_portion: 'suggestionReducePortion',
+const suggestionDefinitions = {
+  add_vegetables: {
+    message: 'suggestionAddVegetables',
+    nutrient: 'fiber_g',
+  },
+  reduce_sauce: {
+    message: 'suggestionReduceSauce',
+    nutrient: 'sodium_mg',
+  },
+  reduce_sweet_items: {
+    message: 'suggestionReduceSweetItems',
+    nutrient: 'sugar_g',
+  },
+  reduce_fat: {
+    message: 'suggestionReduceFat',
+    nutrient: 'fat_g',
+  },
+  add_protein: {
+    message: 'suggestionAddProtein',
+    nutrient: 'protein_g',
+  },
+  adjust_staple: {
+    message: 'suggestionAdjustStaple',
+    nutrient: 'carbs_g',
+  },
+  reduce_portion: {
+    message: 'suggestionReducePortion',
+    nutrient: 'calories_kcal',
+  },
+} as const satisfies Record<
+  string,
+  {message: keyof Messages; nutrient: NutrientKey}
+>;
+
+type KnownSuggestionKey = keyof typeof suggestionDefinitions;
+
+const nutrientMessageKeys: Record<NutrientKey, keyof Messages> = {
+  calories_kcal: 'calories',
+  protein_g: 'protein',
+  carbs_g: 'carbs',
+  fat_g: 'fat',
+  fiber_g: 'fiber',
+  sugar_g: 'sugar',
+  sodium_mg: 'sodium',
 };
+
+// Stable meal-balance priority: macros first, then fibre and secondary measures.
+const positivePriority: readonly NutrientKey[] = [
+  'protein_g',
+  'carbs_g',
+  'fat_g',
+  'fiber_g',
+  'calories_kcal',
+  'sugar_g',
+  'sodium_mg',
+];
+
+const concernFallbackPriority: readonly NutrientKey[] = [
+  'sodium_mg',
+  'sugar_g',
+  'calories_kcal',
+  'protein_g',
+  'carbs_g',
+  'fat_g',
+  'fiber_g',
+];
 
 const assumptionMessageKeys: Readonly<Record<string, keyof Messages>> = {
   visible_portion_only: 'assumptionVisiblePortionOnly',
@@ -66,10 +124,62 @@ interface NutrientRowProps {
   locale: Locale;
   text: Messages;
   emphasized?: boolean;
+  showRail?: boolean;
 }
 
 function confidenceText(level: ConfidenceLevel, text: Messages): string {
   return text[confidenceMessageKeys[level]];
+}
+
+function knownSuggestion(key: string) {
+  if (!Object.prototype.hasOwnProperty.call(suggestionDefinitions, key)) {
+    return null;
+  }
+
+  return suggestionDefinitions[key as KnownSuggestionKey];
+}
+
+function localizedNutrientStatus(
+  nutrient: NutrientKey,
+  status: NutrientStatus,
+  text: Messages,
+): string {
+  return `${text[nutrientMessageKeys[nutrient]]} · ${text[statusMessageKey(nutrient, status)]}`;
+}
+
+function strongestPositive(data: AnalysisResult, text: Messages): string {
+  const nutrient = positivePriority.find(
+    (key) => data.assessment.statuses[key] === 'appropriate',
+  );
+
+  return nutrient
+    ? localizedNutrientStatus(nutrient, 'appropriate', text)
+    : text.noClearPositive;
+}
+
+function mainConcern(data: AnalysisResult, text: Messages): string {
+  const firstKnownSuggestion = data.assessment.suggestion_keys
+    .map(knownSuggestion)
+    .find((suggestion) => suggestion !== null);
+  const suggestedNutrient = firstKnownSuggestion?.nutrient;
+  const suggestedStatus = suggestedNutrient
+    ? data.assessment.statuses[suggestedNutrient]
+    : undefined;
+  const nutrient =
+    suggestedNutrient && suggestedStatus !== 'indeterminate'
+      ? suggestedNutrient
+      : concernFallbackPriority.find((key) => {
+          const status = data.assessment.statuses[key];
+          return status !== 'appropriate' && status !== 'indeterminate';
+        });
+
+  return nutrient
+    ? localizedNutrientStatus(
+        nutrient,
+        data.assessment.statuses[nutrient],
+        text,
+      )
+    : text.noMajorConcern;
 }
 
 function NutrientRow({
@@ -80,6 +190,7 @@ function NutrientRow({
   locale,
   text,
   emphasized = false,
+  showRail = false,
 }: NutrientRowProps) {
   const status = data.assessment.statuses[nutrient];
   const statusText = text[statusMessageKey(nutrient, status)];
@@ -97,6 +208,22 @@ function NutrientRow({
       </div>
       <strong>{formatNutritionValue(data.nutrients[nutrient], unit, locale)}</strong>
       <span className={`status-label status-${status}`}>{statusText}</span>
+      {showRail && (
+        <div
+          className={`status-rail status-rail-${status}`}
+          data-status={status}
+          aria-hidden="true"
+        >
+          {(['low', 'appropriate', 'high'] as const).map((railStatus) => (
+            <span
+              className={`status-rail-segment status-rail-segment-${railStatus}${
+                status === railStatus ? ' status-rail-segment-active' : ''
+              }`}
+              key={railStatus}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -130,8 +257,8 @@ export function ResultScreen({
   const foodName = data.food_names?.[locale] || text.detectedFood;
   const visibleSuggestions = data.assessment.suggestion_keys
     .flatMap((key) => {
-      const messageKey = suggestionMessageKeys[key];
-      return messageKey ? [text[messageKey]] : [];
+      const suggestion = knownSuggestion(key);
+      return suggestion ? [text[suggestion.message]] : [];
     })
     .slice(0, 2);
   const visibleAssumptions = [
@@ -220,6 +347,16 @@ export function ResultScreen({
             <strong>—</strong>
           )}
         </div>
+        <div className="result-findings">
+          <div className="result-finding">
+            <span>{text.strongestPositive}</span>
+            <p>{strongestPositive(data, text)}</p>
+          </div>
+          <div className="result-finding">
+            <span>{text.mainConcern}</span>
+            <p>{mainConcern(data, text)}</p>
+          </div>
+        </div>
       </section>
 
       <section className="energy-summary" aria-label={text.calories}>
@@ -245,6 +382,7 @@ export function ResultScreen({
           data={data}
           locale={locale}
           text={text}
+          showRail
         />
         <NutrientRow
           nutrient="carbs_g"
@@ -253,6 +391,7 @@ export function ResultScreen({
           data={data}
           locale={locale}
           text={text}
+          showRail
         />
         <NutrientRow
           nutrient="fat_g"
@@ -261,6 +400,7 @@ export function ResultScreen({
           data={data}
           locale={locale}
           text={text}
+          showRail
         />
         <NutrientRow
           nutrient="fiber_g"
@@ -269,6 +409,7 @@ export function ResultScreen({
           data={data}
           locale={locale}
           text={text}
+          showRail
         />
       </section>
 

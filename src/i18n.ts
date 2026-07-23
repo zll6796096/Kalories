@@ -27,6 +27,10 @@ export interface Messages {
   assumptionSeasoningEstimated: string;
   assumptionHiddenIngredientsPossible: string;
   estimatedScore: string;
+  strongestPositive: string;
+  mainConcern: string;
+  noClearPositive: string;
+  noMajorConcern: string;
   tierBalanced: string;
   tierMostlyBalanced: string;
   tierNeedsAttention: string;
@@ -95,6 +99,10 @@ export const messages: Record<Locale, Messages> = {
     assumptionSeasoningEstimated: '调味料用量为估算值。',
     assumptionHiddenIngredientsPossible: '可能含有照片中看不见的食材。',
     estimatedScore: '估算健康分',
+    strongestPositive: '主要优点',
+    mainConcern: '主要关注点',
+    noClearPositive: '暂时无法判断明确优点。',
+    noMajorConcern: '未发现明显需要关注的项目。',
     tierBalanced: '营养均衡',
     tierMostlyBalanced: '基本均衡',
     tierNeedsAttention: '需要关注',
@@ -162,6 +170,10 @@ export const messages: Record<Locale, Messages> = {
     assumptionHiddenIngredientsPossible:
       '写真に見えない材料が含まれる可能性があります。',
     estimatedScore: '推定スコア',
+    strongestPositive: '主な良い点',
+    mainConcern: '主な注目点',
+    noClearPositive: 'はっきりした良い点を判断できません。',
+    noMajorConcern: '大きな見直し点は見つかりませんでした。',
     tierBalanced: 'バランス良好',
     tierMostlyBalanced: 'おおむね良好',
     tierNeedsAttention: '見直しポイントあり',
@@ -229,6 +241,10 @@ export const messages: Record<Locale, Messages> = {
     assumptionHiddenIngredientsPossible:
       'Ingredients not visible in the photo may be present.',
     estimatedScore: 'Estimated score',
+    strongestPositive: 'Strongest positive',
+    mainConcern: 'Main concern',
+    noClearPositive: 'Not enough information to identify a clear positive.',
+    noMajorConcern: 'No major concern was identified.',
     tierBalanced: 'Balanced',
     tierMostlyBalanced: 'Mostly balanced',
     tierNeedsAttention: 'Needs attention',

@@ -265,6 +265,186 @@ describe('ResultScreen', () => {
     expect(html).toContain(messages.en.suggestionAdjustStaple);
   });
 
+  it('explains the canonical result with deterministic localized findings', () => {
+    const html = renderResult();
+    const findings = html.slice(
+      html.indexOf('class="result-findings"'),
+      html.indexOf('class="energy-summary"'),
+    );
+
+    expect(findings).toContain(messages.en.strongestPositive);
+    expect(findings).toContain(
+      `${messages.en.fiber} · ${messages.en.statusAppropriate}`,
+    );
+    expect(findings).toContain(messages.en.mainConcern);
+    expect(findings).toContain(
+      `${messages.en.sodium} · ${messages.en.statusHigh}`,
+    );
+    expect(findings).not.toContain('reduce_sauce');
+    expect(findings).not.toContain('sodium_high');
+  });
+
+  it('shows the first appropriate nutrient and no concern for a balanced meal', () => {
+    const balancedResult: AnalysisResult = {
+      ...result,
+      assessment: {
+        ...result.assessment,
+        score: 92,
+        tier: 'balanced',
+        statuses: {
+          calories_kcal: 'appropriate',
+          protein_g: 'appropriate',
+          carbs_g: 'appropriate',
+          fat_g: 'appropriate',
+          fiber_g: 'appropriate',
+          sugar_g: 'appropriate',
+          sodium_mg: 'appropriate',
+        },
+        suggestion_keys: [],
+      },
+    };
+    const html = renderResult(balancedResult);
+
+    expect(html).toContain(
+      `${messages.en.protein} · ${messages.en.statusAppropriate}`,
+    );
+    expect(html).toContain(messages.en.noMajorConcern);
+  });
+
+  it('uses safe finding fallbacks when statuses and suggestions are indeterminate', () => {
+    const indeterminateResult: AnalysisResult = {
+      ...result,
+      assessment: {
+        ...result.assessment,
+        score: null,
+        tier: 'indeterminate',
+        statuses: {
+          calories_kcal: 'indeterminate',
+          protein_g: 'indeterminate',
+          carbs_g: 'indeterminate',
+          fat_g: 'indeterminate',
+          fiber_g: 'indeterminate',
+          sugar_g: 'indeterminate',
+          sodium_mg: 'indeterminate',
+        },
+        suggestion_keys: ['unknown_internal_rule', 'reduce_sauce'],
+        insufficient_data: true,
+      },
+    };
+    const html = renderResult(indeterminateResult);
+
+    expect(html).toContain(messages.en.noClearPositive);
+    expect(html).toContain(messages.en.noMajorConcern);
+    expect(html).not.toContain('unknown_internal_rule');
+    expect(html).not.toContain('reduce_sauce');
+  });
+
+  it.each([
+    [
+      'zh',
+      '主要优点',
+      '膳食纤维 · 适量',
+      '主要关注点',
+      '钠 · 偏多',
+    ],
+    [
+      'ja',
+      '主な良い点',
+      '食物繊維 · 適量',
+      '主な注目点',
+      'ナトリウム · 多め',
+    ],
+    [
+      'en',
+      'Strongest positive',
+      'Dietary fibre · In range',
+      'Main concern',
+      'Sodium · High',
+    ],
+  ] as const)(
+    'relocalizes deterministic findings in %s from unchanged analysis data',
+    (locale, positiveLabel, positive, concernLabel, concern) => {
+      const html = renderToStaticMarkup(
+        <ResultScreen
+          locale={locale}
+          text={messages[locale]}
+          data={result}
+          capturedImage={null}
+          onLocaleChange={() => undefined}
+          onRetry={() => undefined}
+          onRetake={() => undefined}
+          onSaveError={() => undefined}
+        />,
+      );
+
+      expect(html).toContain(positiveLabel);
+      expect(html).toContain(positive);
+      expect(html).toContain(concernLabel);
+      expect(html).toContain(concern);
+      expect(result.assessment.suggestion_keys[0]).toBe('reduce_sauce');
+    },
+  );
+
+  it('renders categorical status rails only for the four macro and fibre rows', () => {
+    const html = renderResult();
+
+    expect(html.match(/class="status-rail /g)).toHaveLength(4);
+    expect(html.match(/data-status="high"/g)).toHaveLength(2);
+    expect(html.match(/data-status="low"/g)).toHaveLength(1);
+    expect(html.match(/data-status="appropriate"/g)).toHaveLength(1);
+
+    for (const [nutrient, status] of [
+      ['protein_g', 'high'],
+      ['carbs_g', 'low'],
+      ['fat_g', 'high'],
+      ['fiber_g', 'appropriate'],
+    ] as const) {
+      const rowStart = html.indexOf(`data-nutrient="${nutrient}"`);
+      const rowEnd = html.indexOf('data-nutrient="', rowStart + 16);
+      const row = html.slice(rowStart, rowEnd);
+
+      expect(row).toContain(`class="status-rail status-rail-${status}"`);
+      expect(row).toContain(`data-status="${status}"`);
+      expect(row).toContain('aria-hidden="true"');
+      expect(row.match(/status-rail-segment-active/g)).toHaveLength(1);
+    }
+
+    for (const nutrient of [
+      'calories_kcal',
+      'sugar_g',
+      'sodium_mg',
+      'portion_grams',
+    ]) {
+      const rowStart = html.indexOf(`data-nutrient="${nutrient}"`);
+      const rowEnd = html.indexOf('data-nutrient="', rowStart + 16);
+      const row = html.slice(rowStart, rowEnd < 0 ? html.length : rowEnd);
+
+      expect(row).not.toContain('class="status-rail ');
+    }
+  });
+
+  it('keeps an indeterminate macro status rail neutral', () => {
+    const html = renderResult({
+      ...result,
+      assessment: {
+        ...result.assessment,
+        statuses: {
+          ...result.assessment.statuses,
+          protein_g: 'indeterminate',
+        },
+      },
+    });
+    const proteinStart = html.indexOf('data-nutrient="protein_g"');
+    const proteinEnd = html.indexOf('data-nutrient="carbs_g"');
+    const proteinRow = html.slice(proteinStart, proteinEnd);
+
+    expect(proteinRow).toContain(
+      'class="status-rail status-rail-indeterminate"',
+    );
+    expect(proteinRow).toContain('data-status="indeterminate"');
+    expect(proteinRow).not.toContain('status-rail-segment-active');
+  });
+
   it('renders the save action initially enabled and not busy', () => {
     const html = renderResult();
     const saveButton = html.slice(
