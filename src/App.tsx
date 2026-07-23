@@ -1,4 +1,4 @@
-import {useReducer, useRef} from 'react';
+import {useEffect, useReducer, useRef} from 'react';
 
 import {AnalysisApiError, analyzeImage} from './api';
 import {messages, persistLocale, resolveLocale, type Messages} from './i18n';
@@ -22,6 +22,7 @@ export interface AppModel {
   locale: Locale;
   analysisResult: AnalysisResult | null;
   error: AppErrorCode | null;
+  saveError: boolean;
   capturedImage: string | null;
   latestRequestId: number;
 }
@@ -41,7 +42,7 @@ export type AppModelAction =
       code: AppErrorCode;
     }
   | {type: 'camera-error'; code: AppErrorCode}
-  | {type: 'save-error'};
+  | {type: 'save-started' | 'save-succeeded' | 'save-failed'};
 
 const errorMessageKeys = {
   CAMERA_DENIED: 'errorCameraDenied',
@@ -79,6 +80,7 @@ export function createInitialAppModel(
     locale,
     analysisResult: null,
     error: null,
+    saveError: false,
     capturedImage: null,
     latestRequestId,
   };
@@ -107,6 +109,7 @@ export function appModelReducer(
         appState: 'analyzing',
         analysisResult: null,
         error: null,
+        saveError: false,
         capturedImage: action.image,
         latestRequestId: action.requestId,
       };
@@ -119,6 +122,7 @@ export function appModelReducer(
         appState: 'result',
         analysisResult: action.result,
         error: action.result.food_detected ? null : 'NO_FOOD',
+        saveError: false,
       };
     case 'analysis-failed':
       if (action.requestId !== model.latestRequestId) {
@@ -129,6 +133,7 @@ export function appModelReducer(
         appState: 'camera',
         analysisResult: null,
         error: action.code,
+        saveError: false,
       };
     case 'camera-error':
       return {
@@ -136,10 +141,27 @@ export function appModelReducer(
         appState: 'camera',
         analysisResult: null,
         error: action.code,
+        saveError: false,
       };
-    case 'save-error':
-      return {...model, error: 'SAVE_FAILED'};
+    case 'save-started':
+    case 'save-succeeded':
+      return {...model, saveError: false};
+    case 'save-failed':
+      return {...model, saveError: true};
   }
+}
+
+export function abortActiveRequest(
+  controller: AbortController | null,
+): void {
+  controller?.abort();
+}
+
+export function replaceActiveRequest(
+  controller: AbortController | null,
+): AbortController {
+  abortActiveRequest(controller);
+  return new AbortController();
 }
 
 function analysisErrorCode(error: unknown): AppErrorCode {
@@ -158,7 +180,17 @@ export default function App() {
     createInitialAppModel(resolveLocale()),
   );
   const requestSequence = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const text = messages[model.locale];
+
+  useEffect(
+    () => () => {
+      requestSequence.current += 1;
+      abortActiveRequest(activeRequest.current);
+      activeRequest.current = null;
+    },
+    [],
+  );
 
   const handleLocaleChange = (locale: Locale) => {
     dispatch({type: 'locale-changed', locale});
@@ -167,6 +199,8 @@ export default function App() {
 
   const handleRetake = () => {
     const nextRequestId = ++requestSequence.current;
+    abortActiveRequest(activeRequest.current);
+    activeRequest.current = null;
     dispatch({type: 'retake', nextRequestId});
   };
 
@@ -176,16 +210,23 @@ export default function App() {
       return;
     }
 
+    const controller = replaceActiveRequest(activeRequest.current);
+    activeRequest.current = controller;
     const requestId = ++requestSequence.current;
     dispatch({type: 'analysis-started', requestId, image});
 
     try {
       const preparedImage = await prepareImageForAnalysis(image);
-      if (requestId !== requestSequence.current) {
+      if (
+        controller.signal.aborted ||
+        requestId !== requestSequence.current
+      ) {
         return;
       }
 
-      const result = await analyzeImage(preparedImage);
+      const result = await analyzeImage(preparedImage, {
+        signal: controller.signal,
+      });
       dispatch({type: 'analysis-succeeded', requestId, result});
     } catch (error) {
       if (requestId !== requestSequence.current) {
@@ -196,6 +237,10 @@ export default function App() {
         requestId,
         code: analysisErrorCode(error),
       });
+    } finally {
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+      }
     }
   };
 
@@ -208,9 +253,10 @@ export default function App() {
     void runAnalysis(image);
   };
 
-  const errorText = model.error
+  const primaryErrorText = model.error
     ? text[errorMessageKey(model.error)]
     : null;
+  const saveErrorText = model.saveError ? text.errorSaveFailed : null;
   const showCameraRetry =
     model.appState === 'camera' &&
     model.capturedImage !== null &&
@@ -219,12 +265,13 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {errorText && (
+      {(primaryErrorText || saveErrorText) && (
         <aside
           className={`app-error-panel app-error-${model.appState}`}
           role="alert"
         >
-          <p>{errorText}</p>
+          {primaryErrorText && <p>{primaryErrorText}</p>}
+          {saveErrorText && <p>{saveErrorText}</p>}
           {showCameraRetry && (
             <button className="text-button" type="button" onClick={handleRetry}>
               {text.retry}
@@ -270,7 +317,9 @@ export default function App() {
           onLocaleChange={handleLocaleChange}
           onRetry={handleRetry}
           onRetake={handleRetake}
-          onSaveError={() => dispatch({type: 'save-error'})}
+          onSaveStart={() => dispatch({type: 'save-started'})}
+          onSaveSuccess={() => dispatch({type: 'save-succeeded'})}
+          onSaveError={() => dispatch({type: 'save-failed'})}
         />
       )}
     </div>

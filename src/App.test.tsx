@@ -3,9 +3,11 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import App, {
   appModelReducer,
+  abortActiveRequest,
   createInitialAppModel,
   errorMessageKey,
   imageForRetry,
+  replaceActiveRequest,
 } from './App';
 import type {AnalysisResult, AppErrorCode} from './types';
 
@@ -94,6 +96,7 @@ describe('app orchestration model', () => {
       analysisResult: result,
       capturedImage: 'same-photo',
       error: 'NO_FOOD' as const,
+      saveError: true,
       latestRequestId: 7,
     };
 
@@ -111,7 +114,8 @@ describe('app orchestration model', () => {
       appState: 'result' as const,
       analysisResult: result,
       capturedImage: 'same-photo',
-      error: 'SAVE_FAILED' as const,
+      error: 'ANALYSIS_FAILED' as const,
+      saveError: true,
       latestRequestId: 3,
     };
 
@@ -148,6 +152,17 @@ describe('app orchestration model', () => {
     ).toBe(current);
   });
 
+  it('aborts the previous request on replacement and cleanup', () => {
+    const first = new AbortController();
+    const second = replaceActiveRequest(first);
+
+    expect(first.signal.aborted).toBe(true);
+    expect(second.signal.aborted).toBe(false);
+
+    abortActiveRequest(second);
+    expect(second.signal.aborted).toBe(true);
+  });
+
   it('keeps a no-food response honest and visible on the result page', () => {
     const noFood = {
       ...result,
@@ -172,6 +187,40 @@ describe('app orchestration model', () => {
       analysisResult: noFood,
       capturedImage: 'same-photo',
       error: 'NO_FOOD',
+    });
+  });
+
+  it('keeps the no-food warning when save fails and clears only save state later', () => {
+    const noFood = {
+      ...result,
+      food_detected: false,
+      food_names: null,
+    };
+    const noFoodResult = appModelReducer(
+      {
+        ...createInitialAppModel('ja'),
+        appState: 'analyzing',
+        latestRequestId: 1,
+      },
+      {
+        type: 'analysis-succeeded',
+        requestId: 1,
+        result: noFood,
+      },
+    );
+    const saveFailed = appModelReducer(noFoodResult, {type: 'save-failed'});
+
+    expect(saveFailed).toMatchObject({
+      error: 'NO_FOOD',
+      saveError: true,
+      analysisResult: noFood,
+    });
+    expect(
+      appModelReducer(saveFailed, {type: 'save-succeeded'}),
+    ).toMatchObject({
+      error: 'NO_FOOD',
+      saveError: false,
+      analysisResult: noFood,
     });
   });
 

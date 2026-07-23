@@ -21,6 +21,8 @@ interface ResultScreenProps {
   onLocaleChange: (locale: Locale) => void;
   onRetry: () => void;
   onRetake: () => void;
+  onSaveStart?: () => void;
+  onSaveSuccess?: () => void;
   onSaveError: (code: AppErrorCode) => void;
 }
 
@@ -104,6 +106,8 @@ export function ResultScreen({
   onLocaleChange,
   onRetry,
   onRetake,
+  onSaveStart,
+  onSaveSuccess,
   onSaveError,
 }: ResultScreenProps) {
   const resultRef = useRef<HTMLElement>(null);
@@ -137,6 +141,7 @@ export function ResultScreen({
     setIsSaving(true);
 
     try {
+      onSaveStart?.();
       if (!resultRef.current) {
         throw new Error('Result element is unavailable');
       }
@@ -152,6 +157,7 @@ export function ResultScreen({
       link.href = canvas.toDataURL('image/png');
       link.click();
       link.remove();
+      onSaveSuccess?.();
     } catch {
       onSaveError('SAVE_FAILED');
     } finally {
