@@ -343,7 +343,7 @@ Implementation follows red-green-refactor.
 npm run lint
 npm test
 npm run build
-python -m unittest discover -s tests -p 'test_*.py'
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 ### Browser verification

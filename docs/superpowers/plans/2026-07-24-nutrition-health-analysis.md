@@ -280,7 +280,7 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-python -m unittest tests.test_nutrition -v
+.venv/bin/python -m unittest tests.test_nutrition -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'lib.nutrition'`.
@@ -480,7 +480,7 @@ def assess_nutrition(
 Run:
 
 ```bash
-python -m unittest tests.test_nutrition -v
+.venv/bin/python -m unittest tests.test_nutrition -v
 ```
 
 Expected: 9 tests pass.
@@ -494,7 +494,7 @@ Add module comments linking the Japanese 2025 and WHO sources and stating that t
 Run:
 
 ```bash
-python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 Expected: all discovered tests pass.
@@ -591,7 +591,7 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-python -m unittest tests.test_analyze -v
+.venv/bin/python -m unittest tests.test_analyze -v
 ```
 
 Expected: FAIL because `ImageValidationError`, `ModelAnalysis`, `build_response`, and `decode_image` do not exist.
@@ -806,7 +806,7 @@ Do not log `request.image`, decoded bytes, the API key, or raw provider response
 Run:
 
 ```bash
-python -m unittest tests.test_analyze tests.test_nutrition -v
+.venv/bin/python -m unittest tests.test_analyze tests.test_nutrition -v
 ```
 
 Expected: all tests pass.
@@ -816,7 +816,7 @@ Expected: all tests pass.
 Run:
 
 ```bash
-python -m compileall -q api lib tests
+.venv/bin/python -m compileall -q api lib tests
 ```
 
 Expected: exit 0.
@@ -1844,7 +1844,7 @@ sauces, sugar, sodium, fillings, and portion size can materially change the resu
 2. Create the pinned runtime and install Python deployment dependencies: `uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt`
 3. Add `GEMINI_API_KEY` to `.env`
 4. Start the API:
-   `python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000`
+   `.venv/bin/python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000`
 5. Start the UI in another terminal: `npm run dev`
 6. Open `http://127.0.0.1:3000`
 
@@ -1853,7 +1853,7 @@ sauces, sugar, sodium, fillings, and portion size can materially change the resu
 - Frontend tests: `npm test`
 - TypeScript: `npm run lint`
 - Production build: `npm run build`
-- Backend tests: `python -m unittest discover -s tests -p 'test_*.py' -v`
+- Backend tests: `.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v`
 
 Supported UI languages are Japanese, Simplified Chinese, and English. The first
 visit follows a supported device language and otherwise defaults to Japanese.
@@ -1869,8 +1869,8 @@ Run:
 npm test
 npm run lint
 npm run build
-python -m unittest discover -s tests -p 'test_*.py' -v
-python -m compileall -q api lib tests
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m compileall -q api lib tests
 ```
 
 Expected: every command exits 0 with no failed test.
@@ -1896,7 +1896,7 @@ Expected: only availability state is printed. Never print the key.
 Run API in one PTY:
 
 ```bash
-python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000
 ```
 
 Run UI in another PTY:
@@ -2012,8 +2012,8 @@ Run:
 npm test &&
 npm run lint &&
 npm run build &&
-python -m unittest discover -s tests -p 'test_*.py' -v &&
-python -m compileall -q api lib tests &&
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v &&
+.venv/bin/python -m compileall -q api lib tests &&
 git diff --check &&
 git status --short --branch
 ```
