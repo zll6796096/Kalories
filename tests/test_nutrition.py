@@ -5,18 +5,22 @@ import unittest
 from lib.nutrition import assess_nutrition
 
 
-def high_confidence(**overrides):
+def high_confidence(*, nutrients=None, **overrides):
     confidence = {
         "overall": "high",
-        "calories_kcal": "high",
-        "protein_g": "high",
-        "carbs_g": "high",
-        "fat_g": "high",
-        "fiber_g": "high",
-        "sugar_g": "high",
-        "sodium_mg": "high",
+        "nutrients": {
+            "calories_kcal": "high",
+            "protein_g": "high",
+            "carbs_g": "high",
+            "fat_g": "high",
+            "fiber_g": "high",
+            "sugar_g": "high",
+            "sodium_mg": "high",
+        },
     }
     confidence.update(overrides)
+    if nutrients:
+        confidence["nutrients"].update(nutrients)
     return confidence
 
 
@@ -90,7 +94,7 @@ class AssessNutritionTests(unittest.TestCase):
         appropriate = assess_nutrition(self._meal(sugar_g=9), high_confidence())
         high = assess_nutrition(self._meal(sugar_g=18), high_confidence())
         uncertain_high = assess_nutrition(
-            self._meal(sugar_g=18), high_confidence(sugar_g="low")
+            self._meal(sugar_g=18), high_confidence(nutrients={"sugar_g": "low"})
         )
 
         self.assertEqual("low", low["statuses"]["sugar_g"])
@@ -100,6 +104,18 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertIn("reduce_sweet_items", high["suggestion_keys"])
         self.assertEqual(appropriate["score"], uncertain_high["score"])
         self.assertNotIn("reduce_sweet_items", uncertain_high["suggestion_keys"])
+
+    def test_nested_sugar_confidence_controls_sugar_penalty_reason_and_advice(self):
+        high = assess_nutrition(self._meal(sugar_g=25), high_confidence())
+        low = assess_nutrition(
+            self._meal(sugar_g=25), high_confidence(nutrients={"sugar_g": "low"})
+        )
+
+        self.assertEqual(low["score"] - 6, high["score"])
+        self.assertIn("sugar_high", high["scoring_reasons"])
+        self.assertIn("reduce_sweet_items", high["suggestion_keys"])
+        self.assertNotIn("sugar_high", low["scoring_reasons"])
+        self.assertNotIn("reduce_sweet_items", low["suggestion_keys"])
 
     def test_missing_null_and_invalid_values_are_indeterminate_not_zero(self):
         result = assess_nutrition(
@@ -130,6 +146,19 @@ class AssessNutritionTests(unittest.TestCase):
             self.assertEqual("indeterminate", result["tier"])
             self.assertTrue(result["insufficient_data"])
 
+    def test_insufficient_data_preserves_available_reasons_and_suggestions(self):
+        result = assess_nutrition(
+            self._meal(fiber_g=2, sodium_mg=851), high_confidence(overall="low")
+        )
+
+        self.assertIsNone(result["score"])
+        self.assertEqual("indeterminate", result["tier"])
+        self.assertTrue(result["insufficient_data"])
+        self.assertEqual("low", result["statuses"]["fiber_g"])
+        self.assertEqual("high", result["statuses"]["sodium_mg"])
+        self.assertEqual(["fiber_low", "sodium_high"], result["scoring_reasons"])
+        self.assertEqual(["add_vegetables", "reduce_sauce"], result["suggestion_keys"])
+
     def test_invalid_confidence_values_are_treated_as_low(self):
         result = assess_nutrition(self._meal(), high_confidence(overall={"bad": "value"}))
 
@@ -150,6 +179,127 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertEqual("high", high["statuses"]["calories_kcal"])
         self.assertEqual(baseline["score"] - 4, high["score"])
         self.assertEqual(baseline["score"] - 8, very_high["score"])
+
+    def test_calorie_exact_boundaries_and_adjacent_penalties(self):
+        cases = (
+            (299, "low", 8),
+            (300, "low", 4),
+            (449, "low", 4),
+            (450, "appropriate", 0),
+            (850, "appropriate", 0),
+            (851, "high", 4),
+            (1000, "high", 4),
+            (1001, "high", 8),
+        )
+        for calories, status, penalty in cases:
+            with self.subTest(calories=calories):
+                result = assess_nutrition(
+                    self._meal(calories_kcal=calories), high_confidence()
+                )
+                self.assertEqual(status, result["statuses"]["calories_kcal"])
+                self.assertEqual(100 - penalty, result["score"])
+                self.assertEqual("balanced", result["tier"])
+
+    def test_fiber_exact_boundaries_and_adjacent_penalties(self):
+        cases = (
+            (2.999, "low", 10),
+            (3, "low", 5),
+            (5.999, "low", 5),
+            (6, "appropriate", 0),
+        )
+        for fiber, status, penalty in cases:
+            with self.subTest(fiber=fiber):
+                result = assess_nutrition(self._meal(fiber_g=fiber), high_confidence())
+                self.assertEqual(status, result["statuses"]["fiber_g"])
+                self.assertEqual(100 - penalty, result["score"])
+                self.assertEqual("balanced", result["tier"])
+
+    def test_sodium_exact_boundaries_and_penalties(self):
+        cases = (
+            (667, "appropriate", 0, None),
+            (668, "high", 6, "sodium_elevated"),
+            (850, "high", 6, "sodium_elevated"),
+            (851, "high", 12, "sodium_high"),
+        )
+        for sodium, status, penalty, reason in cases:
+            with self.subTest(sodium=sodium):
+                result = assess_nutrition(self._meal(sodium_mg=sodium), high_confidence())
+                self.assertEqual(status, result["statuses"]["sodium_mg"])
+                self.assertEqual(100 - penalty, result["score"])
+                if reason:
+                    self.assertIn(reason, result["scoring_reasons"])
+
+    def test_sugar_exact_boundaries_and_nested_confidence_penalties(self):
+        cases = (
+            (8, "low", 0),
+            (8.001, "appropriate", 0),
+            (17, "appropriate", 0),
+            (17.001, "high", 6),
+        )
+        for sugar, status, penalty in cases:
+            with self.subTest(sugar=sugar):
+                result = assess_nutrition(self._meal(sugar_g=sugar), high_confidence())
+                self.assertEqual(status, result["statuses"]["sugar_g"])
+                self.assertEqual(100 - penalty, result["score"])
+                if penalty:
+                    self.assertIn("sugar_high", result["scoring_reasons"])
+                    self.assertIn("reduce_sweet_items", result["suggestion_keys"])
+
+    def test_every_macro_range_edge_is_appropriate_without_a_penalty(self):
+        cases = (
+            ("protein_g", 13, 25, 62),
+            ("protein_g", 20, 25, 55),
+            ("fat_g", 15, 20, 65),
+            ("fat_g", 15, 30, 55),
+            ("carbs_g", 20, 30, 50),
+            ("carbs_g", 15, 20, 65),
+        )
+        for field, protein, fat, carbs in cases:
+            with self.subTest(field=field, protein=protein, fat=fat, carbs=carbs):
+                result = assess_nutrition(
+                    self._meal_for_macro_percentages(protein, fat, carbs),
+                    high_confidence(),
+                )
+                self.assertEqual("appropriate", result["statuses"][field])
+                self.assertEqual(100, result["score"])
+                self.assertEqual("balanced", result["tier"])
+
+    def test_macro_exact_five_point_deviation_costs_six_and_more_costs_twelve(self):
+        cases = (
+            ("protein_g", self._meal_for_macro_percentages(8, 30, 62), 6),
+            ("protein_g", self._meal_for_macro_percentages(7.999, 30, 62.001), 12),
+            ("fat_g", self._meal_for_macro_percentages(14.999, 35, 50.001), 6),
+            ("fat_g", self._meal_for_macro_percentages(14.999, 35.001, 50), 12),
+        )
+        for field, meal, penalty in cases:
+            with self.subTest(field=field, penalty=penalty):
+                result = assess_nutrition(meal, high_confidence())
+                self.assertIn(result["statuses"][field], {"low", "high"})
+                self.assertEqual(100 - penalty, result["score"])
+
+    def test_score_and_tier_boundaries_are_inclusive(self):
+        balanced = assess_nutrition(
+            self._meal(calories_kcal=1001, sodium_mg=851), high_confidence()
+        )
+        mostly_balanced = assess_nutrition(
+            self._meal_for_macro_percentages(7, 30, 63, fiber_g=2, sugar_g=18, sodium_mg=851),
+            high_confidence(),
+        )
+        below_balanced = assess_nutrition(
+            self._meal_for_macro_percentages(7, 30, 63, calories_kcal=449, fiber_g=3),
+            high_confidence(),
+        )
+        needs_attention = assess_nutrition(
+            self._meal_for_macro_percentages(
+                8, 30, 62, calories_kcal=1001, fiber_g=2, sugar_g=18, sodium_mg=851
+            ),
+            high_confidence(),
+        )
+
+        self.assertEqual((80, "balanced"), (balanced["score"], balanced["tier"]))
+        self.assertEqual((60, "mostly_balanced"), (mostly_balanced["score"], mostly_balanced["tier"]))
+        self.assertEqual((79, "mostly_balanced"), (below_balanced["score"], below_balanced["tier"]))
+        self.assertEqual((58, "needs_attention"), (needs_attention["score"], needs_attention["tier"]))
 
     def test_score_clamps_and_identical_inputs_return_identical_results(self):
         meal = self._meal(
@@ -198,6 +348,17 @@ class AssessNutritionTests(unittest.TestCase):
         }
         meal.update(overrides)
         return meal
+
+    @classmethod
+    def _meal_for_macro_percentages(cls, protein, fat, carbs, **overrides):
+        if protein + fat + carbs != 100:
+            raise ValueError("Macro energy percentages must total 100")
+        return cls._meal(
+            protein_g=protein / 4,
+            fat_g=fat / 9,
+            carbs_g=carbs / 4,
+            **overrides,
+        )
 
 
 if __name__ == "__main__":

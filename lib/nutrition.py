@@ -74,7 +74,7 @@ def assess_nutrition(
     _record(penalties, reasons, suggestions, fiber_penalty, fiber_reason, fiber_suggestion)
 
     sugar_status, sugar_penalty, sugar_reason, sugar_suggestion = _sugar(
-        values["sugar_g"], _confidence(confidence.get("sugar_g") if isinstance(confidence, Mapping) else None)
+        values["sugar_g"], _nutrient_confidence(confidence, "sugar_g")
     )
     statuses["sugar_g"] = sugar_status
     _record(penalties, reasons, suggestions, sugar_penalty, sugar_reason, sugar_suggestion)
@@ -91,13 +91,14 @@ def assess_nutrition(
         and present_macros >= 2
         and overall_confidence in {"medium", "high"}
     )
+    suggestion_keys = [key for key in _SUGGESTION_PRIORITY if key in suggestions][:2]
     if not score_is_available:
         return {
             "score": None,
             "tier": "indeterminate",
             "statuses": statuses,
-            "suggestion_keys": [],
-            "scoring_reasons": [],
+            "suggestion_keys": suggestion_keys,
+            "scoring_reasons": reasons,
             "insufficient_data": True,
         }
 
@@ -106,9 +107,7 @@ def assess_nutrition(
         "score": score,
         "tier": _tier(score),
         "statuses": statuses,
-        "suggestion_keys": [
-            key for key in _SUGGESTION_PRIORITY if key in suggestions
-        ][:2],
+        "suggestion_keys": suggestion_keys,
         "scoring_reasons": reasons,
         "insufficient_data": False,
     }
@@ -123,6 +122,15 @@ def _valid_number(value: Any) -> float | None:
 
 def _confidence(value: Any) -> str:
     return value if isinstance(value, str) and value in {"low", "medium", "high"} else "low"
+
+
+def _nutrient_confidence(confidence: Mapping[str, Any], field: str) -> str:
+    if not isinstance(confidence, Mapping):
+        return "low"
+    nutrients = confidence.get("nutrients")
+    if not isinstance(nutrients, Mapping):
+        return "low"
+    return _confidence(nutrients.get(field))
 
 
 def _record(
