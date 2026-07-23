@@ -53,6 +53,16 @@ describe('product metadata', () => {
 });
 
 describe('Python deployment metadata', () => {
+  it('ignores the canonical and legacy local Python environments', () => {
+    const ignoreRules = readRepositoryFile('.gitignore')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+
+    expect(ignoreRules).toContain('.venv/');
+    expect(ignoreRules).toContain('venv/');
+  });
+
   it('targets Python 3.12 for deployment and clean verification', () => {
     expect(existsSync(repositoryFile('.python-version'))).toBe(true);
     expect(readRepositoryFile('.python-version').trim()).toBe('3.12');
