@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
+import canonicalAnalysisFixture from '../tests/fixtures/canonical_analysis_result.json';
 import {
   ANALYSIS_TIMEOUT_MS,
   AnalysisApiError,
@@ -7,59 +8,7 @@ import {
 } from './api';
 import type {AnalysisResult} from './types';
 
-const analysisFixture: AnalysisResult = {
-  food_detected: true,
-  food_names: {
-    zh: '烤鲑鱼套餐',
-    ja: '焼き鮭定食',
-    en: 'Grilled salmon set',
-  },
-  portion_grams: 420,
-  nutrients: {
-    calories_kcal: 600,
-    protein_g: 25,
-    carbs_g: 82,
-    fat_g: 18,
-    fiber_g: 7,
-    sugar_g: 8,
-    sodium_mg: 500,
-  },
-  confidence: {
-    overall: 'high',
-    portion: 'medium',
-    nutrients: {
-      calories_kcal: 'high',
-      protein_g: 'high',
-      carbs_g: 'medium',
-      fat_g: 'medium',
-      fiber_g: 'medium',
-      sugar_g: 'low',
-      sodium_mg: 'low',
-    },
-  },
-  assumption_keys: [
-    'visible_portion_only',
-    'portion_estimated',
-    'seasoning_estimated',
-    'hidden_ingredients_possible',
-  ],
-  assessment: {
-    score: 100,
-    tier: 'balanced',
-    statuses: {
-      calories_kcal: 'appropriate',
-      protein_g: 'appropriate',
-      carbs_g: 'appropriate',
-      fat_g: 'appropriate',
-      fiber_g: 'appropriate',
-      sugar_g: 'low',
-      sodium_mg: 'appropriate',
-    },
-    suggestion_keys: [],
-    scoring_reasons: [],
-    insufficient_data: false,
-  },
-};
+const analysisFixture = canonicalAnalysisFixture as AnalysisResult;
 
 const noFoodFixture: AnalysisResult = {
   ...analysisFixture,

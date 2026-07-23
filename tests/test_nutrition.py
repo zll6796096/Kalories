@@ -1,8 +1,14 @@
 """Behavioral tests for the deterministic nutrition assessment."""
 
+import json
+from pathlib import Path
 import unittest
 
 from lib.nutrition import assess_nutrition
+
+CANONICAL_FIXTURE_PATH = (
+    Path(__file__).parent / "fixtures" / "canonical_analysis_result.json"
+)
 
 
 def high_confidence(*, nutrients=None, **overrides):
@@ -26,55 +32,11 @@ def high_confidence(*, nutrients=None, **overrides):
 
 class AssessNutritionTests(unittest.TestCase):
     def test_canonical_salmon_fixture_matches_the_documented_contract(self):
-        result = assess_nutrition(
-            {
-                "calories_kcal": 640,
-                "protein_g": 34,
-                "carbs_g": 68,
-                "fat_g": 24,
-                "fiber_g": 8.4,
-                "sugar_g": 12,
-                "sodium_mg": 980,
-            },
-            {
-                "overall": "high",
-                "portion": "medium",
-                "nutrients": {
-                    "calories_kcal": "high",
-                    "protein_g": "high",
-                    "carbs_g": "medium",
-                    "fat_g": "medium",
-                    "fiber_g": "medium",
-                    "sugar_g": "low",
-                    "sodium_mg": "low",
-                },
-            },
-        )
+        fixture = json.loads(CANONICAL_FIXTURE_PATH.read_text(encoding="utf-8"))
 
-        self.assertEqual(
-            {
-                "score": 64,
-                "tier": "mostly_balanced",
-                "statuses": {
-                    "calories_kcal": "appropriate",
-                    "protein_g": "high",
-                    "carbs_g": "low",
-                    "fat_g": "high",
-                    "fiber_g": "appropriate",
-                    "sugar_g": "appropriate",
-                    "sodium_mg": "high",
-                },
-                "suggestion_keys": ["reduce_sauce", "adjust_staple"],
-                "scoring_reasons": [
-                    "protein_g_high",
-                    "fat_g_high",
-                    "carbs_g_low",
-                    "sodium_high",
-                ],
-                "insufficient_data": False,
-            },
-            result,
-        )
+        result = assess_nutrition(fixture["nutrients"], fixture["confidence"])
+
+        self.assertEqual(fixture["assessment"], result)
 
     def test_representative_meal_is_balanced_with_appropriate_macros(self):
         result = assess_nutrition(

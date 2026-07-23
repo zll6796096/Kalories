@@ -177,63 +177,13 @@ The frontend does not calculate the health score and does not hold the Gemini AP
 
 ### 7.4 API response shape
 
-The response is conceptually:
-
-```json
-{
-  "food_detected": true,
-  "food_names": {
-    "zh": "烤鲑鱼套餐",
-    "ja": "焼き鮭定食",
-    "en": "Grilled salmon set"
-  },
-  "portion_grams": 420,
-  "nutrients": {
-    "calories_kcal": 640,
-    "protein_g": 34,
-    "carbs_g": 68,
-    "fat_g": 24,
-    "fiber_g": 8.4,
-    "sugar_g": 12,
-    "sodium_mg": 980
-  },
-  "confidence": {
-    "overall": "high",
-    "portion": "medium",
-    "nutrients": {
-      "calories_kcal": "high",
-      "protein_g": "high",
-      "carbs_g": "medium",
-      "fat_g": "medium",
-      "fiber_g": "medium",
-      "sugar_g": "low",
-      "sodium_mg": "low"
-    }
-  },
-  "assumption_keys": [],
-  "assessment": {
-    "score": 64,
-    "tier": "mostly_balanced",
-    "statuses": {
-      "calories_kcal": "appropriate",
-      "protein_g": "high",
-      "carbs_g": "low",
-      "fat_g": "high",
-      "fiber_g": "appropriate",
-      "sugar_g": "appropriate",
-      "sodium_mg": "high"
-    },
-    "suggestion_keys": ["reduce_sauce", "adjust_staple"],
-    "scoring_reasons": [
-      "protein_g_high",
-      "fat_g_high",
-      "carbs_g_low",
-      "sodium_high"
-    ],
-    "insufficient_data": false
-  }
-}
-```
+The authoritative machine-readable response example is
+[`tests/fixtures/canonical_analysis_result.json`](../../../tests/fixtures/canonical_analysis_result.json).
+It describes the complete grilled-salmon response contract, including all seven
+nutrients, confidence and assumptions. Its deterministic assessment has score
+`64` and tier `mostly_balanced`; both the Python evaluator test and the Vitest
+result-page test consume this same fixture so the example cannot drift between
+backend and frontend.
 
 All nutrition values are nullable. Missing values remain `null`; they are never rewritten to zero.
 

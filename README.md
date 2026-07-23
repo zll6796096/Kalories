@@ -22,8 +22,10 @@ Kalories 是一个相机优先的餐食营养估算器。拍摄一餐后，应�
 ```bash
 npm install
 python3 -m venv venv
-venv/bin/python -m pip install -r requirements.txt
+venv/bin/python -m pip install -r requirements.lock
 ```
+
+`requirements.txt` 是人工维护的直接依赖输入；`requirements.lock` 锁定已验证的完整传递依赖，供日常开发和部署复现环境。
 
 在仓库根目录创建 `.env`，仅供后端读取：
 
@@ -64,6 +66,13 @@ git diff --check
 ```
 
 自动化测试和浏览器 UI 验收不能证明实际 Gemini 调用成功。只有在后端密钥存在、真实请求返回且服务日志与响应契约都确认后，才能把模型参与标记为已验证。
+
+### 更新 Python 依赖
+
+1. 编辑作为输入的 `requirements.txt`。
+2. 在干净的虚拟环境中安装输入依赖，并用 `pip freeze` 重新生成精确版本的 `requirements.lock`。
+3. 使用新 lock 重建环境，运行后端测试、`compileall` 和 `pip check`。
+4. 运行 `pip-audit --no-deps --disable-pip -r requirements.lock`（lock 已包含全部精确传递依赖），确认安全审计结果后再提交两个依赖文件。
 
 ## 参考依据
 
