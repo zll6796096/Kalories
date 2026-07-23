@@ -1,19 +1,34 @@
 """Contract tests for the secure nutrition-analysis API."""
 
-import asyncio
 import base64
+import inspect
 import os
 import unittest
+import warnings
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from starlette.testclient import TestClient
+
 import api.analyze as analyze
 
 
-def image_data_uri(payload=b"meal", mime_type="image/jpeg"):
+JPEG_BYTES = b"\xff\xd8\xff\xdb"
+PNG_BYTES = b"\x89PNG\r\n\x1a\n"
+WEBP_BYTES = b"RIFF\x00\x00\x00\x00WEBP"
+IMAGE_BYTES_BY_MIME = {
+    "image/jpeg": JPEG_BYTES,
+    "image/png": PNG_BYTES,
+    "image/webp": WEBP_BYTES,
+}
+
+
+def image_data_uri(payload=JPEG_BYTES, mime_type="image/jpeg"):
     encoded = base64.b64encode(payload).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
 
@@ -47,24 +62,23 @@ def model_analysis(*, food_detected=True):
 
 
 class ImageDecodingTests(unittest.TestCase):
-    def test_decode_image_accepts_supported_data_uris_and_bare_base64(self):
-        payload = b"meal-image"
-        bare = base64.b64encode(payload).decode("ascii")
+    def test_decode_image_accepts_signature_correct_supported_data_uris_and_bare_jpeg(self):
+        bare_jpeg = base64.b64encode(JPEG_BYTES).decode("ascii")
 
         for mime_type, image in (
-            ("image/jpeg", image_data_uri(payload, "image/jpeg")),
-            ("image/png", image_data_uri(payload, "image/png")),
-            ("image/webp", image_data_uri(payload, "image/webp")),
-            ("image/jpeg", bare),
+            ("image/jpeg", image_data_uri(JPEG_BYTES, "image/jpeg")),
+            ("image/png", image_data_uri(PNG_BYTES, "image/png")),
+            ("image/webp", image_data_uri(WEBP_BYTES, "image/webp")),
+            ("image/jpeg", bare_jpeg),
         ):
             with self.subTest(mime_type=mime_type):
                 actual_mime, actual_payload = analyze.decode_image(image)
                 self.assertEqual(mime_type, actual_mime)
-                self.assertEqual(payload, actual_payload)
+                self.assertEqual(IMAGE_BYTES_BY_MIME[mime_type], actual_payload)
 
     def test_decode_image_rejects_unsupported_mime_type(self):
         with self.assertRaises(analyze.ImageValidationError) as context:
-            analyze.decode_image(image_data_uri(b"meal", "image/gif"))
+            analyze.decode_image(image_data_uri(JPEG_BYTES, "image/gif"))
 
         self.assertEqual("UNSUPPORTED_IMAGE", context.exception.code)
 
@@ -81,13 +95,81 @@ class ImageDecodingTests(unittest.TestCase):
                     analyze.decode_image(image)
                 self.assertEqual("INVALID_IMAGE", context.exception.code)
 
-    def test_decode_image_rejects_payload_larger_than_five_mebibytes(self):
-        oversized = image_data_uri(b"x" * (5 * 1024 * 1024 + 1))
+    def test_decode_image_rejects_invalid_or_mismatched_content_signatures(self):
+        invalid_images = (
+            image_data_uri(b"not-a-jpeg", "image/jpeg"),
+            image_data_uri(JPEG_BYTES, "image/png"),
+            image_data_uri(b"\xff\xd8\xff", "image/jpeg"),
+            image_data_uri(PNG_BYTES[:-1], "image/png"),
+            image_data_uri(WEBP_BYTES[:-1], "image/webp"),
+        )
+
+        for image in invalid_images:
+            with self.subTest(image=image[:32]):
+                with self.assertRaises(analyze.ImageValidationError) as context:
+                    analyze.decode_image(image)
+                self.assertEqual("INVALID_IMAGE", context.exception.code)
+
+    def test_decode_image_rejects_payload_larger_than_three_mebibytes(self):
+        oversized = image_data_uri(
+            JPEG_BYTES + b"x" * (3 * 1024 * 1024 + 1 - len(JPEG_BYTES))
+        )
 
         with self.assertRaises(analyze.ImageValidationError) as context:
             analyze.decode_image(oversized)
 
         self.assertEqual("IMAGE_TOO_LARGE", context.exception.code)
+
+    def test_encoded_length_limit_is_checked_before_base64_decoding(self):
+        encoded = "A" * (4 * 1024 * 1024 + 1)
+
+        with patch.object(analyze.base64, "b64decode") as decode:
+            with self.assertRaises(analyze.ImageValidationError) as context:
+                analyze.decode_image(encoded)
+
+        self.assertEqual("IMAGE_TOO_LARGE", context.exception.code)
+        decode.assert_not_called()
+
+
+class SchemaValidationTests(unittest.TestCase):
+    def test_nutrients_reject_nan_and_infinite_values(self):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError):
+                    analyze.Nutrients.model_validate({"calories_kcal": value})
+
+    def test_food_names_strip_whitespace_and_reject_empty_names(self):
+        names = analyze.FoodNames.model_validate(
+            {"zh": " 鸡肉饭 ", "ja": " チキンライス ", "en": " chicken rice "}
+        )
+        self.assertEqual("chicken rice", names.en)
+
+        with self.assertRaises(ValidationError):
+            analyze.FoodNames.model_validate({"zh": " ", "ja": "米", "en": "rice"})
+
+    def test_model_analysis_rejects_invalid_food_name_assumptions_and_extras(self):
+        missing_names = model_analysis().model_dump()
+        missing_names["food_names"] = None
+        duplicates = model_analysis().model_dump()
+        duplicates["assumption_keys"] = ["visible_portion_only", "visible_portion_only"]
+        extra = model_analysis().model_dump()
+        extra["untrusted_provider_field"] = True
+
+        for payload in (missing_names, duplicates, extra):
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValidationError):
+                    analyze.ModelAnalysis.model_validate(payload)
+
+    def test_assessment_rejects_out_of_range_scores_and_unrecognized_status_keys(self):
+        assessment = analyze.build_response(model_analysis()).assessment.model_dump()
+        out_of_range = assessment | {"score": 101}
+        extra_status = analyze.build_response(model_analysis()).assessment.model_dump()
+        extra_status["statuses"]["untrusted"] = "high"
+
+        for payload in (out_of_range, extra_status):
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValidationError):
+                    analyze.Assessment.model_validate(payload)
 
 
 class ResponseCompositionTests(unittest.TestCase):
@@ -97,7 +179,7 @@ class ResponseCompositionTests(unittest.TestCase):
         self.assertEqual("chicken rice", response.food_names.en)
         self.assertFalse(response.assessment.insufficient_data)
         self.assertIsNotNone(response.assessment.score)
-        self.assertEqual("appropriate", response.assessment.statuses["calories_kcal"])
+        self.assertEqual("appropriate", response.assessment.statuses.calories_kcal)
 
     def test_no_food_response_has_no_synthetic_nutrition_values(self):
         response = analyze.build_response(model_analysis(food_detected=False))
@@ -111,22 +193,27 @@ class ResponseCompositionTests(unittest.TestCase):
 
 
 class GeminiProviderTests(unittest.TestCase):
-    def test_call_gemini_configures_structured_estimation_and_complete_safe_prompt(self):
+    def test_call_gemini_uses_bounded_context_managed_structured_request_and_safe_prompt(self):
         response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
         image_part = object()
-        file_bytes = b"jpeg-bytes"
+        file_bytes = JPEG_BYTES
 
         with patch.object(analyze.genai, "Client") as client_class:
             with patch.object(
                 analyze.types.Part, "from_bytes", return_value=image_part
             ) as from_bytes:
-                client_class.return_value.models.generate_content.return_value = response
+                client = client_class.return_value.__enter__.return_value
+                client.models.generate_content.return_value = response
                 actual = analyze.call_gemini("configured-key", "image/jpeg", file_bytes)
 
         self.assertIsInstance(actual, analyze.ModelAnalysis)
-        client_class.assert_called_once_with(api_key="configured-key")
+        http_options = client_class.call_args.kwargs["http_options"]
+        self.assertEqual(20_000, http_options.timeout)
+        self.assertEqual("configured-key", client_class.call_args.kwargs["api_key"])
+        client_class.return_value.__enter__.assert_called_once_with()
+        client_class.return_value.__exit__.assert_called_once()
         from_bytes.assert_called_once_with(data=file_bytes, mime_type="image/jpeg")
-        call = client_class.return_value.models.generate_content.call_args
+        call = client.models.generate_content.call_args
         self.assertEqual("gemini-3-flash-preview", call.kwargs["model"])
         self.assertEqual(image_part, call.kwargs["contents"][0])
         prompt = call.kwargs["contents"][1]
@@ -161,8 +248,9 @@ class GeminiProviderTests(unittest.TestCase):
         response = SimpleNamespace(parsed=None, text=model_analysis().model_dump_json())
 
         with patch.object(analyze.genai, "Client") as client_class:
-            client_class.return_value.models.generate_content.return_value = response
-            actual = analyze.call_gemini("configured-key", "image/png", b"png-bytes")
+            client = client_class.return_value.__enter__.return_value
+            client.models.generate_content.return_value = response
+            actual = analyze.call_gemini("configured-key", "image/png", PNG_BYTES)
 
         self.assertEqual("chicken rice", actual.food_names.en)
 
@@ -172,27 +260,28 @@ class GeminiProviderTests(unittest.TestCase):
         response = SimpleNamespace(parsed=invalid, text=None)
 
         with patch.object(analyze.genai, "Client") as client_class:
-            client_class.return_value.models.generate_content.return_value = response
+            client = client_class.return_value.__enter__.return_value
+            client.models.generate_content.return_value = response
             with self.assertRaises(ValidationError):
-                analyze.call_gemini("configured-key", "image/webp", b"webp-bytes")
+                analyze.call_gemini("configured-key", "image/webp", WEBP_BYTES)
 
 
 class AnalyzeEndpointTests(unittest.TestCase):
-    def test_analyze_request_rejects_empty_image(self):
+    def test_route_is_synchronous_and_request_rejects_empty_image(self):
+        self.assertFalse(inspect.iscoroutinefunction(analyze.analyze_food))
         with self.assertRaises(ValidationError):
             analyze.AnalyzeRequest(image="")
 
     def test_oversized_encoded_request_reaches_image_validation(self):
-        oversized_image = image_data_uri(b"x" * (6 * 1024 * 1024))
-        try:
-            request = analyze.AnalyzeRequest(image=oversized_image)
-        except ValidationError:
-            self.fail("encoded image size must not preempt decoded image validation")
+        oversized_image = image_data_uri(
+            JPEG_BYTES + b"x" * (3 * 1024 * 1024 + 1 - len(JPEG_BYTES))
+        )
+        request = analyze.AnalyzeRequest(image=oversized_image)
 
         with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
             with patch.object(analyze, "call_gemini") as provider:
                 with self.assertRaises(HTTPException) as context:
-                    asyncio.run(analyze.analyze_food(request))
+                    analyze.analyze_food(request)
 
         self.assertEqual(400, context.exception.status_code)
         self.assertEqual({"code": "IMAGE_TOO_LARGE"}, context.exception.detail)
@@ -204,13 +293,13 @@ class AnalyzeEndpointTests(unittest.TestCase):
         with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
             with patch.object(analyze, "call_gemini") as provider:
                 with self.assertRaises(HTTPException) as context:
-                    asyncio.run(analyze.analyze_food(request))
+                    analyze.analyze_food(request)
 
         self.assertEqual(503, context.exception.status_code)
         self.assertEqual({"code": "SERVICE_NOT_CONFIGURED"}, context.exception.detail)
         provider.assert_not_called()
 
-    def test_provider_failure_returns_stable_error_without_raw_exception_text(self):
+    def test_provider_failure_returns_stable_error_and_safe_exception_type_log(self):
         request = analyze.AnalyzeRequest(image=image_data_uri())
 
         with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
@@ -219,47 +308,52 @@ class AnalyzeEndpointTests(unittest.TestCase):
                 "call_gemini",
                 side_effect=RuntimeError("provider response: secret internal failure"),
             ):
-                with self.assertRaises(HTTPException) as context:
-                    asyncio.run(analyze.analyze_food(request))
+                with patch.object(analyze.logger, "error") as log_error:
+                    with self.assertRaises(HTTPException) as context:
+                        analyze.analyze_food(request)
 
         self.assertEqual(502, context.exception.status_code)
         self.assertEqual({"code": "ANALYSIS_FAILED"}, context.exception.detail)
         self.assertNotIn("secret", str(context.exception.detail))
+        log_error.assert_called_once_with(
+            "Nutrition analysis provider request failed",
+            extra={"exception_type": "RuntimeError"},
+        )
+        self.assertNotIn("secret", str(log_error.call_args))
 
-    def test_invalid_image_returns_stable_client_error(self):
-        request = analyze.AnalyzeRequest(image="data:image/jpeg;base64,not-valid%%")
+    def test_invalid_and_unsupported_images_return_stable_client_errors(self):
+        cases = (
+            ("data:image/jpeg;base64,not-valid%%", "INVALID_IMAGE"),
+            (image_data_uri(JPEG_BYTES, "image/gif"), "UNSUPPORTED_IMAGE"),
+        )
+        for image, expected_code in cases:
+            with self.subTest(expected_code=expected_code):
+                request = analyze.AnalyzeRequest(image=image)
+                with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
+                    with patch.object(analyze, "call_gemini") as provider:
+                        with self.assertRaises(HTTPException) as context:
+                            analyze.analyze_food(request)
+                self.assertEqual(400, context.exception.status_code)
+                self.assertEqual({"code": expected_code}, context.exception.detail)
+                provider.assert_not_called()
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
-            with patch.object(analyze, "call_gemini") as provider:
-                with self.assertRaises(HTTPException) as context:
-                    asyncio.run(analyze.analyze_food(request))
-
-        self.assertEqual(400, context.exception.status_code)
-        self.assertEqual({"code": "INVALID_IMAGE"}, context.exception.detail)
-        provider.assert_not_called()
-
-    def test_unsupported_image_returns_stable_client_error(self):
-        request = analyze.AnalyzeRequest(image=image_data_uri(b"meal", "image/gif"))
-
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
-            with patch.object(analyze, "call_gemini") as provider:
-                with self.assertRaises(HTTPException) as context:
-                    asyncio.run(analyze.analyze_food(request))
-
-        self.assertEqual(400, context.exception.status_code)
-        self.assertEqual({"code": "UNSUPPORTED_IMAGE"}, context.exception.detail)
-        provider.assert_not_called()
-
-    def test_deliberate_provider_http_exception_is_preserved(self):
+    def test_provider_http_exception_is_mapped_to_owned_error(self):
         request = analyze.AnalyzeRequest(image=image_data_uri())
-        expected = HTTPException(status_code=429, detail={"code": "RATE_LIMITED"})
+        provider_error = HTTPException(status_code=429, detail={"code": "RATE_LIMITED"})
 
         with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
-            with patch.object(analyze, "call_gemini", side_effect=expected):
-                with self.assertRaises(HTTPException) as context:
-                    asyncio.run(analyze.analyze_food(request))
+            with patch.object(analyze, "call_gemini", side_effect=provider_error):
+                with patch.object(analyze.logger, "error") as log_error:
+                    with self.assertRaises(HTTPException) as context:
+                        analyze.analyze_food(request)
 
-        self.assertIs(expected, context.exception)
+        self.assertEqual(502, context.exception.status_code)
+        self.assertEqual({"code": "ANALYSIS_FAILED"}, context.exception.detail)
+        self.assertNotIn("RATE_LIMITED", str(context.exception.detail))
+        log_error.assert_called_once_with(
+            "Nutrition analysis provider request failed",
+            extra={"exception_type": "HTTPException"},
+        )
 
     def test_successful_provider_response_has_deterministic_assessment_without_fake_zeros(self):
         request = analyze.AnalyzeRequest(image=image_data_uri())
@@ -268,9 +362,9 @@ class AnalyzeEndpointTests(unittest.TestCase):
             with patch.object(
                 analyze, "call_gemini", return_value=model_analysis(food_detected=False)
             ):
-                response = asyncio.run(analyze.analyze_food(request))
+                response = analyze.analyze_food(request)
 
-        self.assertTrue(response.food_detected is False)
+        self.assertFalse(response.food_detected)
         self.assertTrue(all(value is None for value in response.nutrients.model_dump().values()))
         self.assertIsNone(response.assessment.score)
         self.assertTrue(response.assessment.insufficient_data)
@@ -286,6 +380,20 @@ class ApplicationContractTests(unittest.TestCase):
 
         self.assertTrue({"/", "/api/analyze"}.issubset(post_paths))
         self.assertEqual([], analyze.app.user_middleware)
+
+    def test_testclient_serializes_owned_error_and_success(self):
+        with TestClient(analyze.app) as client:
+            with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+                missing_key = client.post("/api/analyze", json={"image": image_data_uri()})
+            with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
+                with patch.object(analyze, "call_gemini", return_value=model_analysis()):
+                    success = client.post("/api/analyze", json={"image": image_data_uri()})
+
+        self.assertEqual(503, missing_key.status_code)
+        self.assertEqual({"code": "SERVICE_NOT_CONFIGURED"}, missing_key.json()["detail"])
+        self.assertEqual(200, success.status_code)
+        self.assertEqual("chicken rice", success.json()["food_names"]["en"])
+        self.assertIn("assessment", success.json())
 
 
 if __name__ == "__main__":
