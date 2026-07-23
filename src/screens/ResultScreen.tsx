@@ -1,5 +1,5 @@
 import {Camera, Download, RotateCcw} from 'lucide-react';
-import {useRef} from 'react';
+import {useRef, useState} from 'react';
 
 import {LanguageSwitcher} from '../components/LanguageSwitcher';
 import {formatNutritionValue, statusMessageKey} from '../formatters';
@@ -107,6 +107,8 @@ export function ResultScreen({
   onSaveError,
 }: ResultScreenProps) {
   const resultRef = useRef<HTMLElement>(null);
+  const saveInProgressRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
   const scoreIsAvailable =
     typeof data.assessment.score === 'number' &&
     Number.isFinite(data.assessment.score) &&
@@ -127,6 +129,13 @@ export function ResultScreen({
     .slice(0, 2);
 
   const handleSave = async () => {
+    if (saveInProgressRef.current) {
+      return;
+    }
+
+    saveInProgressRef.current = true;
+    setIsSaving(true);
+
     try {
       if (!resultRef.current) {
         throw new Error('Result element is unavailable');
@@ -145,6 +154,9 @@ export function ResultScreen({
       link.remove();
     } catch {
       onSaveError('SAVE_FAILED');
+    } finally {
+      saveInProgressRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -201,7 +213,10 @@ export function ResultScreen({
         />
       </section>
 
-      <section className="macro-list" aria-label={`${text.protein}, ${text.carbs}`}>
+      <section
+        className="macro-list"
+        aria-label={`${text.protein}, ${text.carbs}, ${text.fat}, ${text.fiber}`}
+      >
         <NutrientRow
           nutrient="protein_g"
           label={text.protein}
@@ -236,7 +251,10 @@ export function ResultScreen({
         />
       </section>
 
-      <section className="secondary-nutrients" aria-label={`${text.sugar}, ${text.sodium}`}>
+      <section
+        className="secondary-nutrients"
+        aria-label={`${text.sugar}, ${text.sodium}, ${text.portion}`}
+      >
         <NutrientRow
           nutrient="sugar_g"
           label={text.sugar}
@@ -285,7 +303,14 @@ export function ResultScreen({
           <p>{text.referenceBasis}</p>
         </div>
         <div className="result-actions">
-          <button className="primary-button" type="button" onClick={handleSave}>
+          <button
+            className="primary-button"
+            type="button"
+            data-action="save-result"
+            aria-busy={isSaving}
+            disabled={isSaving}
+            onClick={handleSave}
+          >
             <Download aria-hidden="true" size={19} />
             {text.saveResult}
           </button>

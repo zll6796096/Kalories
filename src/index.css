@@ -393,6 +393,10 @@ p {
   height: 0.58rem;
   margin-top: 0.35rem;
   border-radius: 50%;
+  background: #8e8e93;
+}
+
+.ready-indicator.is-ready {
   background: #30d158;
   box-shadow: 0 0 0 4px rgba(48, 209, 88, 0.15);
 }
@@ -412,6 +416,12 @@ p {
 
 .shutter-button:active {
   transform: scale(0.94);
+}
+
+.shutter-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
 }
 
 .analyzing-card {

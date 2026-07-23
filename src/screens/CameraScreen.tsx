@@ -1,5 +1,5 @@
 import {Camera} from 'lucide-react';
-import {useRef} from 'react';
+import {useReducer, useRef, type SyntheticEvent} from 'react';
 import Webcam from 'react-webcam';
 
 import {LanguageSwitcher} from '../components/LanguageSwitcher';
@@ -20,6 +20,21 @@ const videoConstraints: MediaTrackConstraints = {
   height: {ideal: 1280},
 };
 
+export type CameraReadinessAction =
+  | {type: 'video-data'; width: number; height: number}
+  | {type: 'media-error'};
+
+export function cameraReadinessReducer(
+  _isReady: boolean,
+  action: CameraReadinessAction,
+): boolean {
+  if (action.type === 'media-error') {
+    return false;
+  }
+
+  return action.width > 0 && action.height > 0;
+}
+
 export function CameraScreen({
   locale,
   text,
@@ -28,8 +43,31 @@ export function CameraScreen({
   onError,
 }: CameraScreenProps) {
   const webcamRef = useRef<Webcam>(null);
+  const [isCameraReady, dispatchReadiness] = useReducer(
+    cameraReadinessReducer,
+    false,
+  );
+
+  const updateReadiness = (video: HTMLVideoElement | null | undefined) => {
+    dispatchReadiness({
+      type: 'video-data',
+      width: video?.videoWidth ?? 0,
+      height: video?.videoHeight ?? 0,
+    });
+  };
 
   const handleCapture = () => {
+    const video = webcamRef.current?.video;
+    if (
+      !isCameraReady ||
+      !video ||
+      video.videoWidth <= 0 ||
+      video.videoHeight <= 0
+    ) {
+      updateReadiness(video);
+      return;
+    }
+
     const image = webcamRef.current?.getScreenshot();
     if (!image) {
       onError('CAPTURE_FAILED');
@@ -37,6 +75,15 @@ export function CameraScreen({
     }
 
     onCapture(image);
+  };
+
+  const handleVideoData = (event: SyntheticEvent<HTMLVideoElement>) => {
+    updateReadiness(event.currentTarget);
+  };
+
+  const handleMediaError = () => {
+    dispatchReadiness({type: 'media-error'});
+    onError('CAMERA_DENIED');
   };
 
   return (
@@ -62,8 +109,10 @@ export function CameraScreen({
           imageSmoothing
           mirrored={false}
           videoConstraints={videoConstraints}
-          onUserMedia={() => undefined}
-          onUserMediaError={() => onError('CAMERA_DENIED')}
+          onLoadedData={handleVideoData}
+          onCanPlay={handleVideoData}
+          onUserMedia={() => updateReadiness(webcamRef.current?.video)}
+          onUserMediaError={handleMediaError}
           className="camera-video"
         />
         <div className="camera-frame" aria-hidden="true">
@@ -74,11 +123,17 @@ export function CameraScreen({
         </div>
       </div>
 
-      <section className="camera-controls" aria-label={text.cameraReady}>
+      <section
+        className="camera-controls"
+        aria-label={isCameraReady ? text.cameraReady : text.cameraHint}
+      >
         <div className="camera-guidance">
-          <span className="ready-indicator" aria-hidden="true" />
+          <span
+            className={`ready-indicator${isCameraReady ? ' is-ready' : ''}`}
+            aria-hidden="true"
+          />
           <div>
-            <strong>{text.cameraReady}</strong>
+            <strong>{isCameraReady ? text.cameraReady : text.cameraTitle}</strong>
             <p>{text.cameraHint}</p>
           </div>
         </div>
@@ -86,6 +141,8 @@ export function CameraScreen({
           className="shutter-button"
           type="button"
           aria-label={text.capture}
+          aria-disabled={!isCameraReady}
+          disabled={!isCameraReady}
           onClick={handleCapture}
         >
           <Camera aria-hidden="true" size={28} />

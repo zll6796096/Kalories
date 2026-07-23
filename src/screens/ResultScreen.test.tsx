@@ -112,6 +112,12 @@ describe('ResultScreen', () => {
     expect(html).toContain(messages.en.suggestionReduceSauce);
     expect(html.match(/Estimate confidence/g)?.length).toBeGreaterThanOrEqual(3);
     expect(html).toContain('Low');
+    expect(html).toContain(
+      'aria-label="Protein, Carbohydrates, Fat, Dietary fibre"',
+    );
+    expect(html).toContain(
+      'aria-label="Sugars, Sodium, Estimated portion"',
+    );
     expect(html).not.toContain('role="tab"');
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain('<details');
@@ -179,5 +185,16 @@ describe('ResultScreen', () => {
     expect(html.match(/<button/g)?.length).toBeGreaterThanOrEqual(5);
     expect(html).toContain('aria-pressed="true"');
     expect(html).not.toContain('role="tab"');
+  });
+
+  it('renders the save action initially enabled and not busy', () => {
+    const html = renderResult();
+    const saveButton = html.slice(
+      html.indexOf('data-action="save-result"'),
+      html.indexOf(messages.en.saveResult) + messages.en.saveResult.length,
+    );
+
+    expect(saveButton).toContain('aria-busy="false"');
+    expect(saveButton).not.toContain('disabled=""');
   });
 });
