@@ -40,6 +40,9 @@ _SUGGESTION_PRIORITY = (
     "adjust_staple",
     "reduce_portion",
 )
+_SUGGESTION_PRIORITY_INDEX = {
+    key: index for index, key in enumerate(_SUGGESTION_PRIORITY)
+}
 
 
 def assess_nutrition(
@@ -47,7 +50,7 @@ def assess_nutrition(
 ) -> dict[str, Any]:
     """Assess available meal estimates without calling providers or applying medical rules."""
     values = {
-        field: _valid_number(nutrients.get(field) if isinstance(nutrients, Mapping) else None)
+        field: _number(nutrients.get(field) if isinstance(nutrients, Mapping) else None)
         for field in _FIELDS
     }
     overall_confidence = _confidence(
@@ -55,43 +58,74 @@ def assess_nutrition(
     )
     statuses = {field: "indeterminate" for field in _FIELDS}
     reasons: list[str] = []
-    suggestions: set[str] = set()
+    suggestion_candidates: list[tuple[str, int]] = []
     penalties: list[int] = []
 
     calorie_status, calorie_penalty, calorie_reason, calorie_suggestion = _calories(
         values["calories_kcal"]
     )
     statuses["calories_kcal"] = calorie_status
-    _record(penalties, reasons, suggestions, calorie_penalty, calorie_reason, calorie_suggestion)
+    _record(
+        penalties,
+        reasons,
+        suggestion_candidates,
+        calorie_penalty,
+        calorie_reason,
+        calorie_suggestion,
+    )
 
     macro_statuses, macro_outcomes = _macros(values)
     statuses.update(macro_statuses)
     for penalty, reason, suggestion in macro_outcomes:
-        _record(penalties, reasons, suggestions, penalty, reason, suggestion)
+        _record(penalties, reasons, suggestion_candidates, penalty, reason, suggestion)
 
     fiber_status, fiber_penalty, fiber_reason, fiber_suggestion = _fiber(values["fiber_g"])
     statuses["fiber_g"] = fiber_status
-    _record(penalties, reasons, suggestions, fiber_penalty, fiber_reason, fiber_suggestion)
+    _record(
+        penalties,
+        reasons,
+        suggestion_candidates,
+        fiber_penalty,
+        fiber_reason,
+        fiber_suggestion,
+    )
 
     sugar_status, sugar_penalty, sugar_reason, sugar_suggestion = _sugar(
         values["sugar_g"], _nutrient_confidence(confidence, "sugar_g")
     )
     statuses["sugar_g"] = sugar_status
-    _record(penalties, reasons, suggestions, sugar_penalty, sugar_reason, sugar_suggestion)
+    _record(
+        penalties,
+        reasons,
+        suggestion_candidates,
+        sugar_penalty,
+        sugar_reason,
+        sugar_suggestion,
+    )
 
     sodium_status, sodium_penalty, sodium_reason, sodium_suggestion = _sodium(
         values["sodium_mg"]
     )
     statuses["sodium_mg"] = sodium_status
-    _record(penalties, reasons, suggestions, sodium_penalty, sodium_reason, sodium_suggestion)
+    _record(
+        penalties,
+        reasons,
+        suggestion_candidates,
+        sodium_penalty,
+        sodium_reason,
+        sodium_suggestion,
+    )
 
     present_macros = sum(values[field] is not None for field in MACRO_RANGES)
+    macro_denominator = _macro_energy_denominator(values)
     score_is_available = (
         values["calories_kcal"] is not None
         and present_macros >= 2
+        and macro_denominator is not None
+        and macro_denominator > 0
         and overall_confidence in {"medium", "high"}
     )
-    suggestion_keys = [key for key in _SUGGESTION_PRIORITY if key in suggestions][:2]
+    suggestion_keys = _select_suggestions(suggestion_candidates)
     if not score_is_available:
         return {
             "score": None,
@@ -113,10 +147,13 @@ def assess_nutrition(
     }
 
 
-def _valid_number(value: Any) -> float | None:
+def _number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    number = float(value)
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
     return number if isfinite(number) and number >= 0 else None
 
 
@@ -136,7 +173,7 @@ def _nutrient_confidence(confidence: Mapping[str, Any], field: str) -> str:
 def _record(
     penalties: list[int],
     reasons: list[str],
-    suggestions: set[str],
+    suggestion_candidates: list[tuple[str, int]],
     penalty: int,
     reason: str | None,
     suggestion: str | None,
@@ -146,7 +183,20 @@ def _record(
         if reason:
             reasons.append(reason)
         if suggestion:
-            suggestions.add(suggestion)
+            suggestion_candidates.append((suggestion, penalty))
+
+
+def _select_suggestions(candidates: list[tuple[str, int]]) -> list[str]:
+    severities: dict[str, int] = {}
+    for key, severity in candidates:
+        severities[key] = max(severity, severities.get(key, 0))
+    return [
+        key
+        for key, _ in sorted(
+            severities.items(),
+            key=lambda item: (-item[1], _SUGGESTION_PRIORITY_INDEX[item[0]]),
+        )
+    ][:2]
 
 
 def _calories(value: float | None) -> tuple[str, int, str | None, str | None]:
@@ -167,12 +217,12 @@ def _macros(
     if any(value is None for value in macro_values):
         return statuses, []
 
+    denominator = _macro_energy_denominator(values)
+    if denominator is None or denominator == 0:
+        return statuses, []
     macro_energy = {
         field: values[field] * _MACRO_KCAL_PER_GRAM[field] for field in MACRO_RANGES
     }
-    denominator = sum(macro_energy.values())
-    if denominator == 0:
-        return statuses, []
 
     outcomes: list[tuple[int, str | None, str | None]] = []
     for field, (lower, upper) in MACRO_RANGES.items():
@@ -188,6 +238,18 @@ def _macros(
         else:
             statuses[field] = "appropriate"
     return statuses, outcomes
+
+
+def _macro_energy_denominator(values: Mapping[str, float | None]) -> float | None:
+    present_macro_fields = [
+        field for field in MACRO_RANGES if values[field] is not None
+    ]
+    if not present_macro_fields:
+        return None
+    denominator = sum(
+        values[field] * _MACRO_KCAL_PER_GRAM[field] for field in present_macro_fields
+    )
+    return denominator if isfinite(denominator) else None
 
 
 def _macro_penalty(deviation: float) -> int:

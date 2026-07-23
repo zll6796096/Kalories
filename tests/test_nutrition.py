@@ -64,6 +64,32 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertEqual("high", result["statuses"]["fat_g"])
         self.assertLess(result["score"], 80)
 
+    def test_zero_derived_macro_energy_makes_the_score_indeterminate(self):
+        result = assess_nutrition(
+            self._meal(protein_g=0, carbs_g=0, fat_g=0), high_confidence()
+        )
+
+        self.assertIsNone(result["score"])
+        self.assertEqual("indeterminate", result["tier"])
+        self.assertTrue(result["insufficient_data"])
+
+    def test_partial_zero_macros_with_positive_energy_remain_computable(self):
+        result = assess_nutrition(
+            self._meal(protein_g=0, carbs_g=50, fat_g=10), high_confidence()
+        )
+
+        self.assertIsNotNone(result["score"])
+        self.assertFalse(result["insufficient_data"])
+        self.assertEqual("low", result["statuses"]["protein_g"])
+        self.assertEqual("high", result["statuses"]["carbs_g"])
+        self.assertEqual("high", result["statuses"]["fat_g"])
+
+    def test_two_present_macros_with_positive_energy_remain_computable(self):
+        result = assess_nutrition(self._meal(fat_g=None), high_confidence())
+
+        self.assertIsNotNone(result["score"])
+        self.assertFalse(result["insufficient_data"])
+
     def test_fiber_thresholds_and_penalties(self):
         appropriate = assess_nutrition(self._meal(fiber_g=6), high_confidence())
         moderate = assess_nutrition(self._meal(fiber_g=3), high_confidence())
@@ -135,6 +161,17 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertIsNone(result["score"])
         self.assertTrue(result["insufficient_data"])
 
+    def test_huge_nonfinite_and_nan_numbers_are_unavailable(self):
+        cases = (10**10000, float("nan"), float("inf"), float("-inf"))
+        for value in cases:
+            with self.subTest(kind=type(value).__name__):
+                result = assess_nutrition(
+                    self._meal(calories_kcal=value), high_confidence()
+                )
+                self.assertEqual("indeterminate", result["statuses"]["calories_kcal"])
+                self.assertIsNone(result["score"])
+                self.assertTrue(result["insufficient_data"])
+
     def test_score_requires_calories_two_macros_and_reliable_overall_confidence(self):
         too_few_macros = assess_nutrition(
             self._meal(carbs_g=None, fat_g=None), high_confidence()
@@ -157,7 +194,7 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertEqual("low", result["statuses"]["fiber_g"])
         self.assertEqual("high", result["statuses"]["sodium_mg"])
         self.assertEqual(["fiber_low", "sodium_high"], result["scoring_reasons"])
-        self.assertEqual(["add_vegetables", "reduce_sauce"], result["suggestion_keys"])
+        self.assertEqual(["reduce_sauce", "add_vegetables"], result["suggestion_keys"])
 
     def test_invalid_confidence_values_are_treated_as_low(self):
         result = assess_nutrition(self._meal(), high_confidence(overall={"bad": "value"}))
@@ -301,7 +338,7 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertEqual((79, "mostly_balanced"), (below_balanced["score"], below_balanced["tier"]))
         self.assertEqual((58, "needs_attention"), (needs_attention["score"], needs_attention["tier"]))
 
-    def test_score_clamps_and_identical_inputs_return_identical_results(self):
+    def test_extreme_input_results_are_deterministic_and_bounded(self):
         meal = self._meal(
             calories_kcal=2000,
             protein_g=0,
@@ -332,8 +369,19 @@ class AssessNutritionTests(unittest.TestCase):
 
         result = assess_nutrition(meal, high_confidence())
 
-        self.assertEqual(["add_vegetables", "reduce_sauce"], result["suggestion_keys"])
+        self.assertEqual(["reduce_sauce", "reduce_fat"], result["suggestion_keys"])
         self.assertEqual(len(result["suggestion_keys"]), len(set(result["suggestion_keys"])))
+
+    def test_largest_actionable_deviations_outrank_milder_findings(self):
+        result = assess_nutrition(
+            self._meal_for_macro_percentages(15, 40, 45, fiber_g=3, sodium_mg=668),
+            high_confidence(),
+        )
+
+        self.assertEqual("high", result["statuses"]["fat_g"])
+        self.assertEqual("low", result["statuses"]["fiber_g"])
+        self.assertEqual("high", result["statuses"]["sodium_mg"])
+        self.assertEqual(["reduce_fat", "reduce_sauce"], result["suggestion_keys"])
 
     @staticmethod
     def _meal(**overrides):
