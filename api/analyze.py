@@ -26,7 +26,6 @@ app = FastAPI()
 
 SUPPORTED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
-MAX_ENCODED_IMAGE_CHARS = 7 * 1024 * 1024
 
 ConfidenceLevel = Literal["low", "medium", "high"]
 AssumptionKey = Literal[
@@ -104,7 +103,7 @@ class AnalyzeResponse(ModelAnalysis):
 
 
 class AnalyzeRequest(BaseModel):
-    image: str = Field(min_length=1, max_length=MAX_ENCODED_IMAGE_CHARS)
+    image: str = Field(min_length=1)
 
 
 _DATA_URI_PATTERN = re.compile(r"data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})")
@@ -174,8 +173,9 @@ def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysi
                 "assumption keys: visible_portion_only, portion_estimated, seasoning_estimated, "
                 "hidden_ingredients_possible. Use null when a value is unknown; never use zero "
                 "to represent missing data. Sugar and sodium confidence must be low when hidden "
-                "seasonings make them unreliable. Do not provide a health score, tier, nutrient "
-                "state, diagnosis, medical advice, or any assessment."
+                "seasonings make them unreliable. Do not return any recommendations, improvement "
+                "suggestions, nutrition advice, health score, tier, nutrient state, diagnosis, "
+                "medical advice, or any assessment."
             ),
         ],
         config=types.GenerateContentConfig(
