@@ -147,15 +147,23 @@ def _has_valid_signature(mime_type: str, file_bytes: bytes) -> bool:
 _FORMAT_TO_MIME = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
 
 
+def _validate_image_metadata(mime_type: str, image: Image.Image) -> None:
+    actual_mime = _FORMAT_TO_MIME.get(image.format)
+    width, height = image.size
+    if actual_mime != mime_type or width * height > MAX_IMAGE_PIXELS:
+        raise ImageValidationError("INVALID_IMAGE")
+
+
 def _verify_image_content(mime_type: str, file_bytes: bytes) -> None:
     image = None
     try:
         image = Image.open(BytesIO(file_bytes))
-        actual_mime = _FORMAT_TO_MIME.get(image.format)
-        width, height = image.size
-        if actual_mime != mime_type or width * height > MAX_IMAGE_PIXELS:
-            raise ImageValidationError("INVALID_IMAGE")
+        _validate_image_metadata(mime_type, image)
         image.verify()
+        image.close()
+        image = Image.open(BytesIO(file_bytes))
+        _validate_image_metadata(mime_type, image)
+        image.load()
     except ImageValidationError:
         raise
     except (Image.DecompressionBombError, OSError, TypeError, UnidentifiedImageError, ValueError):

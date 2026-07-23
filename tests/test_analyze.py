@@ -119,6 +119,12 @@ class ImageDecodingTests(unittest.TestCase):
                     analyze.decode_image(image)
                 self.assertEqual("INVALID_IMAGE", context.exception.code)
 
+    def test_decode_image_rejects_jpeg_missing_trailing_byte_after_verify(self):
+        with self.assertRaises(analyze.ImageValidationError) as context:
+            analyze.decode_image(image_data_uri(JPEG_BYTES[:-1], "image/jpeg"))
+
+        self.assertEqual("INVALID_IMAGE", context.exception.code)
+
     def test_decode_image_rejects_payload_larger_than_three_mebibytes(self):
         oversized = image_data_uri(
             JPEG_BYTES + b"x" * (3 * 1024 * 1024 + 1 - len(JPEG_BYTES))
