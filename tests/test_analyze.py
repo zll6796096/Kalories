@@ -5,10 +5,12 @@ import inspect
 import os
 import unittest
 import warnings
+from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException
+from PIL import Image
 from pydantic import ValidationError
 
 with warnings.catch_warnings():
@@ -18,9 +20,15 @@ with warnings.catch_warnings():
 import api.analyze as analyze
 
 
-JPEG_BYTES = b"\xff\xd8\xff\xdb"
-PNG_BYTES = b"\x89PNG\r\n\x1a\n"
-WEBP_BYTES = b"RIFF\x00\x00\x00\x00WEBP"
+def real_image_bytes(image_format: str) -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (1, 1), color=(10, 20, 30)).save(buffer, format=image_format)
+    return buffer.getvalue()
+
+
+JPEG_BYTES = real_image_bytes("JPEG")
+PNG_BYTES = real_image_bytes("PNG")
+WEBP_BYTES = real_image_bytes("WEBP")
 IMAGE_BYTES_BY_MIME = {
     "image/jpeg": JPEG_BYTES,
     "image/png": PNG_BYTES,
@@ -62,7 +70,7 @@ def model_analysis(*, food_detected=True):
 
 
 class ImageDecodingTests(unittest.TestCase):
-    def test_decode_image_accepts_signature_correct_supported_data_uris_and_bare_jpeg(self):
+    def test_decode_image_accepts_real_supported_data_uris_and_bare_jpeg(self):
         bare_jpeg = base64.b64encode(JPEG_BYTES).decode("ascii")
 
         for mime_type, image in (
@@ -95,13 +103,14 @@ class ImageDecodingTests(unittest.TestCase):
                     analyze.decode_image(image)
                 self.assertEqual("INVALID_IMAGE", context.exception.code)
 
-    def test_decode_image_rejects_invalid_or_mismatched_content_signatures(self):
+    def test_decode_image_rejects_invalid_or_mismatched_content(self):
         invalid_images = (
             image_data_uri(b"not-a-jpeg", "image/jpeg"),
             image_data_uri(JPEG_BYTES, "image/png"),
-            image_data_uri(b"\xff\xd8\xff", "image/jpeg"),
-            image_data_uri(PNG_BYTES[:-1], "image/png"),
-            image_data_uri(WEBP_BYTES[:-1], "image/webp"),
+            image_data_uri(b"\xff\xd8\xffnot-an-image", "image/jpeg"),
+            image_data_uri(JPEG_BYTES[:20], "image/jpeg"),
+            image_data_uri(PNG_BYTES[:20], "image/png"),
+            image_data_uri(WEBP_BYTES[:20], "image/webp"),
         )
 
         for image in invalid_images:
@@ -130,6 +139,16 @@ class ImageDecodingTests(unittest.TestCase):
         self.assertEqual("IMAGE_TOO_LARGE", context.exception.code)
         decode.assert_not_called()
 
+    def test_pixel_limit_rejects_image_before_full_verify(self):
+        image = MagicMock(format="JPEG", size=(5_000, 4_001))
+
+        with patch.object(analyze.Image, "open", return_value=image):
+            with self.assertRaises(analyze.ImageValidationError) as context:
+                analyze.decode_image(image_data_uri())
+
+        self.assertEqual("INVALID_IMAGE", context.exception.code)
+        image.verify.assert_not_called()
+
 
 class SchemaValidationTests(unittest.TestCase):
     def test_nutrients_reject_nan_and_infinite_values(self):
@@ -137,6 +156,17 @@ class SchemaValidationTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValidationError):
                     analyze.Nutrients.model_validate({"calories_kcal": value})
+
+    def test_model_analysis_rejects_excessive_portion_and_nutrient_estimates(self):
+        excessive_portion = model_analysis().model_dump()
+        excessive_portion["portion_grams"] = 10_001
+        excessive_calories = model_analysis().model_dump()
+        excessive_calories["nutrients"]["calories_kcal"] = 10_001
+
+        for payload in (excessive_portion, excessive_calories):
+            with self.subTest(payload=payload):
+                with self.assertRaises(ValidationError):
+                    analyze.ModelAnalysis.model_validate(payload)
 
     def test_food_names_strip_whitespace_and_reject_empty_names(self):
         names = analyze.FoodNames.model_validate(

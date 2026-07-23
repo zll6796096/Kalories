@@ -7,12 +7,14 @@ import binascii
 import logging
 import os
 import re
+from io import BytesIO
 from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from google import genai
 from google.genai import types
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from lib.nutrition import assess_nutrition
@@ -28,6 +30,7 @@ app = FastAPI()
 SUPPORTED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
 MAX_ENCODED_IMAGE_CHARS = 4 * 1024 * 1024
+MAX_IMAGE_PIXELS = 20_000_000
 
 ConfidenceLevel = Literal["low", "medium", "high"]
 AssumptionKey = Literal[
@@ -61,13 +64,13 @@ class FoodNames(StrictModel):
 
 
 class Nutrients(StrictModel):
-    calories_kcal: float | None = Field(default=None, ge=0)
-    protein_g: float | None = Field(default=None, ge=0)
-    carbs_g: float | None = Field(default=None, ge=0)
-    fat_g: float | None = Field(default=None, ge=0)
-    fiber_g: float | None = Field(default=None, ge=0)
-    sugar_g: float | None = Field(default=None, ge=0)
-    sodium_mg: float | None = Field(default=None, ge=0)
+    calories_kcal: float | None = Field(default=None, ge=0, le=10_000)
+    protein_g: float | None = Field(default=None, ge=0, le=2_000)
+    carbs_g: float | None = Field(default=None, ge=0, le=2_000)
+    fat_g: float | None = Field(default=None, ge=0, le=2_000)
+    fiber_g: float | None = Field(default=None, ge=0, le=2_000)
+    sugar_g: float | None = Field(default=None, ge=0, le=2_000)
+    sodium_mg: float | None = Field(default=None, ge=0, le=100_000)
 
 
 class NutrientConfidence(StrictModel):
@@ -89,7 +92,7 @@ class Confidence(StrictModel):
 class ModelAnalysis(StrictModel):
     food_detected: bool
     food_names: FoodNames | None
-    portion_grams: float | None = Field(default=None, ge=0)
+    portion_grams: float | None = Field(default=None, ge=0, le=10_000)
     nutrients: Nutrients
     confidence: Confidence
     assumption_keys: list[AssumptionKey] = Field(max_length=4)
@@ -141,6 +144,27 @@ def _has_valid_signature(mime_type: str, file_bytes: bytes) -> bool:
     return file_bytes.startswith(b"RIFF") and file_bytes[8:12] == b"WEBP"
 
 
+_FORMAT_TO_MIME = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}
+
+
+def _verify_image_content(mime_type: str, file_bytes: bytes) -> None:
+    image = None
+    try:
+        image = Image.open(BytesIO(file_bytes))
+        actual_mime = _FORMAT_TO_MIME.get(image.format)
+        width, height = image.size
+        if actual_mime != mime_type or width * height > MAX_IMAGE_PIXELS:
+            raise ImageValidationError("INVALID_IMAGE")
+        image.verify()
+    except ImageValidationError:
+        raise
+    except (Image.DecompressionBombError, OSError, TypeError, UnidentifiedImageError, ValueError):
+        raise ImageValidationError("INVALID_IMAGE") from None
+    finally:
+        if image is not None:
+            image.close()
+
+
 def decode_image(image: str) -> tuple[str, bytes]:
     """Strictly decode a supported data URI or bare JPEG base64 payload."""
     if image.startswith("data:"):
@@ -166,6 +190,7 @@ def decode_image(image: str) -> tuple[str, bytes]:
         raise ImageValidationError("INVALID_IMAGE")
     if len(file_bytes) > MAX_IMAGE_BYTES:
         raise ImageValidationError("IMAGE_TOO_LARGE")
+    _verify_image_content(mime_type, file_bytes)
     return mime_type, file_bytes
 
 
