@@ -280,7 +280,7 @@ Tier mapping:
 - 60–79: mostly balanced;
 - 0–59: needs attention.
 
-A score is returned only when calories plus at least two macros are present and overall confidence is not low. Otherwise, `score` is `null`, the tier is `indeterminate`, and the UI explains that there is not enough information.
+A score is returned only when calories plus all three macros (protein, carbohydrates, and fat) are present, their combined macro-energy denominator is positive, and overall confidence is medium or high. This safety correction prevents a partially observed macro profile from appearing perfectly balanced. If any required macro is missing, `score` is `null`, the tier is `indeterminate`, and the UI explains that there is not enough information while preserving any independently available non-macro findings.
 
 Confidence does not silently change the score. It is displayed next to the score so the user can interpret it.
 
@@ -405,7 +405,7 @@ Actual Gemini participation is verified only when the environment contains a usa
 ## 14. Acceptance Criteria
 
 - The entire user-visible app follows the approved Apple-inspired design direction.
-- The result page contains the photo, localized name, confidence, score, written tier, explanation, calories, seven nutrition estimates, per-item statuses, suggestions, disclaimer, and actions.
+- The result page contains the photo, localized name, overall and per-nutrient confidence, visible localized assumptions, score when safely available, written tier, explanation, calories, seven nutrition estimates, per-item statuses, any applicable suggestions, disclaimer, and actions.
 - All result content is on one continuous page. Mobile scrolling is allowed.
 - Chinese, Japanese, and English cover every user-facing state and can be changed without reanalysis.
 - First visit follows a supported device language; unsupported devices fall back to Japanese; manual choice persists locally.

@@ -266,7 +266,7 @@ function scoreIsAvailable(value: AnalysisResult): boolean {
   );
   return (
     value.nutrients.calories_kcal !== null &&
-    presentMacros.length >= 2 &&
+    presentMacros.length === macroKeys.length &&
     denominator > 0 &&
     (value.confidence.overall === 'medium' ||
       value.confidence.overall === 'high')

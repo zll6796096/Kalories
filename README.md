@@ -78,4 +78,6 @@ git diff --check
 
 ## API 责任边界
 
-`POST /api/analyze` 接收图片 data URI。响应中的 `food_names`、`portion_grams`、七项 `nutrients` 及对应 `confidence` 是 AI 估算；`assessment.score`、`assessment.tier`、七项 `statuses` 和 `suggestion_keys` 是本地确定性代码生成。缺失值返回 `null`，前端显示为 `—`，不会用 `0` 冒充未知数据。
+`POST /api/analyze` 接收图片 data URI。响应中的 `food_names`、`portion_grams`、七项 `nutrients`、各项 `confidence` 及受控的 `assumption_keys` 是 AI 估算；`assessment.score`、`assessment.tier`、七项 `statuses` 和 `suggestion_keys` 是本地确定性代码生成。前端会逐项显示置信度并将四种已知假设本地化，不会暴露未知内部键。缺失值返回 `null`，前端显示为 `—`，不会用 `0` 冒充未知数据。
+
+为了避免不完整营养结构产生虚假的高分，只有热量、蛋白质、碳水化合物、脂肪全部存在，三大营养素的能量分母为正，且总体置信度为中或高时才返回分数；否则分数为 `null`，结论为无法判断。

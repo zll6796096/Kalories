@@ -110,7 +110,7 @@ describe('ResultScreen', () => {
     expect(html).toContain(messages.en.referenceBasis);
     expect(html).toContain(messages.en.suggestionAddVegetables);
     expect(html).toContain(messages.en.suggestionReduceSauce);
-    expect(html.match(/Estimate confidence/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(html.match(/Estimate confidence/g)?.length).toBeGreaterThanOrEqual(9);
     expect(html).toContain('Low');
     expect(html).toContain(
       'aria-label="Protein, Carbohydrates, Fat, Dietary fibre"',
@@ -177,6 +177,80 @@ describe('ResultScreen', () => {
     expect(html).not.toContain(messages.en.suggestionReduceFat);
     expect(html).not.toContain('unknown_internal_rule');
   });
+
+  it('shows all localized assumptions, de-duplicates them, and hides unknown keys', () => {
+    const html = renderResult({
+      ...result,
+      assumption_keys: [
+        'visible_portion_only',
+        'portion_estimated',
+        'seasoning_estimated',
+        'hidden_ingredients_possible',
+        'visible_portion_only',
+        'internal_provider_note',
+      ],
+    });
+
+    expect(html).toContain(messages.en.assumptionsTitle);
+    expect(html).toContain(messages.en.assumptionVisiblePortionOnly);
+    expect(html).toContain(messages.en.assumptionPortionEstimated);
+    expect(html).toContain(messages.en.assumptionSeasoningEstimated);
+    expect(html).toContain(messages.en.assumptionHiddenIngredientsPossible);
+    expect(
+      html.match(
+        new RegExp(messages.en.assumptionVisiblePortionOnly.replace('.', '\\.'), 'g'),
+      )?.length,
+    ).toBe(1);
+    expect(html).not.toContain('internal_provider_note');
+    expect(html.indexOf('class="uncertainty-block"')).toBeGreaterThan(
+      html.indexOf('class="result-footer"'),
+    );
+    expect(html.indexOf('class="uncertainty-block"')).toBeLessThan(
+      html.indexOf('class="reference-note"'),
+    );
+  });
+
+  it('hides uncertainty and advice blocks when there is no known visible content', () => {
+    const html = renderResult({
+      ...result,
+      assumption_keys: [],
+      assessment: {
+        ...result.assessment,
+        suggestion_keys: [],
+      },
+    });
+
+    expect(html).not.toContain('class="uncertainty-block"');
+    expect(html).not.toContain('class="advice-card"');
+    expect(html).not.toContain(messages.en.assumptionsTitle);
+    expect(html).not.toContain(messages.en.adviceTitle);
+  });
+
+  it.each([
+    ['zh', messages.zh.assumptionsTitle, messages.zh.assumptionVisiblePortionOnly],
+    ['ja', messages.ja.assumptionsTitle, messages.ja.assumptionVisiblePortionOnly],
+    ['en', messages.en.assumptionsTitle, messages.en.assumptionVisiblePortionOnly],
+  ] as const)(
+    'switches assumption copy to %s without changing analysis data',
+    (locale, title, assumption) => {
+      const html = renderToStaticMarkup(
+        <ResultScreen
+          locale={locale}
+          text={messages[locale]}
+          data={{...result, assumption_keys: ['visible_portion_only']}}
+          capturedImage={null}
+          onLocaleChange={() => undefined}
+          onRetry={() => undefined}
+          onRetake={() => undefined}
+          onSaveError={() => undefined}
+        />,
+      );
+
+      expect(html).toContain(title);
+      expect(html).toContain(assumption);
+      expect(html).toContain('640 kcal');
+    },
+  );
 
   it('renders language controls as pressed buttons rather than tabs', () => {
     const html = renderResult();

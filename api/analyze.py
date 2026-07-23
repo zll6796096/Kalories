@@ -11,7 +11,9 @@ from io import BytesIO
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from google import genai
 from google.genai import types
 from PIL import Image, UnidentifiedImageError
@@ -25,6 +27,17 @@ load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
 app = FastAPI()
+
+
+@app.exception_handler(RequestValidationError)
+def handle_request_validation(
+    _request: Request, _error: RequestValidationError
+) -> JSONResponse:
+    """Return a stable owned error without exposing validation internals."""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": {"code": "INVALID_IMAGE"}},
+    )
 
 # Production deployment requires platform-level rate limiting, quota, and budget controls.
 SUPPORTED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})

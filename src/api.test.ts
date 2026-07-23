@@ -380,6 +380,37 @@ describe('analyzeImage', () => {
     }
   });
 
+  it('accepts an indeterminate backend assessment when one macro is missing', async () => {
+    const partial = cloneFixture(analysisFixture);
+    partial.nutrients.fat_g = null;
+    partial.assessment.score = null;
+    partial.assessment.tier = 'indeterminate';
+    partial.assessment.insufficient_data = true;
+    partial.assessment.statuses.protein_g = 'indeterminate';
+    partial.assessment.statuses.carbs_g = 'indeterminate';
+    partial.assessment.statuses.fat_g = 'indeterminate';
+    const fetcher = vi.fn<typeof fetch>();
+    fetcher.mockResolvedValue(response(partial));
+
+    await expect(
+      analyzeImage('data:image/jpeg;base64,AA==', {fetcher}),
+    ).resolves.toEqual(partial);
+  });
+
+  it('rejects a scored response when any macro is missing', async () => {
+    const contradictory = cloneFixture(analysisFixture);
+    contradictory.nutrients.fat_g = null;
+    contradictory.assessment.statuses.protein_g = 'indeterminate';
+    contradictory.assessment.statuses.carbs_g = 'indeterminate';
+    contradictory.assessment.statuses.fat_g = 'indeterminate';
+    const fetcher = vi.fn<typeof fetch>();
+    fetcher.mockResolvedValue(response(contradictory));
+
+    await expect(
+      analyzeImage('data:image/jpeg;base64,AA==', {fetcher}),
+    ).rejects.toMatchObject({code: 'ANALYSIS_FAILED'});
+  });
+
   it('aborts a half-open request at the client timeout', async () => {
     vi.useFakeTimers();
     const fetcher = pendingFetch();

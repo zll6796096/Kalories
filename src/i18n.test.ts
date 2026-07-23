@@ -25,6 +25,11 @@ const expectedMessageKeys = [
   'confidenceLow',
   'confidenceMedium',
   'confidenceHigh',
+  'assumptionsTitle',
+  'assumptionVisiblePortionOnly',
+  'assumptionPortionEstimated',
+  'assumptionSeasoningEstimated',
+  'assumptionHiddenIngredientsPossible',
   'estimatedScore',
   'tierBalanced',
   'tierMostlyBalanced',
@@ -122,5 +127,58 @@ describe('message dictionaries', () => {
     expect(messages.en.referenceBasis).toBe(
       'Based on the Dietary Reference Intakes for Japanese (2025) and WHO guidance.',
     );
+  });
+
+  it('contains the exact approved assumption copy in every language', () => {
+    expect({
+      zh: {
+        assumptionsTitle: messages.zh.assumptionsTitle,
+        visiblePortionOnly: messages.zh.assumptionVisiblePortionOnly,
+        portionEstimated: messages.zh.assumptionPortionEstimated,
+        seasoningEstimated: messages.zh.assumptionSeasoningEstimated,
+        hiddenIngredientsPossible:
+          messages.zh.assumptionHiddenIngredientsPossible,
+      },
+      ja: {
+        assumptionsTitle: messages.ja.assumptionsTitle,
+        visiblePortionOnly: messages.ja.assumptionVisiblePortionOnly,
+        portionEstimated: messages.ja.assumptionPortionEstimated,
+        seasoningEstimated: messages.ja.assumptionSeasoningEstimated,
+        hiddenIngredientsPossible:
+          messages.ja.assumptionHiddenIngredientsPossible,
+      },
+      en: {
+        assumptionsTitle: messages.en.assumptionsTitle,
+        visiblePortionOnly: messages.en.assumptionVisiblePortionOnly,
+        portionEstimated: messages.en.assumptionPortionEstimated,
+        seasoningEstimated: messages.en.assumptionSeasoningEstimated,
+        hiddenIngredientsPossible:
+          messages.en.assumptionHiddenIngredientsPossible,
+      },
+    }).toEqual({
+      zh: {
+        assumptionsTitle: '估算前提',
+        visiblePortionOnly: '仅估算照片中可见的份量。',
+        portionEstimated: '份量根据外观估算。',
+        seasoningEstimated: '调味料用量为估算值。',
+        hiddenIngredientsPossible: '可能含有照片中看不见的食材。',
+      },
+      ja: {
+        assumptionsTitle: '推定の前提',
+        visiblePortionOnly: '写真に写っている量のみを推定しています。',
+        portionEstimated: '量は見た目から推定しています。',
+        seasoningEstimated: '調味料の量を推定しています。',
+        hiddenIngredientsPossible:
+          '写真に見えない材料が含まれる可能性があります。',
+      },
+      en: {
+        assumptionsTitle: 'Estimation assumptions',
+        visiblePortionOnly: 'Only the visible portion is estimated.',
+        portionEstimated: 'Portion size is estimated visually.',
+        seasoningEstimated: 'Seasoning amounts are estimated.',
+        hiddenIngredientsPossible:
+          'Ingredients not visible in the photo may be present.',
+      },
+    });
   });
 });

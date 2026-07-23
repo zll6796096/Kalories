@@ -431,6 +431,38 @@ class ApplicationContractTests(unittest.TestCase):
         self.assertEqual("chicken rice", success.json()["food_names"]["en"])
         self.assertIn("assessment", success.json())
 
+    def test_malformed_requests_return_only_the_owned_invalid_image_error(self):
+        cases = (
+            ("missing image", {"json": {}}),
+            ("empty image", {"json": {"image": ""}}),
+            ("wrong image type", {"json": {"image": 123}}),
+            (
+                "extra request field",
+                {"json": {"image": image_data_uri(), "unexpected": True}},
+            ),
+            (
+                "malformed json",
+                {
+                    "content": b'{"image":',
+                    "headers": {"Content-Type": "application/json"},
+                },
+            ),
+        )
+
+        with TestClient(analyze.app) as client:
+            for label, request_kwargs in cases:
+                with self.subTest(label=label):
+                    response = client.post("/api/analyze", **request_kwargs)
+
+                    self.assertEqual(400, response.status_code)
+                    self.assertEqual(
+                        {"detail": {"code": "INVALID_IMAGE"}},
+                        response.json(),
+                    )
+                    serialized = response.text
+                    for leaked_key in ('"loc"', '"msg"', '"input"'):
+                        self.assertNotIn(leaked_key, serialized)
+
 
 if __name__ == "__main__":
     unittest.main()

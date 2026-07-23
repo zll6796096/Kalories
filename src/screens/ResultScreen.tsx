@@ -49,6 +49,13 @@ const suggestionMessageKeys: Readonly<Record<string, keyof Messages>> = {
   reduce_portion: 'suggestionReducePortion',
 };
 
+const assumptionMessageKeys: Readonly<Record<string, keyof Messages>> = {
+  visible_portion_only: 'assumptionVisiblePortionOnly',
+  portion_estimated: 'assumptionPortionEstimated',
+  seasoning_estimated: 'assumptionSeasoningEstimated',
+  hidden_ingredients_possible: 'assumptionHiddenIngredientsPossible',
+};
+
 type Unit = 'kcal' | 'g' | 'mg';
 
 interface NutrientRowProps {
@@ -58,7 +65,6 @@ interface NutrientRowProps {
   data: AnalysisResult;
   locale: Locale;
   text: Messages;
-  showConfidence?: boolean;
   emphasized?: boolean;
 }
 
@@ -73,7 +79,6 @@ function NutrientRow({
   data,
   locale,
   text,
-  showConfidence = false,
   emphasized = false,
 }: NutrientRowProps) {
   const status = data.assessment.statuses[nutrient];
@@ -86,11 +91,9 @@ function NutrientRow({
     >
       <div className="nutrient-label">
         <span>{label}</span>
-        {showConfidence && (
-          <small>
-            {text.confidence}: {confidenceText(data.confidence.nutrients[nutrient], text)}
-          </small>
-        )}
+        <small>
+          {text.confidence}: {confidenceText(data.confidence.nutrients[nutrient], text)}
+        </small>
       </div>
       <strong>{formatNutritionValue(data.nutrients[nutrient], unit, locale)}</strong>
       <span className={`status-label status-${status}`}>{statusText}</span>
@@ -131,6 +134,14 @@ export function ResultScreen({
       return messageKey ? [text[messageKey]] : [];
     })
     .slice(0, 2);
+  const visibleAssumptions = [
+    ...new Set(
+      data.assumption_keys.flatMap((key) => {
+        const messageKey = assumptionMessageKeys[key];
+        return messageKey ? [text[messageKey]] : [];
+      }),
+    ),
+  ];
 
   const handleSave = async () => {
     if (saveInProgressRef.current) {
@@ -268,7 +279,6 @@ export function ResultScreen({
           data={data}
           locale={locale}
           text={text}
-          showConfidence
         />
         <NutrientRow
           nutrient="sodium_mg"
@@ -277,7 +287,6 @@ export function ResultScreen({
           data={data}
           locale={locale}
           text={text}
-          showConfidence
         />
         <div className="nutrient-row portion-row" data-nutrient="portion_grams">
           <div className="nutrient-label">
@@ -290,20 +299,30 @@ export function ResultScreen({
         </div>
       </section>
 
-      <section className="advice-card" aria-labelledby="advice-title">
-        <p className="section-label" id="advice-title">
-          {text.adviceTitle}
-        </p>
-        {visibleSuggestions.length > 0 && (
+      {visibleSuggestions.length > 0 && (
+        <section className="advice-card" aria-labelledby="advice-title">
+          <p className="section-label" id="advice-title">
+            {text.adviceTitle}
+          </p>
           <ul>
             {visibleSuggestions.map((suggestion) => (
               <li key={suggestion}>{suggestion}</li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
 
       <footer className="result-footer">
+        {visibleAssumptions.length > 0 && (
+          <div className="uncertainty-block">
+            <p className="section-label">{text.assumptionsTitle}</p>
+            <ul>
+              {visibleAssumptions.map((assumption) => (
+                <li key={assumption}>{assumption}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="reference-note">
           <p>{text.disclaimer}</p>
           <p>{text.referenceBasis}</p>

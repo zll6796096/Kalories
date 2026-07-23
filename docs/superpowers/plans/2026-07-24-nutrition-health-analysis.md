@@ -6,7 +6,7 @@
 
 **Architecture:** Gemini returns structured estimation facts and three localized food names. A pure Python module computes score, tier, nutrient statuses, and advice keys from documented rules. React owns the camera state machine, locale selection, translation, error recovery, single-page result presentation, and image export; the browser never receives the Gemini key.
 
-**Tech Stack:** React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, Motion, react-webcam, html2canvas, FastAPI, Pydantic, Google GenAI, Python `unittest`, Vitest.
+**Tech Stack:** React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, CSS motion with reduced-motion support, react-webcam, html2canvas, FastAPI, Pydantic, Google GenAI for Python, Python `unittest`, Vitest.
 
 ---
 
@@ -245,12 +245,13 @@ class NutritionAssessmentTests(unittest.TestCase):
         self.assertEqual(result["tier"], "indeterminate")
         self.assertTrue(result["insufficient_data"])
 
-    def test_calories_plus_two_macros_are_required(self):
+    def test_calories_plus_all_three_macros_are_required(self):
         result = assess_nutrition(
-            nutrients(protein_g=None, carbs_g=None),
+            nutrients(fat_g=None),
             confidence(),
         )
         self.assertIsNone(result["score"])
+        self.assertEqual(result["tier"], "indeterminate")
         self.assertTrue(result["insufficient_data"])
 
     def test_score_is_clamped_and_repeatable(self):
@@ -431,13 +432,19 @@ def assess_nutrition(
     if statuses["calories_kcal"] == "high":
         suggestions.append("reduce_portion")
 
-    present_macros = sum(
-        _number(nutrients.get(key)) is not None
+    macro_values = [
+        _number(nutrients.get(key))
         for key in ("protein_g", "carbs_g", "fat_g")
+    ]
+    macro_denominator = sum(
+        value * kcal_per_gram
+        for value, kcal_per_gram in zip(macro_values, (4, 4, 9))
+        if value is not None
     )
     sufficient = (
         calories is not None
-        and present_macros >= 2
+        and all(value is not None for value in macro_values)
+        and macro_denominator > 0
         and confidence.get("overall") in {"medium", "high"}
     )
     if not sufficient:
@@ -1484,7 +1491,7 @@ Each screen accepts already-localized `text`. The camera screen:
 - contains no `alert`;
 - uses a real `<button aria-label={text.capture}>` for the shutter.
 
-The analyzing screen uses the captured image, a localized title/body, and a CSS progress indicator. Motion animations use Motion and CSS media queries to respect reduced motion.
+The analyzing screen uses the captured image, a localized title/body, and a CSS progress indicator. CSS animations use media queries to respect reduced motion.
 
 - [ ] **Step 5: Build the continuous result screen**
 
@@ -1496,6 +1503,7 @@ Implement these sections in this exact DOM order inside one `<main className="re
 <section className="energy-summary" />
 <section className="macro-list" />
 <section className="secondary-nutrients" />
+{/* Render only when at least one known localized suggestion is visible. */}
 <section className="advice-card" />
 <footer className="result-footer" />
 ```
@@ -1505,7 +1513,8 @@ Use:
 - `data.food_names?.[locale]` for instant language switching;
 - `formatNutritionValue` for every value;
 - `statusMessageKey` for context-sensitive status text;
-- `data.confidence.nutrients[key]` beside sugar and sodium;
+- `data.confidence.nutrients[key]` beside every nutrient;
+- only the four approved assumption keys mapped to localized copy inside the footer before the reference note;
 - `data.assessment.suggestion_keys.slice(0, 2)` for advice;
 - `html2canvas` only from the save button handler;
 - `onSaveError('SAVE_FAILED')` instead of `alert`;
@@ -1513,6 +1522,8 @@ Use:
 - `onRetry` when `food_detected` is false or assessment is indeterminate.
 
 Do not add tabs, dialogs, accordions, or secondary routes.
+
+The score decoder and deterministic evaluator must both require calories plus protein, carbohydrates, and fat, with a positive macro-energy denominator and medium/high overall confidence. A partially observed macro profile is always indeterminate and must never be presented as a scored result.
 
 - [ ] **Step 6: Replace the visual system**
 

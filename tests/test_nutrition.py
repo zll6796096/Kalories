@@ -84,11 +84,39 @@ class AssessNutritionTests(unittest.TestCase):
         self.assertEqual("high", result["statuses"]["carbs_g"])
         self.assertEqual("high", result["statuses"]["fat_g"])
 
-    def test_two_present_macros_with_positive_energy_remain_computable(self):
-        result = assess_nutrition(self._meal(fat_g=None), high_confidence())
+    def test_missing_any_macro_suppresses_score_even_when_partial_values_look_balanced(self):
+        result = assess_nutrition(
+            self._meal(protein_g=25, carbs_g=82, fat_g=None),
+            high_confidence(),
+        )
 
-        self.assertIsNotNone(result["score"])
-        self.assertFalse(result["insufficient_data"])
+        self.assertIsNone(result["score"])
+        self.assertEqual("indeterminate", result["tier"])
+        self.assertTrue(result["insufficient_data"])
+        self.assertEqual("appropriate", result["statuses"]["calories_kcal"])
+
+    def test_extreme_partial_macros_cannot_produce_a_false_perfect_score(self):
+        result = assess_nutrition(
+            self._meal(
+                protein_g=0,
+                carbs_g=1,
+                fat_g=None,
+                fiber_g=7,
+                sugar_g=8,
+                sodium_mg=500,
+            ),
+            high_confidence(),
+        )
+
+        self.assertIsNone(result["score"])
+        self.assertEqual("indeterminate", result["tier"])
+        self.assertTrue(result["insufficient_data"])
+        self.assertTrue(
+            all(
+                result["statuses"][field] == "indeterminate"
+                for field in ("protein_g", "carbs_g", "fat_g")
+            )
+        )
 
     def test_fiber_thresholds_and_penalties(self):
         appropriate = assess_nutrition(self._meal(fiber_g=6), high_confidence())
@@ -172,16 +200,34 @@ class AssessNutritionTests(unittest.TestCase):
                 self.assertIsNone(result["score"])
                 self.assertTrue(result["insufficient_data"])
 
-    def test_score_requires_calories_two_macros_and_reliable_overall_confidence(self):
-        too_few_macros = assess_nutrition(
-            self._meal(carbs_g=None, fat_g=None), high_confidence()
-        )
+    def test_score_requires_calories_all_macros_and_reliable_overall_confidence(self):
+        missing_macro = assess_nutrition(self._meal(fat_g=None), high_confidence())
         low_overall = assess_nutrition(self._meal(), high_confidence(overall="low"))
 
-        for result in (too_few_macros, low_overall):
+        for result in (missing_macro, low_overall):
             self.assertIsNone(result["score"])
             self.assertEqual("indeterminate", result["tier"])
             self.assertTrue(result["insufficient_data"])
+
+    def test_all_three_macros_keep_statuses_and_penalties_coherent(self):
+        balanced = assess_nutrition(self._meal(), high_confidence())
+        extreme = assess_nutrition(
+            self._meal(protein_g=2, carbs_g=10, fat_g=50),
+            high_confidence(),
+        )
+
+        self.assertIsNotNone(balanced["score"])
+        self.assertFalse(balanced["insufficient_data"])
+        self.assertTrue(
+            all(
+                balanced["statuses"][field] != "indeterminate"
+                for field in ("protein_g", "carbs_g", "fat_g")
+            )
+        )
+        self.assertIsNotNone(extreme["score"])
+        self.assertLess(extreme["score"], balanced["score"])
+        self.assertEqual("low", extreme["statuses"]["protein_g"])
+        self.assertEqual("high", extreme["statuses"]["fat_g"])
 
     def test_insufficient_data_preserves_available_reasons_and_suggestions(self):
         result = assess_nutrition(

@@ -116,11 +116,11 @@ def assess_nutrition(
         sodium_suggestion,
     )
 
-    present_macros = sum(values[field] is not None for field in MACRO_RANGES)
+    all_macros_present = all(values[field] is not None for field in MACRO_RANGES)
     macro_denominator = _macro_energy_denominator(values)
     score_is_available = (
         values["calories_kcal"] is not None
-        and present_macros >= 2
+        and all_macros_present
         and macro_denominator is not None
         and macro_denominator > 0
         and overall_confidence in {"medium", "high"}

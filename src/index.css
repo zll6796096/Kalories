@@ -727,6 +727,28 @@ p {
   padding: clamp(1.25rem, 5vw, 1.75rem);
 }
 
+.uncertainty-block {
+  min-width: 0;
+  margin-bottom: 1.15rem;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.uncertainty-block ul {
+  display: grid;
+  margin: 0.7rem 0 0;
+  padding-left: 1.15rem;
+  gap: 0.45rem;
+  color: #424245;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.uncertainty-block li::marker {
+  color: #6e6e73;
+}
+
 .reference-note {
   color: #6e6e73;
   font-size: 0.76rem;

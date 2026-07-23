@@ -20,6 +20,11 @@ export interface Messages {
   confidenceLow: string;
   confidenceMedium: string;
   confidenceHigh: string;
+  assumptionsTitle: string;
+  assumptionVisiblePortionOnly: string;
+  assumptionPortionEstimated: string;
+  assumptionSeasoningEstimated: string;
+  assumptionHiddenIngredientsPossible: string;
   estimatedScore: string;
   tierBalanced: string;
   tierMostlyBalanced: string;
@@ -82,6 +87,11 @@ export const messages: Record<Locale, Messages> = {
     confidenceLow: '低',
     confidenceMedium: '中',
     confidenceHigh: '高',
+    assumptionsTitle: '估算前提',
+    assumptionVisiblePortionOnly: '仅估算照片中可见的份量。',
+    assumptionPortionEstimated: '份量根据外观估算。',
+    assumptionSeasoningEstimated: '调味料用量为估算值。',
+    assumptionHiddenIngredientsPossible: '可能含有照片中看不见的食材。',
     estimatedScore: '估算健康分',
     tierBalanced: '营养均衡',
     tierMostlyBalanced: '基本均衡',
@@ -142,6 +152,12 @@ export const messages: Record<Locale, Messages> = {
     confidenceLow: '低',
     confidenceMedium: '中',
     confidenceHigh: '高',
+    assumptionsTitle: '推定の前提',
+    assumptionVisiblePortionOnly: '写真に写っている量のみを推定しています。',
+    assumptionPortionEstimated: '量は見た目から推定しています。',
+    assumptionSeasoningEstimated: '調味料の量を推定しています。',
+    assumptionHiddenIngredientsPossible:
+      '写真に見えない材料が含まれる可能性があります。',
     estimatedScore: '推定スコア',
     tierBalanced: 'バランス良好',
     tierMostlyBalanced: 'おおむね良好',
@@ -202,6 +218,12 @@ export const messages: Record<Locale, Messages> = {
     confidenceLow: 'Low',
     confidenceMedium: 'Medium',
     confidenceHigh: 'High',
+    assumptionsTitle: 'Estimation assumptions',
+    assumptionVisiblePortionOnly: 'Only the visible portion is estimated.',
+    assumptionPortionEstimated: 'Portion size is estimated visually.',
+    assumptionSeasoningEstimated: 'Seasoning amounts are estimated.',
+    assumptionHiddenIngredientsPossible:
+      'Ingredients not visible in the photo may be present.',
     estimatedScore: 'Estimated score',
     tierBalanced: 'Balanced',
     tierMostlyBalanced: 'Mostly balanced',
