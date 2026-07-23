@@ -7,7 +7,7 @@ Kalories 是一个相机优先的餐食营养估算器。拍摄一餐后，应�
 - 0–100 的估算健康分数、文字等级和最多两条改善建议；
 - 照片识别、份量及各营养素的估算置信度。
 
-模型只负责从照片估算食物事实、营养值和置信度。健康分数、状态和建议由仓库中的确定性程序计算，采用日本优先、WHO 补充的一般成年人单餐启发式标准；相同输入会得到相同评估结果。它不作医疗诊断，也不提供医疗建议。
+模型只负责从照片估算食物事实、营养值和置信度；即使照片相同，模型估算也可能变化。健康分数、状态和建议由仓库中的确定性程序计算，采用日本优先、WHO 补充的一般成年人单餐启发式标准；相同的结构化营养估算输入会得到相同的本地评估结果。它不作医疗诊断，也不提供医疗建议。
 
 界面支持日本語、中文和 English。已保存的语言选择优先；没有保存值时使用设备支持的 `ja`、`zh` 或 `en` 语言；设备语言不受支持时默认使用日语。
 
@@ -70,7 +70,7 @@ git diff --check
 单餐分数是便于解释的产品启发式，不等同于官方膳食摄入基准。日本官方膳食摄入基准主要用于评估习惯性摄入，因此本应用不会把一张照片解释为全天或个人健康结论。
 
 - [日本人の食事摂取基準（2025年版）](https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/kenkou_iryou/kenkou/eiyou/syokuji_kijyun.html)
-- [日本人の食事摂取基準（2025年版）策定检讨会报告](https://www.mhlw.go.jp/stf/newpage_44138.html)
+- [日本人の食事摂取基準（2025年版）策定検討会報告書](https://www.mhlw.go.jp/stf/newpage_44138.html)
 - [厚生劳动省：膳食摄入基准关注习惯性摄入](https://kennet.mhlw.go.jp/information/information/dictionary/food/ye-025)
 - [农林水产省：食事バランスガイド](https://www.maff.go.jp/j/syokuiku/zissen_navi/balance/features.html)
 - [WHO：Healthy diet](https://www.who.int/news-room/fact-sheets/detail/healthy-diet)
