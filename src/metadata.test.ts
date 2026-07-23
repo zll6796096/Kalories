@@ -53,6 +53,16 @@ describe('product metadata', () => {
 });
 
 describe('Python deployment metadata', () => {
+  it('documents the reproducible isolated dependency audit command', () => {
+    const readme = readRepositoryFile('README.md');
+    const documentedAuditCommands =
+      readme.match(/`[^`\n]*pip-audit[^`\n]*`/g) ?? [];
+
+    expect(documentedAuditCommands).toEqual([
+      '`uvx pip-audit --no-deps --disable-pip -r requirements.txt`',
+    ]);
+  });
+
   it('ignores the canonical and legacy local Python environments', () => {
     const ignoreRules = readRepositoryFile('.gitignore')
       .split(/\r?\n/)

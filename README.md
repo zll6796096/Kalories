@@ -73,7 +73,7 @@ git diff --check
 1. 只编辑人工输入 `requirements.in`，不要手工升级单个传递依赖。
 2. 用 `uv pip compile --python 3.12 --python-platform x86_64-manylinux_2_28 --only-binary=:all: --no-annotate requirements.in -o requirements.txt` 重新生成 Vercel 部署锁；生成结果必须保持精确 `==` 版本且不含本地、URL 或 editable 依赖。
 3. 用 `uv venv --python 3.12 .venv` 创建干净环境，再以 `uv pip install --python .venv/bin/python -r requirements.txt` 安装部署锁，运行后端测试、`compileall`、导入检查和 `uv pip check --python .venv/bin/python`，并用 `uv pip freeze --python .venv/bin/python` 与 `requirements.txt` 比较包版本。
-4. 分别确认 CPython 3.12 的 macOS arm64 与 manylinux x86_64 wheel 可用；运行 `pip-audit --no-deps --disable-pip -r requirements.txt`，结果无已知漏洞后再提交输入和部署锁。
+4. 分别确认 CPython 3.12 的 macOS arm64 与 manylinux x86_64 wheel 可用；运行 `uvx pip-audit --no-deps --disable-pip -r requirements.txt`，结果无已知漏洞后再提交输入和部署锁。
 
 ## 参考依据
 
