@@ -1484,6 +1484,16 @@ Use:
 - `onRetake` without forcing a save;
 - `onRetry` when `food_detected` is false or assessment is indeterminate.
 
+Render both result findings from structured data only. For the strongest
+positive, keep only `appropriate` nutrients with `medium` or `high` field
+confidence, rank `high` before `medium`, and break ties in this order: protein,
+carbohydrates, fat, fibre, calories, sugar, sodium. For the main concern, accept
+the first known suggestion's mapped nutrient only when its status is `low` or
+`high`; otherwise use the first genuinely unfavorable status in this order:
+sodium, sugar, calories, protein, carbohydrates, fat, fibre. With no unfavorable
+status, distinguish insufficient data from a sufficiently assessed result by
+using separate localized fallback messages.
+
 Do not add tabs, dialogs, accordions, or secondary routes.
 
 The score decoder and deterministic evaluator must both require calories plus protein, carbohydrates, and fat, with a positive macro-energy denominator and medium/high overall confidence. A partially observed macro profile is always indeterminate and must never be presented as a scored result.

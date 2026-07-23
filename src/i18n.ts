@@ -30,6 +30,7 @@ export interface Messages {
   strongestPositive: string;
   mainConcern: string;
   noClearPositive: string;
+  noClearConcern: string;
   noMajorConcern: string;
   tierBalanced: string;
   tierMostlyBalanced: string;
@@ -102,6 +103,7 @@ export const messages: Record<Locale, Messages> = {
     strongestPositive: '主要优点',
     mainConcern: '主要关注点',
     noClearPositive: '暂时无法判断明确优点。',
+    noClearConcern: '信息不足，无法判断主要关注点。',
     noMajorConcern: '未发现明显需要关注的项目。',
     tierBalanced: '营养均衡',
     tierMostlyBalanced: '基本均衡',
@@ -173,6 +175,7 @@ export const messages: Record<Locale, Messages> = {
     strongestPositive: '主な良い点',
     mainConcern: '主な注目点',
     noClearPositive: 'はっきりした良い点を判断できません。',
+    noClearConcern: '主な注目点を判断するには情報が足りません。',
     noMajorConcern: '大きな見直し点は見つかりませんでした。',
     tierBalanced: 'バランス良好',
     tierMostlyBalanced: 'おおむね良好',
@@ -244,6 +247,7 @@ export const messages: Record<Locale, Messages> = {
     strongestPositive: 'Strongest positive',
     mainConcern: 'Main concern',
     noClearPositive: 'Not enough information to identify a clear positive.',
+    noClearConcern: 'Not enough information to identify a main concern.',
     noMajorConcern: 'No major concern was identified.',
     tierBalanced: 'Balanced',
     tierMostlyBalanced: 'Mostly balanced',

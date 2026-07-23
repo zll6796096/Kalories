@@ -103,6 +103,17 @@ The selected direction is "health conclusion first."
 
 All content appears on one continuous result page. Mobile devices may scroll vertically. The design must not hide required content behind tabs, accordions, dialogs, or a secondary route.
 
+The two explanation findings are deterministic presentation rules, not AI prose.
+The strongest positive is selected only from nutrients whose status is
+`appropriate` and whose field confidence is `medium` or `high`. Candidates are
+ranked by confidence (`high` before `medium`), then by the stable priority
+protein, carbohydrate, fat, fibre, calories, sugar, sodium. The main concern
+uses the first known suggestion only when its mapped nutrient is currently
+`low` or `high`; otherwise it falls back to the first `low`/`high` nutrient in
+the stable priority sodium, sugar, calories, protein, carbohydrate, fat, fibre.
+If no concern is measurable, an insufficient assessment says that information
+is missing, while a sufficient assessment says no major concern was found.
+
 ### Apple-inspired visual language
 
 - System font stack headed by SF Pro equivalents.

@@ -148,9 +148,15 @@ function localizedNutrientStatus(
 }
 
 function strongestPositive(data: AnalysisResult, text: Messages): string {
-  const nutrient = positivePriority.find(
-    (key) => data.assessment.statuses[key] === 'appropriate',
-  );
+  const nutrient = (['high', 'medium'] as const)
+    .map((confidence) =>
+      positivePriority.find(
+        (key) =>
+          data.assessment.statuses[key] === 'appropriate' &&
+          data.confidence.nutrients[key] === confidence,
+      ),
+    )
+    .find((key) => key !== undefined);
 
   return nutrient
     ? localizedNutrientStatus(nutrient, 'appropriate', text)
@@ -166,19 +172,24 @@ function mainConcern(data: AnalysisResult, text: Messages): string {
     ? data.assessment.statuses[suggestedNutrient]
     : undefined;
   const nutrient =
-    suggestedNutrient && suggestedStatus !== 'indeterminate'
+    suggestedNutrient &&
+    (suggestedStatus === 'low' || suggestedStatus === 'high')
       ? suggestedNutrient
       : concernFallbackPriority.find((key) => {
           const status = data.assessment.statuses[key];
-          return status !== 'appropriate' && status !== 'indeterminate';
+          return status === 'low' || status === 'high';
         });
 
-  return nutrient
-    ? localizedNutrientStatus(
-        nutrient,
-        data.assessment.statuses[nutrient],
-        text,
-      )
+  if (nutrient) {
+    return localizedNutrientStatus(
+      nutrient,
+      data.assessment.statuses[nutrient],
+      text,
+    );
+  }
+
+  return data.assessment.insufficient_data
+    ? text.noClearConcern
     : text.noMajorConcern;
 }
 

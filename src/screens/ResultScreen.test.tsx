@@ -274,7 +274,7 @@ describe('ResultScreen', () => {
 
     expect(findings).toContain(messages.en.strongestPositive);
     expect(findings).toContain(
-      `${messages.en.fiber} · ${messages.en.statusAppropriate}`,
+      `${messages.en.calories} · ${messages.en.statusAppropriate}`,
     );
     expect(findings).toContain(messages.en.mainConcern);
     expect(findings).toContain(
@@ -311,7 +311,7 @@ describe('ResultScreen', () => {
     expect(html).toContain(messages.en.noMajorConcern);
   });
 
-  it('uses safe finding fallbacks when statuses and suggestions are indeterminate', () => {
+  it('uses uncertainty-safe finding fallbacks when the assessment is insufficient', () => {
     const indeterminateResult: AnalysisResult = {
       ...result,
       assessment: {
@@ -334,7 +334,8 @@ describe('ResultScreen', () => {
     const html = renderResult(indeterminateResult);
 
     expect(html).toContain(messages.en.noClearPositive);
-    expect(html).toContain(messages.en.noMajorConcern);
+    expect(html).toContain(messages.en.noClearConcern);
+    expect(html).not.toContain(messages.en.noMajorConcern);
     expect(html).not.toContain('unknown_internal_rule');
     expect(html).not.toContain('reduce_sauce');
   });
@@ -343,21 +344,21 @@ describe('ResultScreen', () => {
     [
       'zh',
       '主要优点',
-      '膳食纤维 · 适量',
+      '热量 · 适量',
       '主要关注点',
       '钠 · 偏多',
     ],
     [
       'ja',
       '主な良い点',
-      '食物繊維 · 適量',
+      'エネルギー · 適量',
       '主な注目点',
       'ナトリウム · 多め',
     ],
     [
       'en',
       'Strongest positive',
-      'Dietary fibre · In range',
+      'Calories · In range',
       'Main concern',
       'Sodium · High',
     ],
@@ -384,6 +385,139 @@ describe('ResultScreen', () => {
       expect(result.assessment.suggestion_keys[0]).toBe('reduce_sauce');
     },
   );
+
+  it('falls back from an in-range suggestion target to a genuinely unfavorable status', () => {
+    const html = renderResult({
+      ...result,
+      assessment: {
+        ...result.assessment,
+        statuses: {
+          calories_kcal: 'low',
+          protein_g: 'appropriate',
+          carbs_g: 'appropriate',
+          fat_g: 'appropriate',
+          fiber_g: 'appropriate',
+          sugar_g: 'appropriate',
+          sodium_mg: 'appropriate',
+        },
+        suggestion_keys: ['adjust_staple'],
+        insufficient_data: false,
+      },
+    });
+    const findings = html.slice(
+      html.indexOf('class="result-findings"'),
+      html.indexOf('class="energy-summary"'),
+    );
+
+    expect(findings).toContain(
+      `${messages.en.calories} · ${messages.en.statusLow}`,
+    );
+    expect(findings).not.toContain(
+      `${messages.en.carbs} · ${messages.en.statusAppropriate}`,
+    );
+  });
+
+  it('ranks a later high-confidence in-range nutrient above an earlier medium-confidence one', () => {
+    const html = renderResult({
+      ...result,
+      confidence: {
+        ...result.confidence,
+        nutrients: {
+          ...result.confidence.nutrients,
+          protein_g: 'medium',
+          calories_kcal: 'high',
+        },
+      },
+      assessment: {
+        ...result.assessment,
+        statuses: {
+          calories_kcal: 'appropriate',
+          protein_g: 'appropriate',
+          carbs_g: 'low',
+          fat_g: 'high',
+          fiber_g: 'low',
+          sugar_g: 'high',
+          sodium_mg: 'high',
+        },
+      },
+    });
+    const findings = html.slice(
+      html.indexOf('class="result-findings"'),
+      html.indexOf('class="energy-summary"'),
+    );
+
+    expect(findings).toContain(
+      `${messages.en.calories} · ${messages.en.statusAppropriate}`,
+    );
+    expect(findings).not.toContain(
+      `${messages.en.protein} · ${messages.en.statusAppropriate}`,
+    );
+  });
+
+  it('does not claim a strongest positive from low-confidence-only in-range items', () => {
+    const html = renderResult({
+      ...result,
+      confidence: {
+        ...result.confidence,
+        nutrients: {
+          ...result.confidence.nutrients,
+          protein_g: 'low',
+          fiber_g: 'low',
+        },
+      },
+      assessment: {
+        ...result.assessment,
+        statuses: {
+          calories_kcal: 'high',
+          protein_g: 'appropriate',
+          carbs_g: 'low',
+          fat_g: 'high',
+          fiber_g: 'appropriate',
+          sugar_g: 'high',
+          sodium_mg: 'high',
+        },
+      },
+    });
+
+    expect(html).toContain(messages.en.noClearPositive);
+  });
+
+  it('breaks equal-confidence positive ties with the stable meal-balance priority', () => {
+    const html = renderResult({
+      ...result,
+      confidence: {
+        ...result.confidence,
+        nutrients: {
+          ...result.confidence.nutrients,
+          protein_g: 'high',
+          calories_kcal: 'high',
+        },
+      },
+      assessment: {
+        ...result.assessment,
+        statuses: {
+          calories_kcal: 'appropriate',
+          protein_g: 'appropriate',
+          carbs_g: 'low',
+          fat_g: 'high',
+          fiber_g: 'low',
+          sugar_g: 'high',
+          sodium_mg: 'high',
+        },
+      },
+    });
+    const findings = html.slice(
+      html.indexOf('class="result-findings"'),
+      html.indexOf('class="energy-summary"'),
+    );
+
+    expect(findings).toContain(
+      `${messages.en.protein} · ${messages.en.statusAppropriate}`,
+    );
+    expect(findings).not.toContain(
+      `${messages.en.calories} · ${messages.en.statusAppropriate}`,
+    );
+  });
 
   it('renders categorical status rails only for the four macro and fibre rows', () => {
     const html = renderResult();
