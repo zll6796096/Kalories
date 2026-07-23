@@ -167,7 +167,7 @@ describe('ResultScreen', () => {
     });
 
     expect(html).toContain(messages.en.suggestionAddVegetables);
-    expect(html).not.toContain(messages.en.suggestionReduceSauce);
+    expect(html).toContain(messages.en.suggestionReduceSauce);
     expect(html).not.toContain(messages.en.suggestionReduceFat);
     expect(html).not.toContain('unknown_internal_rule');
   });

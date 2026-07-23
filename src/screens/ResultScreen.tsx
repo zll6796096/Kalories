@@ -120,11 +120,11 @@ export function ResultScreen({
     data.assessment.insufficient_data;
   const foodName = data.food_names?.[locale] || text.detectedFood;
   const visibleSuggestions = data.assessment.suggestion_keys
-    .slice(0, 2)
     .flatMap((key) => {
       const messageKey = suggestionMessageKeys[key];
       return messageKey ? [text[messageKey]] : [];
-    });
+    })
+    .slice(0, 2);
 
   const handleSave = async () => {
     try {
