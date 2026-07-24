@@ -47,6 +47,25 @@ npm run dev
 
 打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)。Vite 会把 `/api` 请求代理到本地 8000 端口。
 
+## Cloud Run
+
+仓库根目录的多阶段 `Dockerfile` 会先构建前端，再由同一个 FastAPI
+进程提供静态页面、`POST /api/analyze` 和 `GET /health`。部署公开 UI
+预览：
+
+```bash
+gcloud run deploy kalories \
+  --source . \
+  --project zhang23-23 \
+  --region asia-northeast1 \
+  --allow-unauthenticated
+```
+
+未配置 `GEMINI_API_KEY` 时，页面仍可访问，但分析接口会以
+`SERVICE_NOT_CONFIGURED` fail-closed。启用真实分析时，必须使用
+Kalories 专用 Secret Manager secret，并同时配置外部身份／滥用防护、
+速率限制、API 配额和预算告警；不要复用其他应用的 secret。
+
 ## 图片与运行边界
 
 API 接受 JPEG、PNG 和 WebP。前端会在上传前缩放并压缩照片；后端对解码后的图片执行 3 MiB 上限、格式签名、真实解码和像素数校验。超过边界、格式不受支持或内容损坏的图片会被拒绝。

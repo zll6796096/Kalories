@@ -8,12 +8,14 @@ import logging
 import os
 import re
 from io import BytesIO
+from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from google import genai
 from google.genai import types
 from PIL import Image, UnidentifiedImageError
@@ -27,6 +29,7 @@ load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
 app = FastAPI()
+DIST_DIR = Path(__file__).resolve().parents[1] / "dist"
 
 
 @app.exception_handler(RequestValidationError)
@@ -38,6 +41,26 @@ def handle_request_validation(
         status_code=400,
         content={"detail": {"code": "INVALID_IMAGE"}},
     )
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "service": "kalories"}
+
+
+def mount_frontend(
+    application: FastAPI,
+    dist_directory: Path = DIST_DIR,
+) -> bool:
+    """Serve the production frontend when its build output is present."""
+    if not (dist_directory / "index.html").is_file():
+        return False
+    application.mount(
+        "/",
+        StaticFiles(directory=str(dist_directory), html=True),
+        name="frontend",
+    )
+    return True
 
 # Production deployment requires platform-level rate limiting, quota, and budget controls.
 SUPPORTED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
@@ -303,6 +326,9 @@ def analyze_food(request: AnalyzeRequest) -> AnalyzeResponse:
             status_code=502,
             detail={"code": "ANALYSIS_FAILED"},
         ) from None
+
+
+mount_frontend(app)
 
 
 if __name__ == "__main__":

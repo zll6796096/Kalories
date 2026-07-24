@@ -4,13 +4,15 @@ import base64
 import inspect
 import json
 import os
+import tempfile
 import unittest
 import warnings
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from PIL import Image
 from pydantic import ValidationError
 
@@ -68,6 +70,32 @@ def model_analysis(*, food_detected=True):
             "assumption_keys": ["visible_portion_only"],
         }
     )
+
+
+class DeploymentSurfaceTests(unittest.TestCase):
+    def test_health_endpoint_identifies_the_running_service(self):
+        response = TestClient(analyze.app).get("/health")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"status": "ok", "service": "kalories"},
+            response.json(),
+        )
+
+    def test_mount_frontend_serves_the_built_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            dist = Path(directory)
+            (dist / "index.html").write_text(
+                "<!doctype html><title>Kalories</title>",
+                encoding="utf-8",
+            )
+            application = FastAPI()
+
+            self.assertTrue(analyze.mount_frontend(application, dist))
+            response = TestClient(application).get("/")
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn("<title>Kalories</title>", response.text)
 
 
 class ImageDecodingTests(unittest.TestCase):
