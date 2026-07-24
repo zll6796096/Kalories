@@ -6,7 +6,7 @@
 
 **Architecture:** Gemini returns structured estimation facts and three localized food names. A pure Python module computes score, tier, nutrient statuses, and advice keys from documented rules. React owns the camera state machine, locale selection, translation, error recovery, single-page result presentation, and image export; the browser never receives the Gemini key.
 
-**Tech Stack:** React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, Motion, react-webcam, html2canvas, FastAPI, Pydantic, Google GenAI, Python `unittest`, Vitest.
+**Tech Stack:** React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, CSS motion with reduced-motion support, react-webcam, html2canvas, FastAPI, Pydantic, Google GenAI for Python, Python `unittest`, Vitest.
 
 ---
 
@@ -49,7 +49,7 @@
 - `src/main.tsx`
 - `index.html`
 - `.env.example`
-- `requirements.txt` unless a genuinely missing runtime dependency is discovered by a clean install check.
+- `requirements.in` is the human-maintained direct dependency input; `requirements.txt` is the exact Python 3.12 deployment lock and changes only when a clean resolution check requires it.
 
 ---
 
@@ -245,12 +245,13 @@ class NutritionAssessmentTests(unittest.TestCase):
         self.assertEqual(result["tier"], "indeterminate")
         self.assertTrue(result["insufficient_data"])
 
-    def test_calories_plus_two_macros_are_required(self):
+    def test_calories_plus_all_three_macros_are_required(self):
         result = assess_nutrition(
-            nutrients(protein_g=None, carbs_g=None),
+            nutrients(fat_g=None),
             confidence(),
         )
         self.assertIsNone(result["score"])
+        self.assertEqual(result["tier"], "indeterminate")
         self.assertTrue(result["insufficient_data"])
 
     def test_score_is_clamped_and_repeatable(self):
@@ -279,7 +280,7 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-python -m unittest tests.test_nutrition -v
+.venv/bin/python -m unittest tests.test_nutrition -v
 ```
 
 Expected: FAIL with `ModuleNotFoundError: No module named 'lib.nutrition'`.
@@ -431,13 +432,19 @@ def assess_nutrition(
     if statuses["calories_kcal"] == "high":
         suggestions.append("reduce_portion")
 
-    present_macros = sum(
-        _number(nutrients.get(key)) is not None
+    macro_values = [
+        _number(nutrients.get(key))
         for key in ("protein_g", "carbs_g", "fat_g")
+    ]
+    macro_denominator = sum(
+        value * kcal_per_gram
+        for value, kcal_per_gram in zip(macro_values, (4, 4, 9))
+        if value is not None
     )
     sufficient = (
         calories is not None
-        and present_macros >= 2
+        and all(value is not None for value in macro_values)
+        and macro_denominator > 0
         and confidence.get("overall") in {"medium", "high"}
     )
     if not sufficient:
@@ -473,7 +480,7 @@ def assess_nutrition(
 Run:
 
 ```bash
-python -m unittest tests.test_nutrition -v
+.venv/bin/python -m unittest tests.test_nutrition -v
 ```
 
 Expected: 9 tests pass.
@@ -487,7 +494,7 @@ Add module comments linking the Japanese 2025 and WHO sources and stating that t
 Run:
 
 ```bash
-python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 Expected: all discovered tests pass.
@@ -584,7 +591,7 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-python -m unittest tests.test_analyze -v
+.venv/bin/python -m unittest tests.test_analyze -v
 ```
 
 Expected: FAIL because `ImageValidationError`, `ModelAnalysis`, `build_response`, and `decode_image` do not exist.
@@ -799,7 +806,7 @@ Do not log `request.image`, decoded bytes, the API key, or raw provider response
 Run:
 
 ```bash
-python -m unittest tests.test_analyze tests.test_nutrition -v
+.venv/bin/python -m unittest tests.test_analyze tests.test_nutrition -v
 ```
 
 Expected: all tests pass.
@@ -809,7 +816,7 @@ Expected: all tests pass.
 Run:
 
 ```bash
-python -m compileall -q api lib tests
+.venv/bin/python -m compileall -q api lib tests
 ```
 
 Expected: exit 0.
@@ -995,6 +1002,9 @@ export const resolveInitialLocale = (
 export const persistLocale = (locale: Locale): void => {
   window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
 };
+
+export const documentLanguage = (locale: Locale): string =>
+  ({ zh: 'zh-CN', ja: 'ja', en: 'en' })[locale];
 ```
 
 Define and export a `Messages` interface and complete `messages` dictionaries containing these exact keys:
@@ -1002,6 +1012,7 @@ Define and export a `Messages` interface and complete `messages` dictionaries co
 ```typescript
 export interface Messages {
   appName: string;
+  languageLabel: string;
   introEyebrow: string;
   introTitle: string;
   introBody: string;
@@ -1068,6 +1079,7 @@ Use this exact translation content:
 export const messages: Record<Locale, Messages> = {
   ja: {
     appName: 'Kalories',
+    languageLabel: '言語',
     introEyebrow: 'AI 食事分析',
     introTitle: '一枚の写真から、食事をもっと理解する。',
     introBody: 'カロリーと栄養バランスを写真から推定します。',
@@ -1128,6 +1140,7 @@ export const messages: Record<Locale, Messages> = {
   },
   zh: {
     appName: 'Kalories',
+    languageLabel: '语言',
     introEyebrow: 'AI 饮食分析',
     introTitle: '一张照片，更了解这一餐。',
     introBody: '通过照片估算热量与营养结构。',
@@ -1188,6 +1201,7 @@ export const messages: Record<Locale, Messages> = {
   },
   en: {
     appName: 'Kalories',
+    languageLabel: 'Language',
     introEyebrow: 'AI meal analysis',
     introTitle: 'Understand your meal from one photo.',
     introBody: 'Estimate calories and nutritional balance from a photo.',
@@ -1329,58 +1343,12 @@ Create `src/screens/ResultScreen.test.tsx` using `renderToStaticMarkup`:
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import canonicalAnalysisFixture from '../../tests/fixtures/canonical_analysis_result.json';
 import { messages } from '../i18n';
 import type { AnalysisResult } from '../types';
 import { ResultScreen } from './ResultScreen';
 
-const fixture: AnalysisResult = {
-  food_detected: true,
-  food_names: {
-    zh: '烤鸡胸藜麦碗',
-    ja: 'グリルチキンとキヌア',
-    en: 'Grilled chicken quinoa bowl',
-  },
-  portion_grams: 430,
-  nutrients: {
-    calories_kcal: 486,
-    protein_g: 36,
-    carbs_g: 54,
-    fat_g: 25,
-    fiber_g: 5,
-    sugar_g: 8,
-    sodium_mg: 920,
-  },
-  confidence: {
-    overall: 'medium',
-    portion: 'medium',
-    nutrients: {
-      calories_kcal: 'medium',
-      protein_g: 'medium',
-      carbs_g: 'medium',
-      fat_g: 'medium',
-      fiber_g: 'low',
-      sugar_g: 'low',
-      sodium_mg: 'low',
-    },
-  },
-  assumption_keys: ['seasoning_estimated'],
-  assessment: {
-    score: 82,
-    tier: 'balanced',
-    statuses: {
-      calories_kcal: 'appropriate',
-      protein_g: 'appropriate',
-      carbs_g: 'appropriate',
-      fat_g: 'high',
-      fiber_g: 'low',
-      sugar_g: 'low',
-      sodium_mg: 'high',
-    },
-    suggestion_keys: ['reduce_sauce', 'add_vegetables'],
-    scoring_reasons: ['sodium_high', 'fiber_low'],
-    insufficient_data: false,
-  },
-};
+const fixture = canonicalAnalysisFixture as AnalysisResult;
 
 describe('ResultScreen', () => {
   it('renders every required result section on one page', () => {
@@ -1395,9 +1363,9 @@ describe('ResultScreen', () => {
         onSaveError={() => undefined}
       />,
     );
-    expect(html).toContain('グリルチキンとキヌア');
-    expect(html).toContain('82');
-    for (const value of ['486', '36', '54', '25', '5', '8', '920', '430']) {
+    expect(html).toContain('焼き鮭定食');
+    expect(html).toContain('64');
+    for (const value of ['640', '34', '68', '24', '8.4', '12', '980', '420']) {
       expect(html).toContain(value);
     }
     expect(html).toContain(messages.ja.disclaimer);
@@ -1450,13 +1418,15 @@ const options: Array<{ locale: Locale; label: string }> = [
 
 export function LanguageSwitcher({
   locale,
+  label,
   onChange,
 }: {
   locale: Locale;
+  label: string;
   onChange: (locale: Locale) => void;
 }) {
   return (
-    <div className="language-switcher" aria-label="Language">
+    <div className="language-switcher" role="group" aria-label={label}>
       {options.map((option) => (
         <button
           type="button"
@@ -1484,7 +1454,7 @@ Each screen accepts already-localized `text`. The camera screen:
 - contains no `alert`;
 - uses a real `<button aria-label={text.capture}>` for the shutter.
 
-The analyzing screen uses the captured image, a localized title/body, and a CSS progress indicator. Motion animations use Motion and CSS media queries to respect reduced motion.
+The analyzing screen uses the captured image, a localized title/body, and a CSS progress indicator. CSS animations use media queries to respect reduced motion.
 
 - [ ] **Step 5: Build the continuous result screen**
 
@@ -1496,6 +1466,7 @@ Implement these sections in this exact DOM order inside one `<main className="re
 <section className="energy-summary" />
 <section className="macro-list" />
 <section className="secondary-nutrients" />
+{/* Render only when at least one known localized suggestion is visible. */}
 <section className="advice-card" />
 <footer className="result-footer" />
 ```
@@ -1505,14 +1476,27 @@ Use:
 - `data.food_names?.[locale]` for instant language switching;
 - `formatNutritionValue` for every value;
 - `statusMessageKey` for context-sensitive status text;
-- `data.confidence.nutrients[key]` beside sugar and sodium;
+- `data.confidence.nutrients[key]` beside every nutrient;
+- only the four approved assumption keys mapped to localized copy inside the footer before the reference note;
 - `data.assessment.suggestion_keys.slice(0, 2)` for advice;
 - `html2canvas` only from the save button handler;
 - `onSaveError('SAVE_FAILED')` instead of `alert`;
 - `onRetake` without forcing a save;
 - `onRetry` when `food_detected` is false or assessment is indeterminate.
 
+Render both result findings from structured data only. For the strongest
+positive, keep only `appropriate` nutrients with `medium` or `high` field
+confidence, rank `high` before `medium`, and break ties in this order: protein,
+carbohydrates, fat, fibre, calories, sugar, sodium. For the main concern, accept
+the first known suggestion's mapped nutrient only when its status is `low` or
+`high`; otherwise use the first genuinely unfavorable status in this order:
+sodium, sugar, calories, protein, carbohydrates, fat, fibre. With no unfavorable
+status, distinguish insufficient data from a sufficiently assessed result by
+using separate localized fallback messages.
+
 Do not add tabs, dialogs, accordions, or secondary routes.
+
+The score decoder and deterministic evaluator must both require calories plus protein, carbohydrates, and fat, with a positive macro-energy denominator and medium/high overall confidence. A partially observed macro profile is always indeterminate and must never be presented as a scored result.
 
 - [ ] **Step 6: Replace the visual system**
 
@@ -1867,10 +1851,10 @@ sauces, sugar, sodium, fillings, and portion size can materially change the resu
 ## Local development
 
 1. Install frontend dependencies: `npm install`
-2. Install Python dependencies: `python -m pip install -r requirements.txt`
+2. Create the pinned runtime and install Python deployment dependencies: `uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -r requirements.txt`
 3. Add `GEMINI_API_KEY` to `.env`
 4. Start the API:
-   `python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000`
+   `.venv/bin/python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000`
 5. Start the UI in another terminal: `npm run dev`
 6. Open `http://127.0.0.1:3000`
 
@@ -1879,7 +1863,7 @@ sauces, sugar, sodium, fillings, and portion size can materially change the resu
 - Frontend tests: `npm test`
 - TypeScript: `npm run lint`
 - Production build: `npm run build`
-- Backend tests: `python -m unittest discover -s tests -p 'test_*.py' -v`
+- Backend tests: `.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v`
 
 Supported UI languages are Japanese, Simplified Chinese, and English. The first
 visit follows a supported device language and otherwise defaults to Japanese.
@@ -1895,8 +1879,8 @@ Run:
 npm test
 npm run lint
 npm run build
-python -m unittest discover -s tests -p 'test_*.py' -v
-python -m compileall -q api lib tests
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m compileall -q api lib tests
 ```
 
 Expected: every command exits 0 with no failed test.
@@ -1922,7 +1906,7 @@ Expected: only availability state is printed. Never print the key.
 Run API in one PTY:
 
 ```bash
-python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn api.analyze:app --host 127.0.0.1 --port 8000
 ```
 
 Run UI in another PTY:
@@ -2038,8 +2022,8 @@ Run:
 npm test &&
 npm run lint &&
 npm run build &&
-python -m unittest discover -s tests -p 'test_*.py' -v &&
-python -m compileall -q api lib tests &&
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v &&
+.venv/bin/python -m compileall -q api lib tests &&
 git diff --check &&
 git status --short --branch
 ```

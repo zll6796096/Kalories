@@ -103,6 +103,17 @@ The selected direction is "health conclusion first."
 
 All content appears on one continuous result page. Mobile devices may scroll vertically. The design must not hide required content behind tabs, accordions, dialogs, or a secondary route.
 
+The two explanation findings are deterministic presentation rules, not AI prose.
+The strongest positive is selected only from nutrients whose status is
+`appropriate` and whose field confidence is `medium` or `high`. Candidates are
+ranked by confidence (`high` before `medium`), then by the stable priority
+protein, carbohydrate, fat, fibre, calories, sugar, sodium. The main concern
+uses the first known suggestion only when its mapped nutrient is currently
+`low` or `high`; otherwise it falls back to the first `low`/`high` nutrient in
+the stable priority sodium, sugar, calories, protein, carbohydrate, fat, fibre.
+If no concern is measurable, an insufficient assessment says that information
+is missing, while a sufficient assessment says no major concern was found.
+
 ### Apple-inspired visual language
 
 - System font stack headed by SF Pro equivalents.
@@ -177,57 +188,13 @@ The frontend does not calculate the health score and does not hold the Gemini AP
 
 ### 7.4 API response shape
 
-The response is conceptually:
-
-```json
-{
-  "food_detected": true,
-  "food_names": {
-    "zh": "烤鸡胸藜麦碗",
-    "ja": "グリルチキンとキヌア",
-    "en": "Grilled chicken quinoa bowl"
-  },
-  "portion_grams": 430,
-  "nutrients": {
-    "calories_kcal": 486,
-    "protein_g": 36,
-    "carbs_g": 54,
-    "fat_g": 25,
-    "fiber_g": 5,
-    "sugar_g": 8,
-    "sodium_mg": 920
-  },
-  "confidence": {
-    "overall": "medium",
-    "portion": "medium",
-    "nutrients": {
-      "calories_kcal": "medium",
-      "protein_g": "medium",
-      "carbs_g": "medium",
-      "fat_g": "medium",
-      "fiber_g": "low",
-      "sugar_g": "low",
-      "sodium_mg": "low"
-    }
-  },
-  "assumption_keys": ["visible_portion_only", "seasoning_estimated"],
-  "assessment": {
-    "score": 82,
-    "tier": "balanced",
-    "statuses": {
-      "protein_g": "appropriate",
-      "carbs_g": "appropriate",
-      "fat_g": "high",
-      "fiber_g": "low",
-      "sugar_g": "indeterminate",
-      "sodium_mg": "high"
-    },
-    "suggestion_keys": ["reduce_sauce", "add_vegetables"],
-    "scoring_reasons": ["macro_balance_good", "sodium_high", "fiber_low"],
-    "insufficient_data": false
-  }
-}
-```
+The authoritative machine-readable response example is
+[`tests/fixtures/canonical_analysis_result.json`](../../../tests/fixtures/canonical_analysis_result.json).
+It describes the complete grilled-salmon response contract, including all seven
+nutrients, confidence and assumptions. Its deterministic assessment has score
+`64` and tier `mostly_balanced`; both the Python evaluator test and the Vitest
+result-page test consume this same fixture so the example cannot drift between
+backend and frontend.
 
 All nutrition values are nullable. Missing values remain `null`; they are never rewritten to zero.
 
@@ -280,7 +247,7 @@ Tier mapping:
 - 60–79: mostly balanced;
 - 0–59: needs attention.
 
-A score is returned only when calories plus at least two macros are present and overall confidence is not low. Otherwise, `score` is `null`, the tier is `indeterminate`, and the UI explains that there is not enough information.
+A score is returned only when calories plus all three macros (protein, carbohydrates, and fat) are present, their combined macro-energy denominator is positive, and overall confidence is medium or high. This safety correction prevents a partially observed macro profile from appearing perfectly balanced. If any required macro is missing, `score` is `null`, the tier is `indeterminate`, and the UI explains that there is not enough information while preserving any independently available non-macro findings.
 
 Confidence does not silently change the score. It is displayed next to the score so the user can interpret it.
 
@@ -387,7 +354,7 @@ Implementation follows red-green-refactor.
 npm run lint
 npm test
 npm run build
-python -m unittest discover -s tests -p 'test_*.py'
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 ### Browser verification
@@ -405,7 +372,7 @@ Actual Gemini participation is verified only when the environment contains a usa
 ## 14. Acceptance Criteria
 
 - The entire user-visible app follows the approved Apple-inspired design direction.
-- The result page contains the photo, localized name, confidence, score, written tier, explanation, calories, seven nutrition estimates, per-item statuses, suggestions, disclaimer, and actions.
+- The result page contains the photo, localized name, overall and per-nutrient confidence, visible localized assumptions, score when safely available, written tier, explanation, calories, seven nutrition estimates, per-item statuses, any applicable suggestions, disclaimer, and actions.
 - All result content is on one continuous page. Mobile scrolling is allowed.
 - Chinese, Japanese, and English cover every user-facing state and can be changed without reanalysis.
 - First visit follows a supported device language; unsupported devices fall back to Japanese; manual choice persists locally.

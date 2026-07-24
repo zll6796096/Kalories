@@ -8,9 +8,14 @@ coverage/
 !.env.example
 
 # Python
+.venv/
 venv/
 __pycache__/
 *.pyc
 
 # Isolated feature workspaces
 .worktrees/
+
+# Local test and agent artifacts
+.superpowers/
+output/playwright/

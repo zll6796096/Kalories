@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kalories">
+  <defs>
+    <linearGradient id="kalories-gradient" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34C759"/>
+      <stop offset="1" stop-color="#0A84FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#kalories-gradient)"/>
+  <path d="M20 17v30M20 34l22-17M29 27l15 20" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M42 12c5 1 8 4 9 9-5 0-9-3-9-9Z" fill="#fff" fill-opacity=".9"/>
+</svg>

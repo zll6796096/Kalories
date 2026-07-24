@@ -1,5 +1,5 @@
 {
-  "name": "",
-  "description": "",
-  "requestFramePermissions": []
+  "name": "Kalories",
+  "description": "Camera-first meal nutrition estimator with Japan-first deterministic health guidance.",
+  "requestFramePermissions": ["camera"]
 }
