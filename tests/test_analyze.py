@@ -308,7 +308,10 @@ class GeminiProviderTests(unittest.TestCase):
         prompt = call.kwargs["contents"][1]
         config = call.kwargs["config"]
         self.assertEqual("application/json", config.response_mime_type)
-        self.assertIs(analyze.ModelAnalysis, config.response_schema)
+        self.assertEqual(
+            analyze._clean_json_schema(analyze.ModelAnalysis.model_json_schema()),
+            config.response_schema,
+        )
         self.assertEqual(0.1, config.temperature)
         for required_text in (
             "visible meal",

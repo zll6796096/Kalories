@@ -264,8 +264,23 @@ def build_response(model: ModelAnalysis) -> AnalyzeResponse:
     return AnalyzeResponse(**analysis.model_dump(), assessment=assessment)
 
 
+def _clean_json_schema(obj: object) -> object:
+    """Strip OpenAPI attributes like additionalProperties unsupported by Gemini API."""
+    if isinstance(obj, dict):
+        cleaned: dict[str, object] = {}
+        for key, value in obj.items():
+            if key in ("additionalProperties", "additional_properties"):
+                continue
+            cleaned[key] = _clean_json_schema(value)
+        return cleaned
+    if isinstance(obj, list):
+        return [_clean_json_schema(item) for item in obj]
+    return obj
+
+
 def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysis:
     """Ask Gemini only for observable meal facts, never a health assessment."""
+    response_schema = _clean_json_schema(ModelAnalysis.model_json_schema())
     with genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(timeout=20_000),
@@ -291,13 +306,14 @@ def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysi
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=ModelAnalysis,
+                response_schema=response_schema,
                 temperature=0.1,
             ),
         )
     if response.parsed is not None:
         return ModelAnalysis.model_validate(response.parsed)
     return ModelAnalysis.model_validate_json(response.text)
+
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
