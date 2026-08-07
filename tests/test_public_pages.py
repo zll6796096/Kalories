@@ -182,12 +182,16 @@ class PublicPageTests(unittest.TestCase):
             "モデル出力",
             "Cloud Run",
             "運用メタデータ",
-            "55日",
-            "不正使用の監視",
-            "自動的に期限切れ",
+            "プロンプト",
+            "コンテキスト情報",
+            "出力",
+            "55日間",
+            "不正使用の検出および防止",
             "ゼロデータ保持",
+            "Google AI Studio",
             "開発者ログ",
             "データセット共有",
+            "オプトイン",
             "有料サービス",
             "Google製品の改善",
             "TestFlight",
@@ -207,13 +211,58 @@ class PublicPageTests(unittest.TestCase):
         self.assertRegex(text, r"アカウント.+広告.+追跡.+解析SDK")
         self.assertRegex(text, r"再撮影.+破棄")
         self.assertRegex(text, r"有料サービス.+必須条件")
-        self.assertRegex(text, r"最大55日")
+        self.assertRegex(
+            text,
+            r"Google.+不正使用の検出および防止.+プロンプト.+コンテキスト情報.+出力.+55日間保持します",
+        )
+        self.assertRegex(text, r"55日間.+写真入力.+分析出力")
         self.assertRegex(text, r"承認.+確認できていません")
-        self.assertRegex(text, r"無効.+TestFlight.+必須条件")
+        self.assertRegex(
+            text,
+            r"Googleによる不正使用監視のログとは別に.+Google AI Studio.+開発者が所有する開発者ログ",
+        )
+        self.assertRegex(text, r"データセット共有.+別.+オプトイン")
+        self.assertIn(
+            "開発者ログが無効であることは、TestFlight配布の必須条件です",
+            text,
+        )
+        self.assertIn(
+            "データセット共有を選択しないことも、TestFlight配布の必須条件です",
+            text,
+        )
+        self.assertIn(
+            "現在のCloudプロジェクトが有料サービスであることは、まだ確認済みではありません",
+            text,
+        )
+        self.assertIn(
+            "現在のCloudプロジェクトで開発者ログが無効であることは、まだ確認済みではありません",
+            text,
+        )
+        self.assertIn(
+            "データセット共有が選択されていないことも、まだ確認済みではありません",
+            text,
+        )
         self.assertRegex(text, r"条件.+満たせない.+配布しません")
         self.assertRegex(text, r"送信済み.+保持期間")
         self.assertRegex(text, r"削除する.+履歴.+ありません")
         self.assertNotRegex(text, r"保持しません|保存期間は0|ゼロ保持を適用")
+        self.assertNotIn("自動的に期限切れ", text)
+
+        retention_start = raw.index("<h2>保存期間</h2>")
+        retention_end = raw.index("</section>", retention_start)
+        retention_page = DocumentProbe()
+        retention_page.feed(raw[retention_start:retention_end])
+        retention_page.close()
+        self.assertNotRegex(
+            retention_page.text,
+            r"(?:自動(?:的)?に|55日(?:間)?後に|保持期間後に).{0,80}(?:期限切れ|削除|消去)",
+        )
+
+        self.assertRegex(text, r"管理されたTestFlight.+招待された18歳以上")
+        self.assertIn(
+            "一般公開のApp Store配布は、現在の管理されたTestFlightの範囲外であり、未解決の別のリリース門禁です",
+            text,
+        )
 
         hrefs = [
             attrs["href"]
