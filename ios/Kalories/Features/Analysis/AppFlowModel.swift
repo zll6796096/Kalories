@@ -46,23 +46,19 @@ final class AppFlowModel {
             return
         }
 
-        let dataURI: String
-        do {
-            dataURI = try processor.dataURI(for: selectedImage)
-        } catch let failure as AppFailure {
-            screen = .failure(failure)
-            return
-        } catch {
-            screen = .failure(.analysisFailed)
-            return
-        }
-
-        screen = .analyzing
         let operation = generation
         let service = service
+        let processor = processor
+        screen = .analyzing
 
         analysisTask = Task { [weak self] in
             do {
+                let dataURI = try processor.dataURI(for: selectedImage)
+                try Task.checkCancellation()
+                guard self?.isCurrent(operation: operation) == true else {
+                    return
+                }
+
                 let result = try await service.analyze(dataURI: dataURI)
                 try Task.checkCancellation()
                 self?.complete(
@@ -108,8 +104,12 @@ final class AppFlowModel {
         analysisTask = nil
     }
 
+    private func isCurrent(operation: UInt) -> Bool {
+        operation == generation && !Task.isCancelled
+    }
+
     private func complete(operation: UInt, with screen: AppScreen) {
-        guard operation == generation, !Task.isCancelled else {
+        guard isCurrent(operation: operation) else {
             return
         }
         self.screen = screen

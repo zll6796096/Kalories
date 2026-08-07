@@ -51,6 +51,33 @@ final class AppFlowModelTests: XCTestCase {
         await drainTasks()
     }
 
+    func testAnalyzeShowsAnalyzingBeforeImageProcessingBegins() async {
+        let call = ControlledAnalysisCall(cancellation: .cooperative)
+        let service = ControlledAnalysisService(calls: [call])
+        var observedScreen: AppScreen?
+        let modelReference = WeakAppFlowModelReference()
+        let processor = RecordingImageProcessor(
+            results: [.success("data:image")],
+            onProcess: { observedScreen = modelReference.value?.screen }
+        )
+        let model = makeModel(service: service, processor: processor)
+        modelReference.value = model
+        model.select(makeImage(color: .systemOrange))
+
+        model.analyze()
+        await call.waitUntilStarted()
+
+        if let observedScreen {
+            assertAnalyzing(observedScreen)
+        } else {
+            XCTFail("Expected the processor invocation to observe screen state")
+        }
+
+        model.cancelAnalysis()
+        await call.waitUntilCancellationObserved()
+        await drainTasks()
+    }
+
     func testSuccessfulAnalysisShowsCompleteResultAndRetainsImage() async {
         let result = makeFoodResult(name: "焼き鮭定食", score: 64)
         let call = ControlledAnalysisCall(cancellation: .nonCooperative)
@@ -145,7 +172,7 @@ final class AppFlowModelTests: XCTestCase {
         model.select(makeImage(color: .brown))
 
         model.analyze()
-        await drainTasks()
+        await waitUntil { self.failure(from: model.screen) == .invalidImage }
 
         assertFailure(.invalidImage, on: model.screen)
         XCTAssertEqual(service.callCount, 0)
@@ -159,6 +186,7 @@ final class AppFlowModelTests: XCTestCase {
             model.select(makeImage(color: .cyan))
 
             model.analyze()
+            await waitUntil { self.failure(from: model.screen) == .analysisFailed }
 
             assertFailure(.analysisFailed, on: model.screen)
             XCTAssertEqual(service.callCount, 0)
@@ -469,15 +497,26 @@ final class AppFlowModelTests: XCTestCase {
 }
 
 @MainActor
+private final class WeakAppFlowModelReference {
+    weak var value: AppFlowModel?
+}
+
+@MainActor
 private final class RecordingImageProcessor: ImageProcessing {
     private var results: [Result<String, any Error>]
+    private let onProcess: @MainActor () -> Void
     private(set) var images: [UIImage] = []
 
-    init(results: [Result<String, any Error>]) {
+    init(
+        results: [Result<String, any Error>],
+        onProcess: @escaping @MainActor () -> Void = {}
+    ) {
         self.results = results
+        self.onProcess = onProcess
     }
 
     func dataURI(for image: UIImage) throws -> String {
+        onProcess()
         images.append(image)
         guard !results.isEmpty else {
             throw TestDoubleError.unexpectedCall
