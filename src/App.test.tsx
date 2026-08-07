@@ -9,6 +9,7 @@ import App, {
   imageForRetry,
   replaceActiveRequest,
 } from './App';
+import * as appModule from './App';
 import type {AnalysisResult, AppErrorCode} from './types';
 
 const result: AnalysisResult = {
@@ -64,6 +65,7 @@ const allErrorCodes: AppErrorCode[] = [
   'IMAGE_TOO_LARGE',
   'NO_FOOD',
   'SERVICE_NOT_CONFIGURED',
+  'RATE_LIMITED',
   'ANALYSIS_FAILED',
   'NETWORK_ERROR',
   'SAVE_FAILED',
@@ -83,10 +85,41 @@ describe('app orchestration model', () => {
       'errorImageTooLarge',
       'errorNoFood',
       'errorServiceNotConfigured',
+      'errorRateLimited',
       'errorAnalysisFailed',
       'errorNetwork',
       'errorSaveFailed',
     ]);
+  });
+
+  it('keeps the exhaustive retry behavior and treats rate limiting as retryable', () => {
+    const isRetryableCameraError = (
+      appModule as unknown as {
+        isRetryableCameraError?: (code: AppErrorCode) => boolean;
+      }
+    ).isRetryableCameraError;
+
+    expect(isRetryableCameraError).toBeTypeOf('function');
+    if (!isRetryableCameraError) {
+      return;
+    }
+    expect(
+      Object.fromEntries(
+        allErrorCodes.map((code) => [code, isRetryableCameraError(code)]),
+      ),
+    ).toEqual({
+      CAMERA_DENIED: false,
+      CAPTURE_FAILED: false,
+      INVALID_IMAGE: true,
+      UNSUPPORTED_IMAGE: true,
+      IMAGE_TOO_LARGE: true,
+      NO_FOOD: false,
+      SERVICE_NOT_CONFIGURED: true,
+      RATE_LIMITED: true,
+      ANALYSIS_FAILED: true,
+      NETWORK_ERROR: true,
+      SAVE_FAILED: false,
+    });
   });
 
   it('changes locale without mutating nutrition, image, error, or request state', () => {

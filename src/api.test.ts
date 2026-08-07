@@ -112,8 +112,19 @@ describe('analyzeImage', () => {
     ).rejects.toMatchObject({code});
   });
 
+  it('preserves RATE_LIMITED from a 429 response body', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    fetcher.mockResolvedValue(
+      response({detail: {code: 'RATE_LIMITED'}}, 429),
+    );
+
+    await expect(
+      analyzeImage('data:image/jpeg;base64,AA==', {fetcher}),
+    ).rejects.toMatchObject({code: 'RATE_LIMITED'});
+  });
+
   it.each([
-    [{detail: {code: 'RATE_LIMITED'}}, 'unknown code'],
+    [{detail: {code: 'UNEXPECTED_ERROR'}}, 'unknown code'],
     [{detail: 'invalid shape'}, 'malformed body'],
     ['not-json', 'non-JSON body'],
   ] as const)(

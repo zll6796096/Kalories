@@ -60,6 +60,7 @@ export type AppErrorCode =
   | 'IMAGE_TOO_LARGE'
   | 'NO_FOOD'
   | 'SERVICE_NOT_CONFIGURED'
+  | 'RATE_LIMITED'
   | 'ANALYSIS_FAILED'
   | 'NETWORK_ERROR'
   | 'SAVE_FAILED';

@@ -14,6 +14,7 @@ const backendErrorCodes = new Set<AppErrorCode>([
   'UNSUPPORTED_IMAGE',
   'IMAGE_TOO_LARGE',
   'SERVICE_NOT_CONFIGURED',
+  'RATE_LIMITED',
   'ANALYSIS_FAILED',
 ]);
 

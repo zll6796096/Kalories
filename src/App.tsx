@@ -58,6 +58,7 @@ const errorMessageKeys = {
   IMAGE_TOO_LARGE: 'errorImageTooLarge',
   NO_FOOD: 'errorNoFood',
   SERVICE_NOT_CONFIGURED: 'errorServiceNotConfigured',
+  RATE_LIMITED: 'errorRateLimited',
   ANALYSIS_FAILED: 'errorAnalysisFailed',
   NETWORK_ERROR: 'errorNetwork',
   SAVE_FAILED: 'errorSaveFailed',
@@ -68,12 +69,17 @@ const retryableCameraErrors = new Set<AppErrorCode>([
   'UNSUPPORTED_IMAGE',
   'IMAGE_TOO_LARGE',
   'SERVICE_NOT_CONFIGURED',
+  'RATE_LIMITED',
   'ANALYSIS_FAILED',
   'NETWORK_ERROR',
 ]);
 
 export function errorMessageKey(code: AppErrorCode): keyof Messages {
   return errorMessageKeys[code];
+}
+
+export function isRetryableCameraError(code: AppErrorCode): boolean {
+  return retryableCameraErrors.has(code);
 }
 
 export function createInitialAppModel(
@@ -273,7 +279,7 @@ export default function App() {
     model.appState === 'camera' &&
     model.capturedImage !== null &&
     model.error !== null &&
-    retryableCameraErrors.has(model.error);
+    isRetryableCameraError(model.error);
 
   return (
     <div className="app-shell">

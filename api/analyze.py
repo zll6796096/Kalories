@@ -22,6 +22,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from lib.nutrition import assess_nutrition
+from lib.rate_limit import TokenBucket
 
 
 env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
@@ -67,6 +68,10 @@ SUPPORTED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
 MAX_ENCODED_IMAGE_CHARS = 4 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
+ANALYSIS_RATE_LIMITER = TokenBucket(
+    capacity=4,
+    refill_per_second=12 / 60,
+)
 
 ConfidenceLevel = Literal["low", "medium", "high"]
 AssumptionKey = Literal[
@@ -330,6 +335,12 @@ def analyze_food(request: AnalyzeRequest) -> AnalyzeResponse:
         mime_type, file_bytes = decode_image(request.image)
     except ImageValidationError as error:
         raise HTTPException(status_code=400, detail={"code": error.code}) from None
+
+    if not ANALYSIS_RATE_LIMITER.try_acquire():
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "RATE_LIMITED"},
+        )
 
     try:
         return build_response(call_gemini(api_key, mime_type, file_bytes))
