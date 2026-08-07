@@ -38,6 +38,8 @@ struct CameraAuthorizationService: CameraAuthorizing {
 @MainActor
 @Observable
 final class CameraPresentationController {
+    private final class RequestToken {}
+
     private(set) var isPresented = false
     private(set) var failure: AppFailure?
 
@@ -45,41 +47,65 @@ final class CameraPresentationController {
     private let authorization: any CameraAuthorizing
 
     @ObservationIgnored
-    private var isRequestInFlight = false
+    private var currentRequest: RequestToken?
 
     init(authorization: any CameraAuthorizing) {
         self.authorization = authorization
     }
 
     func requestPresentation() async {
-        guard !isPresented, !isRequestInFlight else {
+        guard !isPresented, currentRequest == nil, !Task.isCancelled else {
             return
         }
 
+        let request = RequestToken()
+        currentRequest = request
         failure = nil
-        isRequestInFlight = true
-        defer { isRequestInFlight = false }
+        defer {
+            if currentRequest === request {
+                currentRequest = nil
+            }
+        }
 
         switch authorization.authorizationStatus() {
         case .authorized:
-            isPresented = true
+            present(for: request)
         case .denied, .restricted, .unknown:
-            failClosed()
+            failClosed(for: request)
         case .notDetermined:
-            if await authorization.requestAccess() {
-                isPresented = true
+            let granted = await authorization.requestAccess()
+            guard canComplete(request) else {
+                return
+            }
+            if granted {
+                present(for: request)
             } else {
-                failClosed()
+                failClosed(for: request)
             }
         }
     }
 
     func reset() {
+        currentRequest = nil
         isPresented = false
         failure = nil
     }
 
-    private func failClosed() {
+    private func canComplete(_ request: RequestToken) -> Bool {
+        currentRequest === request && !Task.isCancelled
+    }
+
+    private func present(for request: RequestToken) {
+        guard canComplete(request) else {
+            return
+        }
+        isPresented = true
+    }
+
+    private func failClosed(for request: RequestToken) {
+        guard canComplete(request) else {
+            return
+        }
         isPresented = false
         failure = .cameraDenied
     }

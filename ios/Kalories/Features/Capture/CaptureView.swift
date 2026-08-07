@@ -30,6 +30,7 @@ struct CaptureView: View {
     @State private var librarySelection: PhotosPickerItem?
     @State private var libraryLoadTask: Task<Void, Never>?
     @State private var librarySelectionGeneration = LibrarySelectionGeneration()
+    @State private var cameraRequestTask: Task<Void, Never>?
     @State private var captureFailure: AppFailure?
 
     var body: some View {
@@ -66,7 +67,7 @@ struct CaptureView: View {
                     }
                 }
             ),
-            onDismiss: cameraPresentation.reset
+            onDismiss: cancelCameraRequest
         ) {
             CameraPicker(completion: handleCameraOutcome)
                 .ignoresSafeArea()
@@ -76,6 +77,10 @@ struct CaptureView: View {
                 return
             }
             startLibraryImageLoad(from: selectedItem)
+        }
+        .onDisappear {
+            cancelLibraryImageLoad()
+            cancelCameraRequest()
         }
     }
 
@@ -159,12 +164,15 @@ struct CaptureView: View {
                 )
 
             if failure == .cameraDenied {
-                Button(localizer.text("openSettings")) {
+                Button {
                     if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                         openURL(settingsURL)
                     }
+                } label: {
+                    Text(localizer.text("openSettings"))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .frame(minHeight: 44)
             }
         }
         .padding(16)
@@ -174,33 +182,50 @@ struct CaptureView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 20) {
-            Link(localizer.text("privacyPolicy"), destination: privacyURL)
-                .frame(minHeight: 44)
-            Link(localizer.text("support"), destination: supportURL)
-                .frame(minHeight: 44)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 20) {
+                footerLink(localizer.text("privacyPolicy"), destination: privacyURL)
+                    .fixedSize(horizontal: true, vertical: false)
+                footerLink(localizer.text("support"), destination: supportURL)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            VStack(spacing: 0) {
+                footerLink(localizer.text("privacyPolicy"), destination: privacyURL)
+                footerLink(localizer.text("support"), destination: supportURL)
+            }
         }
         .font(.footnote)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, 8)
     }
 
+    private func footerLink(_ title: String, destination: URL) -> some View {
+        Link(destination: destination) {
+            Text(title)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+    }
+
     private func requestCameraPresentation() {
         cancelLibraryImageLoad()
+        cancelCameraRequest()
         captureFailure = nil
-        cameraPresentation.reset()
 
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
             captureFailure = .captureFailed
             return
         }
 
-        Task { await cameraPresentation.requestPresentation() }
+        cameraRequestTask = Task {
+            await cameraPresentation.requestPresentation()
+        }
     }
 
     private func handleCameraOutcome(_ outcome: CameraPickerOutcome) {
+        cancelCameraRequest()
         cancelLibraryImageLoad()
-        cameraPresentation.reset()
         switch outcome {
         case let .image(image):
             captureFailure = nil
@@ -213,6 +238,7 @@ struct CaptureView: View {
     }
 
     private func startLibraryImageLoad(from item: PhotosPickerItem) {
+        cancelCameraRequest()
         libraryLoadTask?.cancel()
         let generation = librarySelectionGeneration.begin()
         libraryLoadTask = Task {
@@ -239,7 +265,6 @@ struct CaptureView: View {
                 return
             }
             captureFailure = nil
-            cameraPresentation.reset()
             flow.select(image)
         } catch {
             guard
@@ -256,8 +281,8 @@ struct CaptureView: View {
 
     private func clearSelection() {
         cancelLibraryImageLoad()
+        cancelCameraRequest()
         captureFailure = nil
-        cameraPresentation.reset()
         flow.retake()
     }
 
@@ -266,6 +291,12 @@ struct CaptureView: View {
         libraryLoadTask?.cancel()
         libraryLoadTask = nil
         librarySelection = nil
+    }
+
+    private func cancelCameraRequest() {
+        cameraRequestTask?.cancel()
+        cameraRequestTask = nil
+        cameraPresentation.reset()
     }
 
     private func captureFailureText(_ failure: AppFailure) -> String {

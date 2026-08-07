@@ -1,6 +1,18 @@
 import SwiftUI
 import UIKit
 
+extension AppFailure {
+    var isRetryable: Bool {
+        switch self {
+        case .network, .timeout, .rateLimited, .analysisFailed, .malformedResponse:
+            true
+        case .cameraDenied, .captureFailed, .invalidImage, .unsupportedImage,
+             .imageTooLarge, .noFood, .serviceNotConfigured, .invalidConfiguration:
+            false
+        }
+    }
+}
+
 struct RootView: View {
     let environment: AppEnvironment
 
@@ -82,7 +94,7 @@ private struct FailureView: View {
                         failure == .timeout ? "error.timeout" : "error.message"
                     )
 
-                if flow.selectedImage != nil {
+                if flow.selectedImage != nil, failure.isRetryable {
                     Button {
                         flow.retry()
                     } label: {

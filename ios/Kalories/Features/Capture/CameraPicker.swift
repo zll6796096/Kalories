@@ -39,11 +39,11 @@ struct CameraPicker: UIViewControllerRepresentable {
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            finish(.cancelled, picker: picker)
+            finish(.cancelled)
         }
 
         func cameraUnavailable(_ controller: UIViewController) {
-            finish(.failure(.captureFailed), picker: controller)
+            finish(.failure(.captureFailed))
         }
 
         func imagePickerController(
@@ -58,19 +58,18 @@ struct CameraPicker: UIViewControllerRepresentable {
                 image.size.height > 0,
                 image.cgImage != nil || image.ciImage != nil
             else {
-                finish(.failure(.captureFailed), picker: picker)
+                finish(.failure(.captureFailed))
                 return
             }
 
-            finish(.image(image), picker: picker)
+            finish(.image(image))
         }
 
-        private func finish(_ outcome: CameraPickerOutcome, picker: UIViewController) {
+        private func finish(_ outcome: CameraPickerOutcome) {
             guard !didComplete else {
                 return
             }
             didComplete = true
-            picker.dismiss(animated: true)
             completion(outcome)
         }
     }
