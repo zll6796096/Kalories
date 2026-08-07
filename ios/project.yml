@@ -1,6 +1,7 @@
 name: Kalories
 options:
   minimumXcodeGenVersion: 2.45.4
+  developmentLanguage: ja
 deploymentTarget:
   iOS: "17.0"
 configs:

@@ -1,4 +1,5 @@
-import {mkdir, readFile, writeFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {mkdir, open, readFile, rename, rm} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 
@@ -69,6 +70,11 @@ interface GeneratedFile {
   bytes: Buffer;
 }
 
+interface StagedFile {
+  targetPath: string;
+  temporaryPath: string;
+}
+
 function escapeStringsValue(value: string): string {
   return value
     .replaceAll('\\', '\\\\')
@@ -85,6 +91,22 @@ function renderStrings(values: Record<string, string>): Buffer {
     .join('\n');
 
   return Buffer.from(`${contents}\n`, 'utf8');
+}
+
+function validateStringsRenderer(): void {
+  const actual = renderStrings({
+    zKey: 'line one\r\nline two\rline three\nline four',
+    aKey: 'quote " and slash \\ end',
+  });
+  const expected = Buffer.from(
+    '"aKey" = "quote \\" and slash \\\\ end";\n' +
+      '"zKey" = "line one\\nline two\\nline three\\nline four";\n',
+    'utf8',
+  );
+
+  if (!actual.equals(expected)) {
+    throw new Error('Internal .strings rendering validation failed.');
+  }
 }
 
 function generatedFiles(): GeneratedFile[] {
@@ -156,20 +178,60 @@ async function checkGeneratedFiles(files: GeneratedFile[]): Promise<boolean> {
 }
 
 async function writeGeneratedFiles(files: GeneratedFile[]): Promise<void> {
-  let written = 0;
+  const changedFiles: GeneratedFile[] = [];
 
   for (const file of files) {
     const existing = await readExistingBytes(file.path);
-    if (existing?.equals(file.bytes)) {
-      continue;
+    if (!existing?.equals(file.bytes)) {
+      changedFiles.push(file);
     }
-
-    await mkdir(path.dirname(file.path), {recursive: true});
-    await writeFile(file.path, file.bytes);
-    written += 1;
   }
 
-  console.log(`Generated ${files.length} iOS localization files (${written} written).`);
+  const stagedFiles: StagedFile[] = [];
+  const temporaryPaths: string[] = [];
+
+  try {
+    for (const file of changedFiles) {
+      const directory = path.dirname(file.path);
+      await mkdir(directory, {recursive: true});
+      const temporaryPath = path.join(
+        directory,
+        `.${path.basename(file.path)}.${process.pid}.${randomUUID()}.tmp`,
+      );
+      temporaryPaths.push(temporaryPath);
+      await stageGeneratedFile(file, temporaryPath);
+      stagedFiles.push({targetPath: file.path, temporaryPath});
+    }
+
+    for (const file of stagedFiles) {
+      await rename(file.temporaryPath, file.targetPath);
+    }
+  } finally {
+    await Promise.all(temporaryPaths.map((temporaryPath) => rm(temporaryPath, {force: true})));
+  }
+
+  console.log(`Generated ${files.length} iOS localization files (${changedFiles.length} written).`);
+}
+
+async function stageGeneratedFile(file: GeneratedFile, temporaryPath: string): Promise<void> {
+  const handle = await open(temporaryPath, 'wx');
+  let isOpen = true;
+
+  try {
+    await handle.writeFile(file.bytes);
+    await handle.sync();
+    await handle.close();
+    isOpen = false;
+  } finally {
+    if (isOpen) {
+      await handle.close();
+    }
+  }
+
+  const stagedBytes = await readFile(temporaryPath);
+  if (!stagedBytes.equals(file.bytes)) {
+    throw new Error(`Staged localization bytes do not match: ${temporaryPath}`);
+  }
 }
 
 async function main(): Promise<void> {
@@ -181,6 +243,7 @@ async function main(): Promise<void> {
     return;
   }
 
+  validateStringsRenderer();
   const files = generatedFiles();
   if (args.includes('--check')) {
     if (!(await checkGeneratedFiles(files))) {

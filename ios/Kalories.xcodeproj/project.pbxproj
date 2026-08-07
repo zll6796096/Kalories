@@ -264,7 +264,7 @@
 				};
 			};
 			buildConfigurationList = 6377E585B71FBD687B0E5A92 /* Build configuration list for PBXProject "Kalories" */;
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,

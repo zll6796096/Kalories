@@ -41,6 +41,10 @@ final class AppLocalizerTests: XCTestCase {
         XCTAssertEqual(AppLocale.en.bundleName, "en")
     }
 
+    func testAppBundleUsesJapaneseAsDevelopmentLocalization() {
+        XCTAssertEqual(Bundle.main.developmentLocalization, "ja")
+    }
+
     func testLocalizedAppNameIsKaroScanInEveryLocale() {
         for locale in AppLocale.allCases {
             XCTAssertEqual(AppLocalizer(locale: locale).text("appName"), "カロスキャン")
