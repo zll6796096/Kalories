@@ -70,16 +70,9 @@ npm run dev
 ## Cloud Run
 
 仓库根目录的多阶段 `Dockerfile` 会先构建前端，再由同一个 FastAPI
-进程提供静态页面、`POST /api/analyze` 和 `GET /health`。部署公开 UI
-预览：
-
-```bash
-gcloud run deploy kalories \
-  --source . \
-  --project zhang23-23 \
-  --region asia-northeast1 \
-  --allow-unauthenticated
-```
+进程提供静态页面、`POST /api/analyze` 和 `GET /health`。README 不提供直接生产
+部署命令；TestFlight 后端只能按照发布手册先创建 `--no-traffic` 候选，并逐项完成
+不可变 revision、访问保护、隐私、配额、预算、真实请求与安全日志门禁。
 
 未配置 `GEMINI_API_KEY` 时，页面仍可访问，但分析接口会以
 `SERVICE_NOT_CONFIGURED` fail-closed。启用真实分析时，必须使用
@@ -92,6 +85,9 @@ TestFlight 后端发布使用只读的
 [`docs/release/testflight-backend-runbook.md`](docs/release/testflight-backend-runbook.md)。
 当前本地测试与构建成功不代表已部署；线上预检目前预期返回 `NO-GO`，任何 Cloud Run
 候选部署、流量变更、密钥迁移或 TestFlight 操作都需要下一阶段的明确确认与独立证据。
+当前服务的公网调用以及缺少可机器验证的应用层访问保护是硬 `NO-GO`；受邀 18+、
+maxScale、进程内限流、provider RPD 和预算告警都是控损手段，不是访问控制。Task 6
+和外部 TestFlight 必须等待单独的安全架构获用户确认、实现并通过验收。
 
 ## 图片与运行边界
 
@@ -107,7 +103,7 @@ npm run lint
 npm run build
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 .venv/bin/python -m compileall -q api lib tests
-.venv/bin/python -c "import api.analyze, lib.nutrition"
+.venv/bin/python -c "import api.analyze, lib.nutrition, lib.rate_limit"
 uv pip check --python .venv/bin/python
 git diff --check
 ```
