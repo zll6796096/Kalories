@@ -231,7 +231,7 @@ class PublicPageTests(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "現在のCloudプロジェクトが有料サービスであることは、まだ確認済みではありません",
+            "現在のCloudプロジェクトを通じたGemini API利用が有料サービスとして扱われることは、まだ確認済みではありません",
             text,
         )
         self.assertIn(
@@ -260,9 +260,11 @@ class PublicPageTests(unittest.TestCase):
 
         self.assertRegex(text, r"管理されたTestFlight.+招待された18歳以上")
         self.assertIn(
-            "一般公開のApp Store配布は、現在の管理されたTestFlightの範囲外であり、未解決の別のリリース門禁です",
+            "一般公開のApp Store配布には別途審査と確認が必要で、現時点では未完了です",
             text,
         )
+        self.assertNotIn("未解決の別のリリース門禁", text)
+        self.assertNotIn("現在のCloudプロジェクトが有料サービスである", text)
 
         hrefs = [
             attrs["href"]
