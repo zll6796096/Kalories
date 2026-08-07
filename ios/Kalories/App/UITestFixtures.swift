@@ -63,12 +63,18 @@ enum UITestFixtures {
     }
 
     private static func fixtureMode(in arguments: [String]) -> Mode? {
-        let hasSuccess = arguments.contains("--fixture-success")
-        let hasTimeout = arguments.contains("--fixture-timeout")
-        guard hasSuccess != hasTimeout else {
+        let fixtureArguments = arguments.filter { $0.hasPrefix("--fixture-") }
+        guard fixtureArguments.count == 1 else {
             return nil
         }
-        return hasSuccess ? .success : .timeout
+        switch fixtureArguments[0] {
+        case "--fixture-success":
+            return .success
+        case "--fixture-timeout":
+            return .timeout
+        default:
+            return nil
+        }
     }
 
     private static let canonicalResult = AnalysisResult(

@@ -7,5 +7,6 @@ final class AppLaunchTests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["app.title"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["capture.fixture"].exists)
     }
 }

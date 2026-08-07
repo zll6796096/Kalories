@@ -28,6 +28,7 @@
 		76228F2FB0ED170C0CCAF25E /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F4E835639B3101F4A11EF16 /* CaptureView.swift */; };
 		771BE255EE2EF00C982134C4 /* KaloriesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5110ACE21AA819C12B35A6F4 /* KaloriesApp.swift */; };
 		7773EB9E56278F48457EE725 /* KaloriesFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A91330097DA904A8680CF9 /* KaloriesFlowUITests.swift */; };
+		7D74742087B7AD977FFFCE0B /* UITestFixturesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FF9C45B13ACBEAE1D5D37D5 /* UITestFixturesTests.swift */; };
 		7D9353369CE08D47FE94F44A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 71A42B96B01DB23F6A556CCF /* InfoPlist.strings */; };
 		91DC01CD82DC3BDE6BDE4ADF /* AppIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3341A57486FA371C62F536 /* AppIdentityTests.swift */; };
 		A8158CE9CFD0C56B90C494B9 /* AnalysisAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */; };
@@ -60,6 +61,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0FF9C45B13ACBEAE1D5D37D5 /* UITestFixturesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFixturesTests.swift; sourceTree = "<group>"; };
 		140662A23ADEC0296955D896 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		17C911829E999FA726AE34CA /* AppLocalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizer.swift; sourceTree = "<group>"; };
 		17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisAPIClientTests.swift; sourceTree = "<group>"; };
@@ -138,6 +140,7 @@
 				8B771A52187BCC70E297FF7C /* CameraAuthorizationTests.swift */,
 				A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */,
 				8AC2E903E8B1379D71857872 /* ResultPresenterTests.swift */,
+				0FF9C45B13ACBEAE1D5D37D5 /* UITestFixturesTests.swift */,
 				C81B6393D94662D1B52074CD /* URLProtocolStub.swift */,
 			);
 			path = KaloriesTests;
@@ -399,6 +402,7 @@
 				560272B3E721B63F6CEAA75C /* CameraAuthorizationTests.swift in Sources */,
 				281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */,
 				D03EF02485D712C7D6941FA3 /* ResultPresenterTests.swift in Sources */,
+				7D74742087B7AD977FFFCE0B /* UITestFixturesTests.swift in Sources */,
 				11B29C1B860576BA49173131 /* URLProtocolStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
