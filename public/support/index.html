@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Kalories サポート</title>
+    <style>
+      :root {
+        color: #18201d;
+        background: #f5f7f5;
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+          "Yu Gothic UI", "Noto Sans JP", sans-serif;
+        line-height: 1.75;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main {
+        width: min(100% - 32px, 760px);
+        margin: 0 auto;
+        padding: 48px 0 64px;
+      }
+      header, section, aside {
+        margin-bottom: 20px;
+        padding: 24px;
+        border: 1px solid #dce3df;
+        border-radius: 16px;
+        background: #ffffff;
+      }
+      header { border-top: 5px solid #426b59; }
+      h1, h2, h3 { line-height: 1.35; color: #16251f; }
+      h1 { margin: 0 0 8px; font-size: clamp(1.75rem, 6vw, 2.35rem); }
+      h2 { margin: 0 0 12px; font-size: 1.3rem; }
+      h3 { margin: 20px 0 6px; font-size: 1.05rem; }
+      p, ol, ul { margin: 0 0 12px; }
+      p:last-child, ol:last-child, ul:last-child { margin-bottom: 0; }
+      ol, ul { padding-left: 1.4rem; }
+      .lede { color: #4f5c56; }
+      .warning { background: #fff8ec; border-color: #e7c98f; }
+      .warning strong { color: #6d4310; }
+      a { color: #265f49; text-underline-offset: 0.18em; }
+      a:focus-visible { outline: 3px solid #9cc5b3; outline-offset: 3px; }
+      @media (max-width: 520px) {
+        main { width: min(100% - 20px, 760px); padding: 20px 0 36px; }
+        header, section, aside { padding: 18px; border-radius: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Kalories サポート</h1>
+        <p class="lede">管理された18歳以上向けTestFlightテストの利用案内です。</p>
+      </header>
+
+      <section lang="ja" aria-labelledby="support-ja">
+        <h2 id="support-ja">日本語</h2>
+
+        <h3>カメラを使えない場合</h3>
+        <ol>
+          <li>iOSの「設定」からKaloriesを開き、カメラを許可してください。</li>
+          <li>アプリへ戻って、もう一度カメラ画面を開いてください。</li>
+        </ol>
+
+        <h3>食べ物が写っていないと表示された場合</h3>
+        <p>
+          料理全体が明るく写るように位置を調整し、再撮影してください。
+          写真の選択だけでは外部へ送信されず、「分析する」をタップした後に送信されます。
+        </p>
+
+        <h3>ネットワーク、タイムアウト、RATE_LIMITED</h3>
+        <p>
+          接続を確認し、少し時間を置いてから手動で再試行してください。
+          Kaloriesは同じ写真を自動再試行しません。何度も連続して送信しないでください。
+        </p>
+
+        <h3>利用範囲</h3>
+        <p>
+          この管理されたTestFlightは、招待された18歳以上のテスターだけが利用できます。
+          栄養結果は一食分の推定であり、医療診断または医療助言ではありません。
+          臨床用途には使用しないでください。データの送信と保持については
+          <a href="/privacy/">プライバシーポリシー</a>をご確認ください。
+        </p>
+
+        <aside class="warning" aria-label="公開Issueへの注意">
+          <p>
+            <strong>重要：</strong>公開Issueには、個人的な食事写真、認証情報、
+            APIキー、秘密情報を添付しないでください。Issueは誰でも閲覧できます。
+          </p>
+        </aside>
+      </section>
+
+      <section lang="zh-CN" aria-labelledby="support-zh">
+        <h2 id="support-zh">中文</h2>
+        <ul>
+          <li>无法使用相机时，请在 iOS“设置”中允许 Kalories 访问相机。</li>
+          <li>提示没有拍到食物时，请让整餐清晰入镜后重新拍摄。</li>
+          <li>遇到网络错误、超时或 RATE_LIMITED 时，请稍后手动重试；应用不会自动重试同一张相片。</li>
+          <li>受控 TestFlight 仅供受邀的 18 岁以上测试者使用；结果只是单餐估算，不是医疗诊断或建议。</li>
+          <li>数据发送和保存说明请查看<a href="/privacy/">隐私政策</a>。</li>
+        </ul>
+        <aside class="warning" aria-label="公开 Issue 注意事项">
+          <p>
+            <strong>重要：</strong>公开 Issue 中不要附上个人餐食照片、凭据、API 密钥或秘密信息；任何人都可能看到公开内容。
+          </p>
+        </aside>
+      </section>
+
+      <section lang="en" aria-labelledby="support-en">
+        <h2 id="support-en">English</h2>
+        <ul>
+          <li>If the camera is unavailable, allow camera access for Kalories in iOS Settings.</li>
+          <li>If no food is detected, place the full meal in clear view and retake the photo.</li>
+          <li>For a network error, timeout, or RATE_LIMITED response, wait and retry manually. The app does not automatically retry the same photo.</li>
+          <li>The controlled TestFlight is only for invited testers aged 18 or older. Results are single-meal estimates, not medical diagnosis or advice.</li>
+          <li>Read the <a href="/privacy/">privacy policy</a> for transfer and retention details.</li>
+        </ul>
+        <aside class="warning" aria-label="Public issue warning">
+          <p>
+            <strong>Important:</strong> A public issue is visible to everyone. Never attach personal meal photos, credentials, API keys, or secrets.
+          </p>
+        </aside>
+      </section>
+
+      <section>
+        <h2>問い合わせ・Contact</h2>
+        <p>
+          上記で解決しない場合は、個人情報を含めずに
+          <a href="https://github.com/zll6796096/Kalories/issues/new">GitHubで新しいIssueを作成</a>
+          してください。
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

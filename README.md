@@ -15,6 +15,19 @@ Kalories 是一个相机优先的餐食营养估算器。拍摄一餐后，应�
 
 照片结果是估算，不是营养测量、个性化每日摄入建议或医疗诊断。隐藏的油、酱汁、糖、盐、馅料以及实际份量都会显著影响结果；仅凭照片估算糖和钠通常置信度较低。当前评估面向一般成年人一餐，不考虑年龄、性别、体重、疾病、过敏、运动量或全天饮食。
 
+## 隐私与支持页面
+
+生产构建会把不依赖 JavaScript 的静态页面与应用一起提供：
+
+- `/privacy/`：日文隐私政策，说明照片传输、第三方 AI、保存边界与撤回方式；
+- `/support/`：日文优先、附简短中文和英文的使用帮助与公开 Issue 安全提示。
+
+受控 TestFlight 仅限受邀的 18 岁以上测试者。公开 App Store 发布仍是独立且未完成的门禁。
+
+TestFlight 分发前必须逐项确认 Cloud 项目使用 Gemini 付费服务，并保持开发者日志关闭、不向 Google 共享数据集；任一条件不满足时不得分发。付费服务条款规定提示、文件和响应不用于改进 Google 产品，但这不等于零保存：Google 默认滥用监控仍可能保存提示、上下文和输出（包括照片输入与分析输出）最长 55 天。当前没有证据证明该项目已获零数据保留（ZDR）批准，因此页面不作 ZDR 声明。
+
+`npm run build`、本地页面测试或 `/privacy/` 与 `/support/` 返回 200，只能证明本地静态页面和组合服务可用；它们不能证明页面已部署，也不能证明 Cloud 项目的付费层级、开发者日志、数据集共享、ZDR 状态或第三方实际处理方式已经核验。相关依据见 [Gemini API 条款](https://ai.google.dev/gemini-api/terms)、[滥用监控与保存政策](https://ai.google.dev/gemini-api/docs/usage-policies)、[开发者日志政策](https://ai.google.dev/gemini-api/docs/logs-policy)和 [ZDR 说明](https://ai.google.dev/gemini-api/docs/zdr)。
+
 ## 本地运行
 
 需要 Node.js、npm 和 `uv`。仓库通过 `.python-version` 将本地干净验证和 Vercel 部署统一到 Python 3.12。
