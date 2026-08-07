@@ -15,15 +15,22 @@
 		281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */; };
 		2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */; };
 		28540AB098FDD7A95786C581 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */; };
+		2E9BA91F974E0A3194AEEF93 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0FD041F9961852BEBCE952 /* AppEnvironment.swift */; };
+		35EBB01FC891CDF08980EE72 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA2981F04F50E5CEA1262D3 /* RootView.swift */; };
 		3E22FB64F8D229506D57386D /* AnalysisAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FF1C75CADEAC16B644F78A /* AnalysisAPIClient.swift */; };
+		3FE95E5014EAA04C4DBF4594 /* CameraAuthorizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0B54C98D9AF703458B7F5C /* CameraAuthorizationService.swift */; };
 		45FACFBFA4F51C812868FA26 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140662A23ADEC0296955D896 /* AppConfiguration.swift */; };
+		4DD521D771A85250F5F33682 /* CameraPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2C888910D5FB7D9879BD47 /* CameraPicker.swift */; };
+		560272B3E721B63F6CEAA75C /* CameraAuthorizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B771A52187BCC70E297FF7C /* CameraAuthorizationTests.swift */; };
 		5F4FC91DB555ABE6A1981695 /* AppFlowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B9241745ADD10195E9283D /* AppFlowModel.swift */; };
 		65C77351DCD383214DC271AE /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 746CD7498DA4454D0EFF6187 /* Localizable.strings */; };
+		76228F2FB0ED170C0CCAF25E /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F4E835639B3101F4A11EF16 /* CaptureView.swift */; };
 		771BE255EE2EF00C982134C4 /* KaloriesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5110ACE21AA819C12B35A6F4 /* KaloriesApp.swift */; };
 		7D9353369CE08D47FE94F44A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 71A42B96B01DB23F6A556CCF /* InfoPlist.strings */; };
 		91DC01CD82DC3BDE6BDE4ADF /* AppIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3341A57486FA371C62F536 /* AppIdentityTests.swift */; };
 		A8158CE9CFD0C56B90C494B9 /* AnalysisAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */; };
 		B4F9B9108DC194EBD7593BCC /* AppLocalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */; };
+		D38F56162650283BDC5BECA8 /* AnalyzingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3F31216A0338F8ECE146F2 /* AnalyzingView.swift */; };
 		E34A09CE6846A1F0BF07B67F /* AnalysisContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDDEE8E88D0E06092B70B142 /* AnalysisContractTests.swift */; };
 		EEEFC37DB4D6629E93594BB2 /* StrictAnalysisDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4813BDD27D56243200621FB8 /* StrictAnalysisDecoder.swift */; };
 /* End PBXBuildFile section */
@@ -49,6 +56,7 @@
 		140662A23ADEC0296955D896 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		17C911829E999FA726AE34CA /* AppLocalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizer.swift; sourceTree = "<group>"; };
 		17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisAPIClientTests.swift; sourceTree = "<group>"; };
+		1CA2981F04F50E5CEA1262D3 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
 		1E8BD752F796DC0CE62321EC /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizerTests.swift; sourceTree = "<group>"; };
@@ -63,18 +71,24 @@
 		58B1260FD6B6B05A98B9E249 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		5D3341A57486FA371C62F536 /* AppIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentityTests.swift; sourceTree = "<group>"; };
 		6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFlowModelTests.swift; sourceTree = "<group>"; };
+		6B2C888910D5FB7D9879BD47 /* CameraPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPicker.swift; sourceTree = "<group>"; };
 		79D3207AE5833386F9BCF2AA /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		7B1E8AD110BD363DE5D417F7 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		7E0FD041F9961852BEBCE952 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		7FFEC1E5509BE22EC8CC460A /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		8B771A52187BCC70E297FF7C /* CameraAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraAuthorizationTests.swift; sourceTree = "<group>"; };
+		9F4E835639B3101F4A11EF16 /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureView.swift; sourceTree = "<group>"; };
 		A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessorTests.swift; sourceTree = "<group>"; };
 		A584BA7AA6F27C245B49543E /* Kalories.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kalories.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5A615D3424247D075A7BB10 /* KaloriesTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KaloriesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BDDEE8E88D0E06092B70B142 /* AnalysisContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisContractTests.swift; sourceTree = "<group>"; };
 		C17FC3967F994490B1391C0B /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		C81B6393D94662D1B52074CD /* URLProtocolStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLProtocolStub.swift; sourceTree = "<group>"; };
+		DE0B54C98D9AF703458B7F5C /* CameraAuthorizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraAuthorizationService.swift; sourceTree = "<group>"; };
 		DE7273659FB7E40C56A30407 /* canonical_analysis_result.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = canonical_analysis_result.json; sourceTree = "<group>"; };
 		E1DA2C9128519E972D79C1B1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E48A833BB9E14A2D112C2A6C /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		FA3F31216A0338F8ECE146F2 /* AnalyzingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -107,6 +121,7 @@
 				6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */,
 				5D3341A57486FA371C62F536 /* AppIdentityTests.swift */,
 				24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */,
+				8B771A52187BCC70E297FF7C /* CameraAuthorizationTests.swift */,
 				A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */,
 				C81B6393D94662D1B52074CD /* URLProtocolStub.swift */,
 			);
@@ -140,6 +155,7 @@
 			isa = PBXGroup;
 			children = (
 				DFE88AFCC2FD775E56AF6C8B /* Analysis */,
+				CE95906F9698CFBBFC58354A /* Capture */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -156,7 +172,9 @@
 		751AA50237FC4C2C0B14C8CC /* App */ = {
 			isa = PBXGroup;
 			children = (
+				7E0FD041F9961852BEBCE952 /* AppEnvironment.swift */,
 				5110ACE21AA819C12B35A6F4 /* KaloriesApp.swift */,
+				1CA2981F04F50E5CEA1262D3 /* RootView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -190,9 +208,20 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		CE95906F9698CFBBFC58354A /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				DE0B54C98D9AF703458B7F5C /* CameraAuthorizationService.swift */,
+				6B2C888910D5FB7D9879BD47 /* CameraPicker.swift */,
+				9F4E835639B3101F4A11EF16 /* CaptureView.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
 		DFE88AFCC2FD775E56AF6C8B /* Analysis */ = {
 			isa = PBXGroup;
 			children = (
+				FA3F31216A0338F8ECE146F2 /* AnalyzingView.swift */,
 				49B9241745ADD10195E9283D /* AppFlowModel.swift */,
 			);
 			path = Analysis;
@@ -338,6 +367,7 @@
 				2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */,
 				91DC01CD82DC3BDE6BDE4ADF /* AppIdentityTests.swift in Sources */,
 				B4F9B9108DC194EBD7593BCC /* AppLocalizerTests.swift in Sources */,
+				560272B3E721B63F6CEAA75C /* CameraAuthorizationTests.swift in Sources */,
 				281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */,
 				11B29C1B860576BA49173131 /* URLProtocolStub.swift in Sources */,
 			);
@@ -349,11 +379,17 @@
 			files = (
 				3E22FB64F8D229506D57386D /* AnalysisAPIClient.swift in Sources */,
 				01209E2397B3E1985BB426E6 /* AnalysisModels.swift in Sources */,
+				D38F56162650283BDC5BECA8 /* AnalyzingView.swift in Sources */,
 				45FACFBFA4F51C812868FA26 /* AppConfiguration.swift in Sources */,
+				2E9BA91F974E0A3194AEEF93 /* AppEnvironment.swift in Sources */,
 				5F4FC91DB555ABE6A1981695 /* AppFlowModel.swift in Sources */,
 				0EB81A96E7ACCF9656EE3B03 /* AppLocalizer.swift in Sources */,
+				3FE95E5014EAA04C4DBF4594 /* CameraAuthorizationService.swift in Sources */,
+				4DD521D771A85250F5F33682 /* CameraPicker.swift in Sources */,
+				76228F2FB0ED170C0CCAF25E /* CaptureView.swift in Sources */,
 				1C0C7408C1C3BD9BC40AA8DD /* ImageProcessor.swift in Sources */,
 				771BE255EE2EF00C982134C4 /* KaloriesApp.swift in Sources */,
+				35EBB01FC891CDF08980EE72 /* RootView.swift in Sources */,
 				EEEFC37DB4D6629E93594BB2 /* StrictAnalysisDecoder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
