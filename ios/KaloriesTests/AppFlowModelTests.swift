@@ -23,12 +23,16 @@ final class AppFlowModelTests: XCTestCase {
         XCTAssertTrue(model.selectedImage === image)
     }
 
-    func testAnalyzeWithoutImageShowsInvalidImageWithoutCallingDependencies() {
+    func testAnalyzeWithoutImageShowsInvalidImageWithoutCallingDependencies() async {
         let processor = RecordingImageProcessor(results: [.success("unused")])
         let service = ControlledAnalysisService(calls: [])
         let model = makeModel(service: service, processor: processor)
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "no-image analysis completed"
+        )
+        await fulfillment(of: [flowCompletion.expectation], timeout: 1)
 
         assertFailure(.invalidImage, on: model.screen)
         XCTAssertEqual(processor.images.count, 0)
@@ -36,22 +40,28 @@ final class AppFlowModelTests: XCTestCase {
     }
 
     func testAnalyzeShowsAnalyzingWhileServiceIsSuspended() async {
-        let call = ControlledAnalysisCall(cancellation: .cooperative)
+        let call = makeControlledCall(cancellation: .cooperative)
         let service = ControlledAnalysisService(calls: [call])
         let model = makeModel(service: service)
         model.select(makeImage(color: .orange))
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "suspended analysis cancelled"
+        )
         await fulfillment(of: [call.started], timeout: 1)
 
         assertAnalyzing(model.screen)
 
         model.cancelAnalysis()
-        await fulfillment(of: [call.cancellationObserved, call.resolved], timeout: 1)
+        await fulfillment(
+            of: [call.cancellationObserved, call.resolved, flowCompletion.expectation],
+            timeout: 1
+        )
     }
 
     func testAnalyzeShowsAnalyzingBeforeImageProcessingBegins() async {
-        let call = ControlledAnalysisCall(cancellation: .cooperative)
+        let call = makeControlledCall(cancellation: .cooperative)
         let service = ControlledAnalysisService(calls: [call])
         var observedScreen: AppScreen?
         let modelReference = WeakAppFlowModelReference()
@@ -63,7 +73,10 @@ final class AppFlowModelTests: XCTestCase {
         modelReference.value = model
         model.select(makeImage(color: .systemOrange))
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "ordering analysis cancelled"
+        )
         await fulfillment(of: [call.started], timeout: 1)
 
         if let observedScreen {
@@ -73,27 +86,52 @@ final class AppFlowModelTests: XCTestCase {
         }
 
         model.cancelAnalysis()
-        await fulfillment(of: [call.cancellationObserved, call.resolved], timeout: 1)
+        await fulfillment(
+            of: [call.cancellationObserved, call.resolved, flowCompletion.expectation],
+            timeout: 1
+        )
+    }
+
+    func testFlowTaskCompletionWaitsForSuspendedServiceAndFulfillsAfterResolution() async {
+        let call = makeControlledCall(cancellation: .nonCooperative)
+        let model = makeModel(service: ControlledAnalysisService(calls: [call]))
+        model.select(makeImage(color: .systemTeal))
+
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "suspended flow task completed"
+        )
+        await fulfillment(of: [call.started], timeout: 1)
+
+        assertAnalyzing(model.screen)
+        XCTAssertFalse(
+            flowCompletion.isFulfilled,
+            "The inherited TaskLocal sentinel must remain alive while the service is suspended"
+        )
+
+        let terminal = screenChangeExpectation(for: model, description: "micro-test result")
+        call.succeed(makeFoodResult(name: "完了", score: 80))
+        await fulfillment(
+            of: [call.resolved, terminal, flowCompletion.expectation],
+            timeout: 1
+        )
+        XCTAssertTrue(flowCompletion.isFulfilled)
     }
 
     func testCancelBeforeTaskStartsSkipsImageProcessing() async {
-        let processed = expectation(description: "processor must not run")
-        processed.isInverted = true
-        let executorAdvanced = expectation(description: "main actor advanced")
-        let processor = RecordingImageProcessor(
-            results: [.success("unused")],
-            onProcess: { processed.fulfill() }
-        )
+        let processor = RecordingImageProcessor(results: [.success("unused")])
         let service = ControlledAnalysisService(calls: [])
         let image = makeImage(color: .red)
         let model = makeModel(service: service, processor: processor)
         model.select(image)
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "pre-start cancelled flow completed"
+        )
         model.cancelAnalysis()
-        Task { @MainActor in executorAdvanced.fulfill() }
 
-        await fulfillment(of: [executorAdvanced, processed], timeout: 0.05)
+        await fulfillment(of: [flowCompletion.expectation], timeout: 1)
         assertPreview(model.screen)
         XCTAssertTrue(model.selectedImage === image)
         XCTAssertTrue(processor.images.isEmpty)
@@ -101,25 +139,21 @@ final class AppFlowModelTests: XCTestCase {
     }
 
     func testRetakeBeforeTaskStartsSkipsProcessingAndReleasesImage() async throws {
-        let processed = expectation(description: "processor must not run")
-        processed.isInverted = true
-        let executorAdvanced = expectation(description: "main actor advanced")
-        let processor = RecordingImageProcessor(
-            results: [.success("unused")],
-            onProcess: { processed.fulfill() }
-        )
+        let processor = RecordingImageProcessor(results: [.success("unused")])
         let service = ControlledAnalysisService(calls: [])
         var image: UIImage? = makeImage(color: .brown)
         weak let weakImage = image
         let model = makeModel(service: service, processor: processor)
         model.select(try XCTUnwrap(image))
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "pre-start retaken flow completed"
+        )
         model.retake()
         image = nil
-        Task { @MainActor in executorAdvanced.fulfill() }
 
-        await fulfillment(of: [executorAdvanced, processed], timeout: 0.05)
+        await fulfillment(of: [flowCompletion.expectation], timeout: 1)
         assertCapture(model.screen)
         XCTAssertNil(model.selectedImage)
         XCTAssertNil(weakImage)
@@ -128,13 +162,7 @@ final class AppFlowModelTests: XCTestCase {
     }
 
     func testSelectingNewImageBeforeTaskStartsSkipsOldImageProcessingAndReleasesIt() async throws {
-        let processed = expectation(description: "processor must not run")
-        processed.isInverted = true
-        let executorAdvanced = expectation(description: "main actor advanced")
-        let processor = RecordingImageProcessor(
-            results: [.success("unused")],
-            onProcess: { processed.fulfill() }
-        )
+        let processor = RecordingImageProcessor(results: [.success("unused")])
         let service = ControlledAnalysisService(calls: [])
         var oldImage: UIImage? = makeImage(color: .red)
         weak let weakOldImage = oldImage
@@ -142,12 +170,14 @@ final class AppFlowModelTests: XCTestCase {
         let model = makeModel(service: service, processor: processor)
         model.select(try XCTUnwrap(oldImage))
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "old-image pre-start flow completed"
+        )
         model.select(newImage)
         oldImage = nil
-        Task { @MainActor in executorAdvanced.fulfill() }
 
-        await fulfillment(of: [executorAdvanced, processed], timeout: 0.05)
+        await fulfillment(of: [flowCompletion.expectation], timeout: 1)
         assertPreview(model.screen)
         XCTAssertTrue(model.selectedImage === newImage)
         XCTAssertNil(weakOldImage)
@@ -162,16 +192,25 @@ final class AppFlowModelTests: XCTestCase {
             results: [.success("data:latest")],
             onProcess: { processed.fulfill() }
         )
-        let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let call = makeControlledCall(cancellation: .nonCooperative)
         let service = ControlledAnalysisService(calls: [call])
         let image = makeImage(color: .systemPink)
         let model = makeModel(service: service, processor: processor)
         model.select(image)
 
-        model.analyze()
-        model.analyze()
+        let firstCompletion = startAnalysis(
+            on: model,
+            description: "superseded pre-start flow completed"
+        )
+        let latestCompletion = startAnalysis(
+            on: model,
+            description: "latest pre-start flow completed"
+        )
 
-        await fulfillment(of: [processed, call.started], timeout: 1)
+        await fulfillment(
+            of: [firstCompletion.expectation, processed, call.started],
+            timeout: 1
+        )
         XCTAssertEqual(processor.images.count, 1)
         XCTAssertTrue(processor.images[0] === image)
         XCTAssertEqual(service.dataURIs, ["data:latest"])
@@ -179,48 +218,57 @@ final class AppFlowModelTests: XCTestCase {
         let terminal = screenChangeExpectation(for: model, description: "latest result")
         let expected = makeFoodResult(name: "最新", score: 95)
         call.succeed(expected)
-        await fulfillment(of: [call.resolved, terminal], timeout: 1)
+        await fulfillment(
+            of: [call.resolved, terminal, latestCompletion.expectation],
+            timeout: 1
+        )
         XCTAssertEqual(result(from: model.screen), expected)
     }
 
     func testSuccessfulAnalysisShowsCompleteResultAndRetainsImage() async {
         let result = makeFoodResult(name: "焼き鮭定食", score: 64)
-        let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let call = makeControlledCall(cancellation: .nonCooperative)
         let service = ControlledAnalysisService(calls: [call])
         let image = makeImage(color: .green)
         let model = makeModel(service: service)
         model.select(image)
 
-        model.analyze()
+        let flowCompletion = startAnalysis(on: model, description: "success flow completed")
         await fulfillment(of: [call.started], timeout: 1)
         let terminal = screenChangeExpectation(for: model, description: "success result")
         call.succeed(result)
-        await fulfillment(of: [call.resolved, terminal], timeout: 1)
+        await fulfillment(
+            of: [call.resolved, terminal, flowCompletion.expectation],
+            timeout: 1
+        )
 
         XCTAssertEqual(self.result(from: model.screen), result)
         XCTAssertTrue(model.selectedImage === image)
     }
 
     func testNormalizedNoFoodResultShowsNoFoodAndRetainsImage() async {
-        let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let call = makeControlledCall(cancellation: .nonCooperative)
         let service = ControlledAnalysisService(calls: [call])
         let image = makeImage(color: .yellow)
         let model = makeModel(service: service)
         model.select(image)
 
-        model.analyze()
+        let flowCompletion = startAnalysis(on: model, description: "no-food flow completed")
         await fulfillment(of: [call.started], timeout: 1)
         let terminal = screenChangeExpectation(for: model, description: "no-food failure")
         call.succeed(makeNoFoodResult())
-        await fulfillment(of: [call.resolved, terminal], timeout: 1)
+        await fulfillment(
+            of: [call.resolved, terminal, flowCompletion.expectation],
+            timeout: 1
+        )
 
         assertFailure(.noFood, on: model.screen)
         XCTAssertTrue(model.selectedImage === image)
     }
 
     func testRetryReusesExactImageAndRunsProcessorAndServiceAgain() async {
-        let firstCall = ControlledAnalysisCall(cancellation: .nonCooperative)
-        let secondCall = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let firstCall = makeControlledCall(cancellation: .nonCooperative)
+        let secondCall = makeControlledCall(cancellation: .nonCooperative)
         let service = ControlledAnalysisService(calls: [firstCall, secondCall])
         let processor = RecordingImageProcessor(results: [
             .success("data:first"),
@@ -230,18 +278,29 @@ final class AppFlowModelTests: XCTestCase {
         let model = makeModel(service: service, processor: processor)
         model.select(image)
 
-        model.analyze()
+        let firstCompletion = startAnalysis(
+            on: model,
+            description: "first retry flow completed"
+        )
         await fulfillment(of: [firstCall.started], timeout: 1)
         let firstTerminal = screenChangeExpectation(for: model, description: "first failure")
         firstCall.fail(AppFailure.network)
-        await fulfillment(of: [firstCall.resolved, firstTerminal], timeout: 1)
+        await fulfillment(
+            of: [firstCall.resolved, firstTerminal, firstCompletion.expectation],
+            timeout: 1
+        )
 
-        model.retry()
+        let secondCompletion = startFlowTask(description: "retry flow completed") {
+            model.retry()
+        }
         await fulfillment(of: [secondCall.started], timeout: 1)
         let expected = makeFoodResult(name: "再試行", score: 72)
         let secondTerminal = screenChangeExpectation(for: model, description: "retry result")
         secondCall.succeed(expected)
-        await fulfillment(of: [secondCall.resolved, secondTerminal], timeout: 1)
+        await fulfillment(
+            of: [secondCall.resolved, secondTerminal, secondCompletion.expectation],
+            timeout: 1
+        )
 
         XCTAssertEqual(service.dataURIs, ["data:first", "data:second"])
         XCTAssertEqual(processor.images.count, 2)
@@ -260,19 +319,25 @@ final class AppFlowModelTests: XCTestCase {
         ]
 
         for expected in failures {
-            let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+            let call = makeControlledCall(cancellation: .nonCooperative)
             let service = ControlledAnalysisService(calls: [call])
             let model = makeModel(service: service)
             model.select(makeImage(color: .purple))
 
-            model.analyze()
+            let flowCompletion = startAnalysis(
+                on: model,
+                description: "service failure flow completed: \(expected)"
+            )
             await fulfillment(of: [call.started], timeout: 1)
             let terminal = screenChangeExpectation(
                 for: model,
                 description: "service failure \(expected)"
             )
             call.fail(expected)
-            await fulfillment(of: [call.resolved, terminal], timeout: 1)
+            await fulfillment(
+                of: [call.resolved, terminal, flowCompletion.expectation],
+                timeout: 1
+            )
 
             assertFailure(expected, on: model.screen)
         }
@@ -284,9 +349,12 @@ final class AppFlowModelTests: XCTestCase {
         let model = makeModel(service: service, processor: processor)
         model.select(makeImage(color: .brown))
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "processing failure flow completed"
+        )
         let terminal = screenChangeExpectation(for: model, description: "processing failure")
-        await fulfillment(of: [terminal], timeout: 1)
+        await fulfillment(of: [terminal, flowCompletion.expectation], timeout: 1)
 
         assertFailure(.invalidImage, on: model.screen)
         XCTAssertEqual(service.callCount, 0)
@@ -299,57 +367,75 @@ final class AppFlowModelTests: XCTestCase {
             let model = makeModel(service: service, processor: processor)
             model.select(makeImage(color: .cyan))
 
-            model.analyze()
+            let flowCompletion = startAnalysis(
+                on: model,
+                description: "unknown processing failure flow completed"
+            )
             let terminal = screenChangeExpectation(
                 for: model,
                 description: "unknown processing failure"
             )
-            await fulfillment(of: [terminal], timeout: 1)
+            await fulfillment(of: [terminal, flowCompletion.expectation], timeout: 1)
 
             assertFailure(.analysisFailed, on: model.screen)
             XCTAssertEqual(service.callCount, 0)
         }
 
         do {
-            let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+            let call = makeControlledCall(cancellation: .nonCooperative)
             let service = ControlledAnalysisService(calls: [call])
             let model = makeModel(service: service)
             model.select(makeImage(color: .magenta))
 
-            model.analyze()
+            let flowCompletion = startAnalysis(
+                on: model,
+                description: "unknown service failure flow completed"
+            )
             await fulfillment(of: [call.started], timeout: 1)
             let terminal = screenChangeExpectation(
                 for: model,
                 description: "unknown service failure"
             )
             call.fail(TestDoubleError.unknown)
-            await fulfillment(of: [call.resolved, terminal], timeout: 1)
+            await fulfillment(
+                of: [call.resolved, terminal, flowCompletion.expectation],
+                timeout: 1
+            )
 
             assertFailure(.analysisFailed, on: model.screen)
         }
     }
 
     func testCancelAnalysisReturnsToPreviewAndCooperativelyCancelsService() async {
-        let call = ControlledAnalysisCall(cancellation: .cooperative)
+        let call = makeControlledCall(cancellation: .cooperative)
         let service = ControlledAnalysisService(calls: [call])
         let image = makeImage(color: .gray)
         let model = makeModel(service: service)
         model.select(image)
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "cooperatively cancelled flow completed"
+        )
         await fulfillment(of: [call.started], timeout: 1)
 
         model.cancelAnalysis()
-        await fulfillment(of: [call.cancellationObserved, call.resolved], timeout: 1)
+        await fulfillment(
+            of: [call.cancellationObserved, call.resolved, flowCompletion.expectation],
+            timeout: 1
+        )
 
         assertPreview(model.screen)
         XCTAssertTrue(model.selectedImage === image)
     }
 
     func testRetakeClearsImageAndStaleSuccessCannotRestoreResult() async {
-        let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let call = makeControlledCall(cancellation: .nonCooperative)
         let model = makeModel(service: ControlledAnalysisService(calls: [call]))
         model.select(makeImage(color: .darkGray))
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "retaken stale flow completed"
+        )
         await fulfillment(of: [call.started], timeout: 1)
 
         model.retake()
@@ -358,13 +444,11 @@ final class AppFlowModelTests: XCTestCase {
         XCTAssertNil(model.selectedImage)
         await fulfillment(of: [call.cancellationObserved], timeout: 1)
 
-        let staleMutation = invertedScreenChangeExpectation(
-            for: model,
-            description: "stale retake result"
-        )
         call.succeed(makeFoodResult(name: "古い結果", score: 1))
-        await fulfillment(of: [call.resolved], timeout: 1)
-        await fulfillment(of: [staleMutation], timeout: 0.05)
+        await fulfillment(
+            of: [call.resolved, flowCompletion.expectation],
+            timeout: 1
+        )
 
         assertCapture(model.screen)
         XCTAssertNil(model.selectedImage)
@@ -374,22 +458,23 @@ final class AppFlowModelTests: XCTestCase {
         let errors: [any Error] = [AppFailure.timeout, TestDoubleError.unknown]
 
         for error in errors {
-            let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+            let call = makeControlledCall(cancellation: .nonCooperative)
             let image = makeImage(color: .lightGray)
             let model = makeModel(service: ControlledAnalysisService(calls: [call]))
             model.select(image)
-            model.analyze()
+            let flowCompletion = startAnalysis(
+                on: model,
+                description: "cancelled stale-error flow completed"
+            )
             await fulfillment(of: [call.started], timeout: 1)
 
             model.cancelAnalysis()
             await fulfillment(of: [call.cancellationObserved], timeout: 1)
-            let staleMutation = invertedScreenChangeExpectation(
-                for: model,
-                description: "stale cancellation error"
-            )
             call.fail(error)
-            await fulfillment(of: [call.resolved], timeout: 1)
-            await fulfillment(of: [staleMutation], timeout: 0.05)
+            await fulfillment(
+                of: [call.resolved, flowCompletion.expectation],
+                timeout: 1
+            )
 
             assertPreview(model.screen)
             XCTAssertTrue(model.selectedImage === image)
@@ -397,12 +482,15 @@ final class AppFlowModelTests: XCTestCase {
     }
 
     func testSelectingNewImageCancelsOldOperationAndStaleSuccessCannotOverwritePreview() async {
-        let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let call = makeControlledCall(cancellation: .nonCooperative)
         let model = makeModel(service: ControlledAnalysisService(calls: [call]))
         let oldImage = makeImage(color: .red)
         let newImage = makeImage(color: .blue)
         model.select(oldImage)
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "old-image stale flow completed"
+        )
         await fulfillment(of: [call.started], timeout: 1)
 
         model.select(newImage)
@@ -411,21 +499,19 @@ final class AppFlowModelTests: XCTestCase {
         assertPreview(model.screen)
         XCTAssertTrue(model.selectedImage === newImage)
 
-        let staleMutation = invertedScreenChangeExpectation(
-            for: model,
-            description: "stale old-image success"
-        )
         call.succeed(makeFoodResult(name: "古い画像", score: 3))
-        await fulfillment(of: [call.resolved], timeout: 1)
-        await fulfillment(of: [staleMutation], timeout: 0.05)
+        await fulfillment(
+            of: [call.resolved, flowCompletion.expectation],
+            timeout: 1
+        )
 
         assertPreview(model.screen)
         XCTAssertTrue(model.selectedImage === newImage)
     }
 
     func testRepeatedAnalyzeIsLatestOperationWins() async {
-        let firstCall = ControlledAnalysisCall(cancellation: .nonCooperative)
-        let secondCall = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let firstCall = makeControlledCall(cancellation: .nonCooperative)
+        let secondCall = makeControlledCall(cancellation: .nonCooperative)
         let service = ControlledAnalysisService(calls: [firstCall, secondCall])
         let model = makeModel(
             service: service,
@@ -435,24 +521,31 @@ final class AppFlowModelTests: XCTestCase {
             ])
         )
         model.select(makeImage(color: .systemPink))
-        model.analyze()
+        let firstCompletion = startAnalysis(
+            on: model,
+            description: "older repeated flow completed"
+        )
         await fulfillment(of: [firstCall.started], timeout: 1)
 
-        model.analyze()
+        let latestCompletion = startAnalysis(
+            on: model,
+            description: "latest repeated flow completed"
+        )
         await fulfillment(of: [firstCall.cancellationObserved, secondCall.started], timeout: 1)
 
         let latest = makeFoodResult(name: "最新", score: 95)
         let latestTerminal = screenChangeExpectation(for: model, description: "latest result")
         secondCall.succeed(latest)
-        await fulfillment(of: [secondCall.resolved, latestTerminal], timeout: 1)
-
-        let staleMutation = invertedScreenChangeExpectation(
-            for: model,
-            description: "older repeated result"
+        await fulfillment(
+            of: [secondCall.resolved, latestTerminal, latestCompletion.expectation],
+            timeout: 1
         )
+
         firstCall.succeed(makeFoodResult(name: "旧", score: 4))
-        await fulfillment(of: [firstCall.resolved], timeout: 1)
-        await fulfillment(of: [staleMutation], timeout: 0.05)
+        await fulfillment(
+            of: [firstCall.resolved, firstCompletion.expectation],
+            timeout: 1
+        )
 
         XCTAssertEqual(result(from: model.screen), latest)
         XCTAssertEqual(service.dataURIs, ["data:first", "data:second"])
@@ -464,22 +557,28 @@ final class AppFlowModelTests: XCTestCase {
         let model = makeModel(service: service, processor: processor)
         model.select(makeImage(color: .cyan))
 
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "processor cancellation-error flow completed"
+        )
         let terminal = screenChangeExpectation(
             for: model,
             description: "processor cancellation failure"
         )
-        await fulfillment(of: [terminal], timeout: 0.2)
+        await fulfillment(of: [terminal, flowCompletion.expectation], timeout: 1)
 
         assertFailure(.analysisFailed, on: model.screen)
         XCTAssertEqual(service.callCount, 0)
     }
 
     func testCurrentServiceCancellationErrorMapsToAnalysisFailed() async {
-        let call = ControlledAnalysisCall(cancellation: .nonCooperative)
+        let call = makeControlledCall(cancellation: .nonCooperative)
         let model = makeModel(service: ControlledAnalysisService(calls: [call]))
         model.select(makeImage(color: .magenta))
-        model.analyze()
+        let flowCompletion = startAnalysis(
+            on: model,
+            description: "service cancellation-error flow completed"
+        )
         await fulfillment(of: [call.started], timeout: 1)
 
         let terminal = screenChangeExpectation(
@@ -487,13 +586,16 @@ final class AppFlowModelTests: XCTestCase {
             description: "service cancellation failure"
         )
         call.fail(CancellationError())
-        await fulfillment(of: [call.resolved, terminal], timeout: 0.2)
+        await fulfillment(
+            of: [call.resolved, terminal, flowCompletion.expectation],
+            timeout: 1
+        )
 
         assertFailure(.analysisFailed, on: model.screen)
     }
 
     func testDeinitCancelsServiceAndReleasesSelectedImage() async throws {
-        let call = ControlledAnalysisCall(cancellation: .cooperative)
+        let call = makeControlledCall(cancellation: .cooperative)
         let service = ControlledAnalysisService(calls: [call])
         let processor = NonRetainingImageProcessor()
         var image: UIImage? = UIImage()
@@ -501,7 +603,9 @@ final class AppFlowModelTests: XCTestCase {
         var model: AppFlowModel? = makeModel(service: service, processor: processor)
         weak let weakModel = model
         model?.select(try XCTUnwrap(image))
-        model?.analyze()
+        let flowCompletion = startFlowTask(description: "deinitialized flow completed") {
+            model?.analyze()
+        }
         await fulfillment(of: [processor.processed, call.started], timeout: 1)
 
         image = nil
@@ -510,10 +614,11 @@ final class AppFlowModelTests: XCTestCase {
 
         XCTAssertNil(weakModel)
         XCTAssertNil(weakImage, "The flow task must release its processed image before service await")
-        await fulfillment(of: [call.cancellationObserved], timeout: 0.2)
-
-        call.fail(CancellationError())
-        await fulfillment(of: [call.resolved], timeout: 1)
+        await fulfillment(of: [call.cancellationObserved], timeout: 1)
+        await fulfillment(
+            of: [call.resolved, flowCompletion.expectation],
+            timeout: 1
+        )
     }
 
     private func makeModel(
@@ -521,6 +626,43 @@ final class AppFlowModelTests: XCTestCase {
         processor: any ImageProcessing = RecordingImageProcessor(results: [.success("data:image")])
     ) -> AppFlowModel {
         AppFlowModel(service: service, processor: processor)
+    }
+
+    private func makeControlledCall(
+        cancellation: ControlledAnalysisCall.CancellationBehavior,
+        label: String = UUID().uuidString
+    ) -> ControlledAnalysisCall {
+        let call = ControlledAnalysisCall(cancellation: cancellation, label: label)
+        addTeardownBlock {
+            call.finishForCleanup()
+        }
+        return call
+    }
+
+    private func startAnalysis(
+        on model: AppFlowModel,
+        description: String
+    ) -> FlowTaskCompletion {
+        startFlowTask(description: description) {
+            model.analyze()
+        }
+    }
+
+    private func startFlowTask(
+        description: String,
+        _ start: @MainActor () -> Void
+    ) -> FlowTaskCompletion {
+        let completion = FlowTaskCompletion(
+            expectation: expectation(description: description)
+        )
+        var sentinel: FlowTaskCompletionSentinel? = FlowTaskCompletionSentinel(
+            completion: completion
+        )
+        FlowTaskLifetime.$sentinel.withValue(sentinel) {
+            start()
+        }
+        sentinel = nil
+        return completion
     }
 
     private func makeImage(color: UIColor) -> UIImage {
@@ -637,15 +779,6 @@ final class AppFlowModelTests: XCTestCase {
         return changed
     }
 
-    private func invertedScreenChangeExpectation(
-        for model: AppFlowModel,
-        description: String
-    ) -> XCTestExpectation {
-        let changed = screenChangeExpectation(for: model, description: description)
-        changed.isInverted = true
-        return changed
-    }
-
     private func assertCapture(
         _ screen: AppScreen,
         file: StaticString = #filePath,
@@ -693,6 +826,50 @@ final class AppFlowModelTests: XCTestCase {
     private func failure(from screen: AppScreen) -> AppFailure? {
         guard case let .failure(failure) = screen else { return nil }
         return failure
+    }
+}
+
+private enum FlowTaskLifetime {
+    @TaskLocal static var sentinel: FlowTaskCompletionSentinel?
+}
+
+private final class FlowTaskCompletion: @unchecked Sendable {
+    let expectation: XCTestExpectation
+
+    private let lock = NSLock()
+    private var didFulfill = false
+
+    init(expectation: XCTestExpectation) {
+        self.expectation = expectation
+    }
+
+    var isFulfilled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return didFulfill
+    }
+
+    func fulfill() {
+        lock.lock()
+        guard !didFulfill else {
+            lock.unlock()
+            return
+        }
+        didFulfill = true
+        lock.unlock()
+        expectation.fulfill()
+    }
+}
+
+private final class FlowTaskCompletionSentinel: @unchecked Sendable {
+    private let completion: FlowTaskCompletion
+
+    init(completion: FlowTaskCompletion) {
+        self.completion = completion
+    }
+
+    deinit {
+        completion.fulfill()
     }
 }
 
@@ -788,6 +965,7 @@ private final class ControlledAnalysisCall: @unchecked Sendable {
     private var didStart = false
     private var didObserveCancellation = false
     private var didResolve = false
+    private var didFinishRun = false
 
     let started: XCTestExpectation
     let cancellationObserved: XCTestExpectation
@@ -820,6 +998,10 @@ private final class ControlledAnalysisCall: @unchecked Sendable {
 
     func fail(_ error: any Error) {
         finish(with: .failure(error))
+    }
+
+    func finishForCleanup() {
+        finish(with: .failure(CancellationError()))
     }
 
     private func markStarted() {
@@ -879,6 +1061,13 @@ private final class ControlledAnalysisCall: @unchecked Sendable {
     }
 
     private func markResolved() {
+        lock.lock()
+        guard !didFinishRun else {
+            lock.unlock()
+            return
+        }
+        didFinishRun = true
+        lock.unlock()
         resolved.fulfill()
     }
 }
