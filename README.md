@@ -31,9 +31,16 @@ uv pip install --python .venv/bin/python -r requirements.txt
 
 ```dotenv
 GEMINI_API_KEY=your_backend_key
+GEMINI_MODEL=gemini-3.6-flash
 ```
 
 不要把真实密钥提交到 Git，也不要把它放进浏览器代码、`VITE_*` 变量或前端构建产物。
+
+后端稳定默认模型是 `gemini-3.6-flash`。`GEMINI_MODEL` 是非密钥运行配置：
+读取时会移除首尾空白，未配置或仅包含空白时回退到稳定默认值。更换模型前必须重新通过
+完整 provider 响应契约测试，并在受控门禁中完成真实图片请求验证。针对当前 3.6
+契约，`temperature`、`top_p` 和 `top_k` 等采样参数被有意省略；本地自动化不会发起
+真实模型请求，也不能代替真实图片与 schema 行为验证。
 
 分别启动 API 和界面：
 

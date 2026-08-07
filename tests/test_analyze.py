@@ -282,18 +282,79 @@ class ResponseCompositionTests(unittest.TestCase):
 
 
 class GeminiProviderTests(unittest.TestCase):
+    def test_default_gemini_model_is_stable(self):
+        self.assertEqual("gemini-3.6-flash", analyze.DEFAULT_GEMINI_MODEL)
+
+    def test_configured_gemini_model_uses_default_when_environment_is_absent(self):
+        with patch.dict(os.environ, {}, clear=True):
+            actual = analyze.configured_gemini_model()
+
+        self.assertEqual(analyze.DEFAULT_GEMINI_MODEL, actual)
+
+    def test_configured_gemini_model_uses_default_for_whitespace_override(self):
+        with patch.dict(os.environ, {"GEMINI_MODEL": " \t\n "}):
+            actual = analyze.configured_gemini_model()
+
+        self.assertEqual(analyze.DEFAULT_GEMINI_MODEL, actual)
+
+    def test_configured_gemini_model_trims_nonempty_override(self):
+        with patch.dict(
+            os.environ,
+            {"GEMINI_MODEL": "  gemini-controlled-stable  "},
+        ):
+            actual = analyze.configured_gemini_model()
+
+        self.assertEqual("gemini-controlled-stable", actual)
+
+    def test_call_gemini_uses_configured_model(self):
+        response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
+
+        with patch.dict(
+            os.environ,
+            {"GEMINI_MODEL": "  gemini-operator-selected  "},
+        ):
+            with patch.object(analyze.genai, "Client") as client_class:
+                client = client_class.return_value.__enter__.return_value
+                client.models.generate_content.return_value = response
+                analyze.call_gemini("configured-key", "image/jpeg", JPEG_BYTES)
+
+        call = client.models.generate_content.call_args
+        self.assertEqual("gemini-operator-selected", call.kwargs["model"])
+
+    def test_call_gemini_explicit_model_bypasses_environment(self):
+        response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
+
+        with patch.dict(os.environ, {"GEMINI_MODEL": "environment-model"}):
+            with patch.object(analyze.genai, "Client") as client_class:
+                client = client_class.return_value.__enter__.return_value
+                client.models.generate_content.return_value = response
+                analyze.call_gemini(
+                    "configured-key",
+                    "image/jpeg",
+                    JPEG_BYTES,
+                    model="explicit-controlled-model",
+                )
+
+        call = client.models.generate_content.call_args
+        self.assertEqual("explicit-controlled-model", call.kwargs["model"])
+
     def test_call_gemini_uses_bounded_context_managed_structured_request_and_safe_prompt(self):
         response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
         image_part = object()
         file_bytes = JPEG_BYTES
 
-        with patch.object(analyze.genai, "Client") as client_class:
-            with patch.object(
-                analyze.types.Part, "from_bytes", return_value=image_part
-            ) as from_bytes:
-                client = client_class.return_value.__enter__.return_value
-                client.models.generate_content.return_value = response
-                actual = analyze.call_gemini("configured-key", "image/jpeg", file_bytes)
+        with patch.dict(os.environ, {"GEMINI_MODEL": ""}):
+            with patch.object(analyze.genai, "Client") as client_class:
+                with patch.object(
+                    analyze.types.Part, "from_bytes", return_value=image_part
+                ) as from_bytes:
+                    client = client_class.return_value.__enter__.return_value
+                    client.models.generate_content.return_value = response
+                    actual = analyze.call_gemini(
+                        "configured-key",
+                        "image/jpeg",
+                        file_bytes,
+                    )
 
         self.assertIsInstance(actual, analyze.ModelAnalysis)
         http_options = client_class.call_args.kwargs["http_options"]
@@ -303,16 +364,19 @@ class GeminiProviderTests(unittest.TestCase):
         client_class.return_value.__exit__.assert_called_once()
         from_bytes.assert_called_once_with(data=file_bytes, mime_type="image/jpeg")
         call = client.models.generate_content.call_args
-        self.assertEqual("gemini-3-flash-preview", call.kwargs["model"])
         self.assertEqual(image_part, call.kwargs["contents"][0])
         prompt = call.kwargs["contents"][1]
         config = call.kwargs["config"]
+        serialized_config = config.model_dump(exclude_none=True)
         self.assertEqual("application/json", config.response_mime_type)
         self.assertEqual(
             analyze._clean_json_schema(analyze.ModelAnalysis.model_json_schema()),
             config.response_schema,
         )
-        self.assertEqual(0.1, config.temperature)
+        for deprecated_parameter in ("temperature", "top_p", "top_k"):
+            with self.subTest(deprecated_parameter=deprecated_parameter):
+                self.assertNotIn(deprecated_parameter, serialized_config)
+        self.assertEqual("gemini-3.6-flash", call.kwargs["model"])
         for required_text in (
             "visible meal",
             "food_detected",

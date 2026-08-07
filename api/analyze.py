@@ -31,6 +31,7 @@ load_dotenv(env_path)
 logger = logging.getLogger(__name__)
 app = FastAPI()
 DIST_DIR = Path(__file__).resolve().parents[1] / "dist"
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 
 
 @app.exception_handler(RequestValidationError)
@@ -283,7 +284,18 @@ def _clean_json_schema(obj: object) -> object:
     return obj
 
 
-def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysis:
+def configured_gemini_model() -> str:
+    """Return the trimmed operator override or the stable default model."""
+    value = os.environ.get("GEMINI_MODEL", "").strip()
+    return value or DEFAULT_GEMINI_MODEL
+
+
+def call_gemini(
+    api_key: str,
+    mime_type: str,
+    file_bytes: bytes,
+    model: str | None = None,
+) -> ModelAnalysis:
     """Ask Gemini only for observable meal facts, never a health assessment."""
     response_schema = _clean_json_schema(ModelAnalysis.model_json_schema())
     with genai.Client(
@@ -291,7 +303,7 @@ def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysi
         http_options=types.HttpOptions(timeout=20_000),
     ) as client:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model=model if model is not None else configured_gemini_model(),
             contents=[
                 types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                 (
@@ -312,7 +324,6 @@ def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysi
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=response_schema,
-                temperature=0.1,
             ),
         )
     if response.parsed is not None:
