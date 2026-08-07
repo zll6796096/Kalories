@@ -15,20 +15,40 @@ struct ImageProcessor: ImageProcessing {
 
     @MainActor
     func dataURI(for image: UIImage) throws -> String {
-        guard image.size.width > 0, image.size.height > 0 else {
+        let sourcePixelSize = CGSize(
+            width: image.size.width * image.scale,
+            height: image.size.height * image.scale
+        )
+        guard
+            sourcePixelSize.width.isFinite,
+            sourcePixelSize.height.isFinite,
+            sourcePixelSize.width > 0,
+            sourcePixelSize.height > 0
+        else {
             throw AppFailure.invalidImage
         }
 
         var dimension = Self.maximumDimension
         while dimension >= 768 {
-            let normalized = redraw(image, maximumDimension: dimension)
+            let normalized = redraw(
+                image,
+                sourcePixelSize: sourcePixelSize,
+                maximumDimension: dimension
+            )
             for quality in [0.85, 0.75, 0.65, 0.55, 0.45, 0.35, 0.25] {
                 guard let data = encoder(normalized, quality) else {
                     throw AppFailure.invalidImage
                 }
-                if data.count <= Self.maximumBytes {
-                    return "data:image/jpeg;base64," + data.base64EncodedString()
+                guard data.count <= Self.maximumBytes else {
+                    continue
                 }
+                guard
+                    data.starts(with: [0xFF, 0xD8, 0xFF]),
+                    UIImage(data: data) != nil
+                else {
+                    throw AppFailure.invalidImage
+                }
+                return "data:image/jpeg;base64," + data.base64EncodedString()
             }
             dimension *= 0.75
         }
@@ -37,12 +57,18 @@ struct ImageProcessor: ImageProcessing {
     }
 
     @MainActor
-    private func redraw(_ image: UIImage, maximumDimension: CGFloat) -> UIImage {
-        let sourceSize = image.size
-        let scale = min(1, maximumDimension / max(sourceSize.width, sourceSize.height))
+    private func redraw(
+        _ image: UIImage,
+        sourcePixelSize: CGSize,
+        maximumDimension: CGFloat
+    ) -> UIImage {
+        let scale = min(
+            1,
+            maximumDimension / max(sourcePixelSize.width, sourcePixelSize.height)
+        )
         let targetSize = CGSize(
-            width: sourceSize.width * scale,
-            height: sourceSize.height * scale
+            width: max(1, floor(sourcePixelSize.width * scale)),
+            height: max(1, floor(sourcePixelSize.height * scale))
         )
         let format = UIGraphicsImageRendererFormat()
         format.opaque = true

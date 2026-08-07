@@ -39,6 +39,55 @@ final class ImageProcessorTests: XCTestCase {
     }
 
     @MainActor
+    func testHighScaleImageRetainsActualPixelsWhenBelowMaximumDimension() throws {
+        let raw = makeImage(size: CGSize(width: 900, height: 450)) { bounds in
+            UIColor.systemOrange.setFill()
+            UIRectFill(bounds)
+        }
+        let cgImage = try XCTUnwrap(raw.cgImage)
+        let source = UIImage(cgImage: cgImage, scale: 3, orientation: .up)
+        XCTAssertEqual(source.size, CGSize(width: 300, height: 150))
+
+        let dataURI = try ImageProcessor().dataURI(for: source)
+
+        let (_, decoded) = try decode(dataURI)
+        XCTAssertEqual(try pixelSize(of: decoded), PixelSize(width: 900, height: 450))
+    }
+
+    @MainActor
+    func testFractionalScaleImageIsNotUpscaledBeyondActualPixels() throws {
+        let raw = makeImage(size: CGSize(width: 400, height: 200)) { bounds in
+            UIColor.systemGreen.setFill()
+            UIRectFill(bounds)
+        }
+        let cgImage = try XCTUnwrap(raw.cgImage)
+        let source = UIImage(cgImage: cgImage, scale: 0.5, orientation: .up)
+        XCTAssertEqual(source.size, CGSize(width: 800, height: 400))
+
+        let dataURI = try ImageProcessor().dataURI(for: source)
+
+        let (_, decoded) = try decode(dataURI)
+        XCTAssertEqual(try pixelSize(of: decoded), PixelSize(width: 400, height: 200))
+    }
+
+    @MainActor
+    func testExtremeAspectImageKeepsEveryTargetDimensionAtLeastOnePixel() throws {
+        let source = makeImage(size: CGSize(width: 4_000, height: 1)) { bounds in
+            UIColor.black.setFill()
+            UIRectFill(bounds)
+        }
+
+        let dataURI = try ImageProcessor().dataURI(for: source)
+
+        let (_, decoded) = try decode(dataURI)
+        let pixels = try pixelSize(of: decoded)
+        XCTAssertEqual(pixels, PixelSize(width: 2_048, height: 1))
+        XCTAssertGreaterThanOrEqual(pixels.width, 1)
+        XCTAssertGreaterThanOrEqual(pixels.height, 1)
+        XCTAssertLessThanOrEqual(max(pixels.width, pixels.height), 2_048)
+    }
+
+    @MainActor
     func testNonUpOrientationIsRenderedIntoUprightPixels() throws {
         let raw = makeImage(size: CGSize(width: 120, height: 80)) { bounds in
             UIColor.red.setFill()
@@ -110,6 +159,16 @@ final class ImageProcessorTests: XCTestCase {
     }
 
     @MainActor
+    func testEncoderRejectsNonJPEGPayloadWithoutSignature() {
+        assertInvalidEncodedPayload(Data([0x00, 0x01, 0x02]))
+    }
+
+    @MainActor
+    func testEncoderRejectsUndecodableJPEGLikePayload() {
+        assertInvalidEncodedPayload(Data([0xFF, 0xD8, 0xFF, 0x00]))
+    }
+
+    @MainActor
     func testEmptyImageIsRejectedBeforeEncoding() {
         var encodingAttempts = 0
         let processor = ImageProcessor { _, _ in
@@ -143,6 +202,27 @@ final class ImageProcessorTests: XCTestCase {
         let payload = String(dataURI.dropFirst(dataURIPrefix.count))
         let data = try XCTUnwrap(Data(base64Encoded: payload))
         return (data, try XCTUnwrap(UIImage(data: data)))
+    }
+
+    @MainActor
+    private func assertInvalidEncodedPayload(
+        _ payload: Data,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let image = makeImage(size: CGSize(width: 100, height: 100)) { bounds in
+            UIColor.white.setFill()
+            UIRectFill(bounds)
+        }
+        let processor = ImageProcessor { _, _ in payload }
+
+        XCTAssertThrowsError(
+            try processor.dataURI(for: image),
+            file: file,
+            line: line
+        ) { error in
+            XCTAssertEqual(error as? AppFailure, .invalidImage, file: file, line: line)
+        }
     }
 
     private func pixelSize(of image: UIImage) throws -> PixelSize {
