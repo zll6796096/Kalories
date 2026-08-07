@@ -38,7 +38,7 @@ actor AnalysisAPIClient: AnalysisServing {
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as URLError {
-            if error.code == .cancelled, Task.isCancelled {
+            if error.code == .cancelled {
                 throw CancellationError()
             }
             if error.code == .timedOut {
@@ -49,16 +49,16 @@ actor AnalysisAPIClient: AnalysisServing {
             throw AppFailure.network
         }
 
+        guard data.count <= Self.maximumResponseBytes else {
+            throw AppFailure.malformedResponse
+        }
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AppFailure.analysisFailed
         }
 
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
             throw Self.backendFailure(from: data, statusCode: httpResponse.statusCode)
-        }
-
-        guard data.count <= Self.maximumResponseBytes else {
-            throw AppFailure.malformedResponse
         }
 
         do {

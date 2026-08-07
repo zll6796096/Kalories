@@ -93,6 +93,15 @@ final class AnalysisAPIClientTests: XCTestCase {
         await assertAnalyzeThrows(.malformedResponse)
     }
 
+    func testAnalyzeRejectsOversizedErrorResponseBeforeMapping() async {
+        var oversized = Data(#"{"detail":{"code":"INVALID_IMAGE"}}"#.utf8)
+        oversized.append(Data(repeating: 0x20, count: (256 * 1024 + 1) - oversized.count))
+        XCTAssertEqual(oversized.count, 256 * 1024 + 1)
+        stub(statusCode: 400, data: oversized)
+
+        await assertAnalyzeThrows(.malformedResponse)
+    }
+
     func testAnalyzeMapsTimedOutTransportError() async {
         stub(error: URLError(.timedOut))
 
@@ -103,6 +112,19 @@ final class AnalysisAPIClientTests: XCTestCase {
         stub(error: URLError(.notConnectedToInternet))
 
         await assertAnalyzeThrows(.network)
+    }
+
+    func testAnalyzeNormalizesCancelledTransportError() async {
+        stub(error: URLError(.cancelled))
+
+        do {
+            _ = try await makeClient().analyze(dataURI: "data:image/jpeg;base64,AQID")
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            // Expected even when the caller task itself was not explicitly cancelled.
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
     }
 
     func testAnalyzeCancellationCancelsUnderlyingLoading() async throws {
