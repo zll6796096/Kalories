@@ -34,6 +34,37 @@ final class AnalysisAPIClientTests: XCTestCase {
         XCTAssertEqual(object["image"] as? String, dataURI)
     }
 
+    func testAnalyzeDoesNotRedirectRequestOrPhotoBody() async {
+        let redirectedURL = URL(string: "https://redirect-target.example/api/analyze")!
+        let redirectedRequestObserved = LockedBox(false)
+        let redirectedBody = LockedBox<Data?>(nil)
+        let dataURI = "data:image/jpeg;base64,AQID"
+        let successData = canonicalData()
+        URLProtocolStub.setHandler { request in
+            if request.url?.host == redirectedURL.host {
+                redirectedRequestObserved.set(true)
+                redirectedBody.set(try requestBodyData(from: request))
+                return makeStubbedResponse(for: request, statusCode: 200, data: successData)
+            }
+            return makeRedirectResponse(for: request, to: redirectedURL)
+        }
+
+        do {
+            _ = try await makeClient().analyze(dataURI: dataURI)
+            XCTFail("Expected the original redirect response to be rejected")
+        } catch {
+            XCTAssertEqual(error as? AppFailure, .analysisFailed)
+        }
+        XCTAssertFalse(
+            redirectedRequestObserved.value,
+            "Redirect target must never receive the analysis request"
+        )
+        XCTAssertNil(
+            redirectedBody.value,
+            "Redirect target must never receive the photo body"
+        )
+    }
+
     func testAnalyzeDecodesCanonicalSuccess() async throws {
         stub(statusCode: 200, data: canonicalData())
 
@@ -163,6 +194,30 @@ final class AnalysisAPIClientTests: XCTestCase {
         XCTAssertEqual(configuration.apiBaseURL.absoluteString, expectedOrigin)
     }
 
+    func testAppConfigurationURLInitializerAcceptsOnlyExactHTTPSOrigins() throws {
+        for origin in ["https://example.com", "https://example.com/"] {
+            let url = try XCTUnwrap(URL(string: origin))
+            XCTAssertEqual(try AppConfiguration(apiBaseURL: url).apiBaseURL, url)
+        }
+
+        let unsafeOrigins = [
+            "http://example.com",
+            "https://user@example.com",
+            "https://user:password@example.com",
+            "https://example.com:443",
+            "https://example.com/prefix",
+            "https://example.com?redirect=1",
+            "https://example.com#fragment",
+            "https:///",
+        ]
+        for origin in unsafeOrigins {
+            let url = try XCTUnwrap(URL(string: origin))
+            XCTAssertThrowsError(try AppConfiguration(apiBaseURL: url), origin) { error in
+                XCTAssertEqual(error as? AppFailure, .invalidConfiguration)
+            }
+        }
+    }
+
     func testAppConfigurationRejectsMissingAndUnsafeOrigins() throws {
         XCTAssertThrowsError(try AppConfiguration.from(bundle: Bundle(for: Self.self))) { error in
             XCTAssertEqual(error as? AppFailure, .invalidConfiguration)
@@ -190,7 +245,7 @@ final class AnalysisAPIClientTests: XCTestCase {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [URLProtocolStub.self]
         let session = URLSession(configuration: sessionConfiguration)
-        let configuration = AppConfiguration(apiBaseURL: URL(string: expectedOrigin)!)
+        let configuration = try! AppConfiguration(apiBaseURL: URL(string: expectedOrigin)!)
         return AnalysisAPIClient(session: session, configuration: configuration)
     }
 
@@ -251,6 +306,9 @@ final class AnalysisAPIClientTests: XCTestCase {
             at: bundleURL,
             withIntermediateDirectories: false
         )
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: bundleURL)
+        }
         let info: [String: Any] = [
             "CFBundleIdentifier": "com.ryuaistudio.kalories.tests.\(UUID().uuidString)",
             "KaloriesAPIScheme": scheme,
@@ -278,6 +336,25 @@ private func makeStubbedResponse(
         headerFields: ["Content-Type": "application/json"]
     )!
     return URLProtocolStub.StubbedResponse(response: response, data: data)
+}
+
+private func makeRedirectResponse(
+    for request: URLRequest,
+    to redirectedURL: URL
+) -> URLProtocolStub.StubbedResponse {
+    let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 307,
+        httpVersion: "HTTP/1.1",
+        headerFields: ["Location": redirectedURL.absoluteString]
+    )!
+    var redirectedRequest = request
+    redirectedRequest.url = redirectedURL
+    return URLProtocolStub.StubbedResponse(
+        response: response,
+        data: Data(),
+        redirectRequest: redirectedRequest
+    )
 }
 
 private func requestBodyData(from request: URLRequest) throws -> Data? {

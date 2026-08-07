@@ -3,26 +3,34 @@ import Foundation
 struct AppConfiguration: Sendable {
     let apiBaseURL: URL
 
+    init(apiBaseURL: URL) throws {
+        guard
+            let components = URLComponents(url: apiBaseURL, resolvingAgainstBaseURL: false),
+            components.scheme == "https",
+            components.host?.isEmpty == false,
+            components.user == nil,
+            components.password == nil,
+            components.port == nil,
+            components.path.isEmpty || components.path == "/",
+            components.query == nil,
+            components.fragment == nil
+        else {
+            throw AppFailure.invalidConfiguration
+        }
+        self.apiBaseURL = apiBaseURL
+    }
+
     static func from(bundle: Bundle = .main) throws -> AppConfiguration {
         guard
             let scheme = bundle.object(forInfoDictionaryKey: "KaloriesAPIScheme") as? String,
             let host = bundle.object(forInfoDictionaryKey: "KaloriesAPIHost") as? String,
             scheme == "https",
             !host.isEmpty,
-            let url = URL(string: "\(scheme)://\(host)"),
-            let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-            components.scheme == "https",
-            components.host?.isEmpty == false,
-            components.user == nil,
-            components.password == nil,
-            components.port == nil,
-            components.path.isEmpty,
-            components.query == nil,
-            components.fragment == nil
+            let url = URL(string: "\(scheme)://\(host)")
         else {
             throw AppFailure.invalidConfiguration
         }
-        return AppConfiguration(apiBaseURL: url)
+        return try AppConfiguration(apiBaseURL: url)
     }
 }
 

@@ -4,6 +4,17 @@ final class URLProtocolStub: URLProtocol, @unchecked Sendable {
     struct StubbedResponse: @unchecked Sendable {
         let response: HTTPURLResponse
         let data: Data
+        let redirectRequest: URLRequest?
+
+        init(
+            response: HTTPURLResponse,
+            data: Data,
+            redirectRequest: URLRequest? = nil
+        ) {
+            self.response = response
+            self.data = data
+            self.redirectRequest = redirectRequest
+        }
     }
 
     typealias Handler = @Sendable (URLRequest) throws -> StubbedResponse?
@@ -49,6 +60,14 @@ final class URLProtocolStub: URLProtocol, @unchecked Sendable {
 
         do {
             guard let stub = try handler(request) else {
+                return
+            }
+            if let redirectRequest = stub.redirectRequest {
+                client?.urlProtocol(
+                    self,
+                    wasRedirectedTo: redirectRequest,
+                    redirectResponse: stub.response
+                )
                 return
             }
             client?.urlProtocol(self, didReceive: stub.response, cacheStoragePolicy: .notAllowed)

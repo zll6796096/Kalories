@@ -30,10 +30,30 @@ actor AnalysisAPIClient: AnalysisServing {
             throw AppFailure.analysisFailed
         }
 
-        let data: Data
-        let response: URLResponse
+        let redirectPolicy = AnalysisRedirectPolicy()
+        let urlSession = session
+        let configuredRequest = request
+        let outcome: AnalysisTransportOutcome
         do {
-            (data, response) = try await session.data(for: request)
+            outcome = try await withThrowingTaskGroup(of: AnalysisTransportOutcome.self) { group in
+                group.addTask {
+                    let (data, response) = try await urlSession.data(
+                        for: configuredRequest,
+                        delegate: redirectPolicy
+                    )
+                    return .response(data, response)
+                }
+                group.addTask {
+                    let didRedirect = await redirectPolicy.waitForRedirect()
+                    try Task.checkCancellation()
+                    guard didRedirect else {
+                        throw CancellationError()
+                    }
+                    return .redirectRejected
+                }
+                defer { group.cancelAll() }
+                return try await group.next()!
+            }
             try Task.checkCancellation()
         } catch is CancellationError {
             throw CancellationError()
@@ -47,6 +67,10 @@ actor AnalysisAPIClient: AnalysisServing {
             throw AppFailure.network
         } catch {
             throw AppFailure.network
+        }
+
+        guard case let .response(data, response) = outcome else {
+            throw AppFailure.analysisFailed
         }
 
         guard data.count <= Self.maximumResponseBytes else {
@@ -86,6 +110,46 @@ actor AnalysisAPIClient: AnalysisServing {
         default:
             return statusCode == 429 ? .rateLimited : .analysisFailed
         }
+    }
+}
+
+private enum AnalysisTransportOutcome: Sendable {
+    case response(Data, URLResponse)
+    case redirectRejected
+}
+
+private final class AnalysisRedirectPolicy: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let redirectEvents: AsyncStream<Void>
+    private let continuation: AsyncStream<Void>.Continuation
+
+    override init() {
+        (redirectEvents, continuation) = AsyncStream.makeStream(
+            of: Void.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        super.init()
+    }
+
+    func waitForRedirect() async -> Bool {
+        for await _ in redirectEvents {
+            return true
+        }
+        return false
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        continuation.yield()
+        completionHandler(nil)
+    }
+
+    deinit {
+        continuation.finish()
     }
 }
 
