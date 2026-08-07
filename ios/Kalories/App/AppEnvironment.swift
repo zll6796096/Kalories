@@ -14,6 +14,12 @@ struct AppEnvironment {
     let supportURL: URL
 
     static func live(bundle: Bundle = .main) throws -> AppEnvironment {
+#if DEBUG
+        if let fixtureEnvironment = try UITestFixtures.environmentIfRequested() {
+            return fixtureEnvironment
+        }
+#endif
+
         let configuration = try AppConfiguration.from(bundle: bundle)
         let links = try links(for: configuration)
         let localePreference = AppLocalePreference(defaults: .standard)

@@ -95,6 +95,19 @@ struct CaptureView: View {
             }
 
             VStack(spacing: 12) {
+#if DEBUG
+                if UITestFixtures.isActive {
+                    Button {
+                        UITestFixtures.selectImage(into: flow)
+                    } label: {
+                        Text("テスト用画像を選択")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("capture.fixture")
+                }
+#endif
+
                 Button {
                     requestCameraPresentation()
                 } label: {
