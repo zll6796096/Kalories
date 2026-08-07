@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import os
 import re
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +12,57 @@ PAGES = {
     "privacy": ROOT / "public" / "privacy" / "index.html",
     "support": ROOT / "public" / "support" / "index.html",
 }
+APPROVED_HREFS = frozenset(
+    {
+        "/privacy/",
+        "/support/",
+        "https://ai.google.dev/gemini-api/terms",
+        "https://ai.google.dev/gemini-api/docs/usage-policies",
+        "https://ai.google.dev/gemini-api/docs/logs-policy",
+        "https://ai.google.dev/gemini-api/docs/zdr",
+        "https://github.com/zll6796096/Kalories/issues/new",
+    }
+)
+FORBIDDEN_TAGS = frozenset(
+    {
+        "audio",
+        "base",
+        "button",
+        "embed",
+        "form",
+        "iframe",
+        "img",
+        "input",
+        "link",
+        "object",
+        "option",
+        "script",
+        "select",
+        "source",
+        "textarea",
+        "video",
+    }
+)
+URL_BEARING_ATTRIBUTES = frozenset(
+    {
+        "action",
+        "background",
+        "cite",
+        "data",
+        "formaction",
+        "href",
+        "longdesc",
+        "manifest",
+        "ping",
+        "poster",
+        "profile",
+        "src",
+        "srcdoc",
+        "srcset",
+        "usemap",
+        "xlink:href",
+    }
+)
 
 
 class DocumentProbe(HTMLParser):
@@ -22,6 +73,9 @@ class DocumentProbe(HTMLParser):
         self.declarations: list[str] = []
         self.tags: list[str] = []
         self.attributes: list[tuple[str, dict[str, str | None]]] = []
+        self.attribute_pairs: list[
+            tuple[str, tuple[tuple[str, str | None], ...]]
+        ] = []
         self._suppressed_depth = 0
         self._title_depth = 0
         self._title_parts: list[str] = []
@@ -34,7 +88,9 @@ class DocumentProbe(HTMLParser):
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
         self.tags.append(tag)
-        self.attributes.append((tag, dict(attrs)))
+        pairs = tuple(attrs)
+        self.attribute_pairs.append((tag, pairs))
+        self.attributes.append((tag, dict(pairs)))
         if tag in {"script", "style"}:
             self._suppressed_depth += 1
         if tag == "title":
@@ -44,7 +100,9 @@ class DocumentProbe(HTMLParser):
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
         self.tags.append(tag)
-        self.attributes.append((tag, dict(attrs)))
+        pairs = tuple(attrs)
+        self.attribute_pairs.append((tag, pairs))
+        self.attributes.append((tag, dict(pairs)))
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title" and self._title_depth:
@@ -76,6 +134,42 @@ def read_page(page_name: str) -> tuple[str, DocumentProbe]:
     parser.feed(raw)
     parser.close()
     return raw, parser
+
+
+def relative_luminance(hex_color: str) -> float:
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", hex_color):
+        raise ValueError(f"invalid six-digit hex color: {hex_color}")
+
+    channels = [int(hex_color[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+    linear = [
+        value / 12.92
+        if value <= 0.04045
+        else ((value + 0.055) / 1.055) ** 2.4
+        for value in channels
+    ]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast_ratio(first: str, second: str) -> float:
+    light, dark = sorted(
+        (relative_luminance(first), relative_luminance(second)), reverse=True
+    )
+    return (light + 0.05) / (dark + 0.05)
+
+
+def focus_outline_color(raw: str) -> str:
+    block = re.search(r"a:focus-visible\s*\{([^}]*)\}", raw)
+    if block is None:
+        raise AssertionError("a:focus-visible CSS rule is required")
+    declarations = block.group(1)
+    outline = re.search(
+        r"outline\s*:\s*3px\s+solid\s+(#[0-9a-fA-F]{6})\s*;", declarations
+    )
+    if outline is None:
+        raise AssertionError("focus outline must be a 3px solid six-digit hex color")
+    if re.search(r"outline-offset\s*:\s*3px\s*;", declarations) is None:
+        raise AssertionError("focus outline offset must be 3px")
+    return outline.group(1).lower()
 
 
 class PublicPageTests(unittest.TestCase):
@@ -123,8 +217,6 @@ class PublicPageTests(unittest.TestCase):
             "document.cookie",
             "set-cookie",
         )
-        forbidden_asset_tags = {"audio", "embed", "iframe", "img", "object", "script", "source", "video"}
-
         for page_name in PAGES:
             with self.subTest(page=page_name):
                 raw, page = read_page(page_name)
@@ -133,34 +225,72 @@ class PublicPageTests(unittest.TestCase):
                     self.assertNotIn(marker, lower_raw)
                 for token in forbidden_tracker_tokens:
                     self.assertNotIn(token, lower_raw)
-                self.assertTrue(forbidden_asset_tags.isdisjoint(page.tags))
-                self.assertNotIn("link", page.tags, "remote stylesheets and preload assets are forbidden")
-                for tag, attrs in page.attributes:
-                    self.assertFalse(
-                        any(name.lower().startswith("on") for name in attrs),
-                        f"inline event handler found on <{tag}>",
-                    )
-                    self.assertNotIn("src", attrs, f"external asset source found on <{tag}>")
+                self.assertIsNone(re.search(r"@import\b", lower_raw))
+                self.assertIsNone(re.search(r"\burl\s*\(", lower_raw))
+                self.assertTrue(FORBIDDEN_TAGS.isdisjoint(page.tags))
 
-    def test_all_links_are_internal_or_valid_https_urls(self) -> None:
+                for tag, pairs in page.attribute_pairs:
+                    names = [name.lower() for name, _value in pairs]
+                    self.assertEqual(
+                        len(names),
+                        len(set(names)),
+                        f"duplicate attribute name found on <{tag}>",
+                    )
+                    hrefs = []
+                    for name, value in pairs:
+                        normalized_name = name.lower()
+                        self.assertFalse(
+                            normalized_name.startswith("on"),
+                            f"inline event handler found on <{tag}>",
+                        )
+                        if value is not None:
+                            self.assertIsNone(
+                                re.match(r"\s*(?:data|javascript)\s*:", value, re.I),
+                                f"active URL scheme found on <{tag} {name}>",
+                            )
+                        if normalized_name in URL_BEARING_ATTRIBUTES:
+                            self.assertEqual(
+                                (tag, normalized_name),
+                                ("a", "href"),
+                                f"unapproved URL-bearing attribute <{tag} {name}>",
+                            )
+                            self.assertIn(value, APPROVED_HREFS)
+                            hrefs.append(value)
+                    if tag == "a":
+                        self.assertEqual(len(hrefs), 1, "every link needs one approved href")
+
+                metas = [attrs for tag, attrs in page.attributes if tag == "meta"]
+                self.assertTrue(
+                    all(
+                        (attrs.get("http-equiv") or "").strip().lower() != "refresh"
+                        for attrs in metas
+                    ),
+                    "meta refresh is forbidden",
+                )
+
+    def test_pages_use_only_the_exact_approved_links(self) -> None:
+        observed_hrefs: set[str] = set()
         for page_name in PAGES:
             with self.subTest(page=page_name):
                 _raw, page = read_page(page_name)
-                hrefs = [
+                observed_hrefs.update(
                     attrs["href"]
                     for tag, attrs in page.attributes
                     if tag == "a" and attrs.get("href")
-                ]
-                self.assertTrue(hrefs)
-                for href in hrefs:
-                    assert href is not None
-                    if href.startswith("/") and not href.startswith("//"):
-                        continue
-                    parsed = urlsplit(href)
-                    self.assertEqual(parsed.scheme, "https", href)
-                    self.assertTrue(parsed.hostname, href)
-                    self.assertIsNone(parsed.username, href)
-                    self.assertIsNone(parsed.password, href)
+                )
+        self.assertEqual(observed_hrefs, APPROVED_HREFS)
+
+    def test_focus_outline_has_three_to_one_contrast_on_page_backgrounds(self) -> None:
+        for page_name in PAGES:
+            with self.subTest(page=page_name):
+                raw, _page = read_page(page_name)
+                focus_color = focus_outline_color(raw)
+                self.assertEqual(focus_color, "#265f49")
+                for background in ("#ffffff", "#f5f7f5"):
+                    with self.subTest(page=page_name, background=background):
+                        self.assertGreaterEqual(
+                            contrast_ratio(focus_color, background), 3.0
+                        )
 
     def test_privacy_page_states_the_complete_conservative_provider_contract(self) -> None:
         raw, page = read_page("privacy")
@@ -278,10 +408,31 @@ class PublicPageTests(unittest.TestCase):
         self.assertIn("https://ai.google.dev/gemini-api/docs/zdr", hrefs)
 
     def test_support_page_is_japanese_first_and_covers_safe_manual_help(self) -> None:
-        raw, page = read_page("support")
+        _raw, page = read_page("support")
         text = page.text
-        self.assertLess(raw.index('lang="ja"'), raw.index('lang="zh-CN"'))
-        self.assertLess(raw.index('lang="zh-CN"'), raw.index('lang="en"'))
+        localized_sections = [
+            attrs
+            for tag, attrs in page.attributes
+            if tag == "section" and attrs.get("lang") is not None
+        ]
+        expected_heading_ids = ["support-ja", "support-zh", "support-en"]
+        self.assertEqual(
+            [attrs.get("lang") for attrs in localized_sections],
+            ["ja", "zh-CN", "en"],
+        )
+        self.assertEqual(
+            [attrs.get("aria-labelledby") for attrs in localized_sections],
+            expected_heading_ids,
+        )
+        self.assertEqual(
+            [
+                attrs["id"]
+                for tag, attrs in page.attributes
+                if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}
+                and attrs.get("id")
+            ],
+            expected_heading_ids,
+        )
 
         required_terms = (
             "カメラ",
@@ -321,6 +472,53 @@ class PublicPageTests(unittest.TestCase):
         ]
         self.assertIn("/privacy/", hrefs)
         self.assertIn("https://github.com/zll6796096/Kalories/issues/new", hrefs)
+
+
+if os.environ.get("KALORIES_REQUIRE_DIST") == "1":
+
+    class BuiltPublicPageTests(unittest.TestCase):
+        def test_dist_pages_match_public_sources_byte_for_byte(self) -> None:
+            for page_name, source_path in PAGES.items():
+                with self.subTest(page=page_name):
+                    dist_path = ROOT / "dist" / page_name / "index.html"
+                    self.assertTrue(
+                        dist_path.is_file(), f"built page is missing: {dist_path}"
+                    )
+                    self.assertEqual(dist_path.read_bytes(), source_path.read_bytes())
+
+        def test_actual_dist_mount_serves_both_public_pages(self) -> None:
+            import asyncio
+
+            from fastapi import FastAPI
+            from httpx import ASGITransport, AsyncClient
+
+            from api.analyze import mount_frontend
+
+            application = FastAPI()
+            self.assertTrue(mount_frontend(application, ROOT / "dist"))
+
+            async def fetch_routes() -> dict[str, tuple[int, str]]:
+                transport = ASGITransport(app=application)
+                async with AsyncClient(
+                    transport=transport, base_url="http://testserver"
+                ) as client:
+                    routes = ("/privacy/", "/support/")
+                    responses = {route: await client.get(route) for route in routes}
+                    return {
+                        route: (response.status_code, response.text)
+                        for route, response in responses.items()
+                    }
+
+            responses = asyncio.run(fetch_routes())
+            expected = {
+                "/privacy/": "Kalories プライバシーポリシー",
+                "/support/": "Kalories サポート",
+            }
+            for route, heading in expected.items():
+                with self.subTest(route=route):
+                    status_code, body = responses[route]
+                    self.assertEqual(status_code, 200)
+                    self.assertIn(heading, body)
 
 
 if __name__ == "__main__":
