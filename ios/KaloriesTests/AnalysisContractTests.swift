@@ -5,6 +5,7 @@ import XCTest
 final class AnalysisContractTests: XCTestCase {
     private typealias JSONObject = [String: Any]
     private typealias Mutation = (inout JSONObject) -> Void
+    private static let maximumPayloadBytes = 256 * 1024
 
     func testDecodesCanonicalAnalysisFixture() throws {
         let result = try StrictAnalysisDecoder().decode(canonicalData())
@@ -43,6 +44,20 @@ final class AnalysisContractTests: XCTestCase {
             XCTAssertEqual(result.nutrients[key], expectedValues[key])
             XCTAssertEqual(result.assessment.statuses[key], expectedStatuses[key])
         }
+    }
+
+    func testAcceptsPayloadAtExactByteLimit() throws {
+        let data = paddedCanonicalData(byteCount: Self.maximumPayloadBytes)
+
+        XCTAssertEqual(data.count, Self.maximumPayloadBytes)
+        XCTAssertNoThrow(try StrictAnalysisDecoder().decode(data))
+    }
+
+    func testRejectsPayloadAboveByteLimitBeforeParsing() throws {
+        let data = paddedCanonicalData(byteCount: Self.maximumPayloadBytes + 1)
+
+        XCTAssertEqual(data.count, Self.maximumPayloadBytes + 1)
+        assertDecodeFails(data, as: .invalidValue)
     }
 
     func testRejectsNonObjectTopLevelJSON() throws {
@@ -140,6 +155,30 @@ final class AnalysisContractTests: XCTestCase {
         )
     }
 
+    func testAcceptsInclusiveNumericBounds() throws {
+        let boundaries: [(path: [String], key: String, maximum: Double)] = [
+            ([], "portion_grams", 10_000),
+            (["nutrients"], "calories_kcal", 10_000),
+            (["nutrients"], "protein_g", 2_000),
+            (["nutrients"], "carbs_g", 2_000),
+            (["nutrients"], "fat_g", 2_000),
+            (["nutrients"], "fiber_g", 2_000),
+            (["nutrients"], "sugar_g", 2_000),
+            (["nutrients"], "sodium_mg", 100_000),
+        ]
+
+        for boundary in boundaries {
+            for value in [0, boundary.maximum] {
+                var object = canonicalObject()
+                mutateObject(&object, at: boundary.path) { $0[boundary.key] = value }
+                XCTAssertNoThrow(
+                    try StrictAnalysisDecoder().decode(data(from: object)),
+                    "Expected \(boundary.key)=\(value) to be accepted"
+                )
+            }
+        }
+    }
+
     func testRejectsUnnormalizedFoodNames() throws {
         let tooManyUnicodeCodePoints = String(repeating: "👨‍👩‍👧‍👦", count: 18)
         for invalidName in [
@@ -153,6 +192,31 @@ final class AnalysisContractTests: XCTestCase {
             assertMutationFails(as: .invalidValue) { root in
                 self.mutateObject(&root, at: ["food_names"]) { $0["en"] = invalidName }
             }
+        }
+    }
+
+    func testAcceptsFoodNameWithExactlyOneHundredTwentyUnicodeScalars() throws {
+        let boundaryName = String(repeating: "界", count: 120)
+        var object = canonicalObject()
+        mutateObject(&object, at: ["food_names"]) { $0["ja"] = boundaryName }
+
+        let result = try StrictAnalysisDecoder().decode(data(from: object))
+
+        XCTAssertEqual(boundaryName.unicodeScalars.count, 120)
+        XCTAssertEqual(result.foodNames?.ja, boundaryName)
+    }
+
+    func testAcceptsIntegralDecimalScoreSyntax() throws {
+        let data = replacing("\"score\": 64", with: "\"score\": 64.0")
+
+        let result = try StrictAnalysisDecoder().decode(data)
+
+        XCTAssertEqual(result.assessment.score, 64)
+    }
+
+    func testRejectsBooleanScoreAsInvalidValue() throws {
+        assertMutationFails(as: .invalidValue) { root in
+            self.mutateObject(&root, at: ["assessment"]) { $0["score"] = true }
         }
     }
 
@@ -346,6 +410,13 @@ final class AnalysisContractTests: XCTestCase {
 
     private func canonicalObject() -> JSONObject {
         try! JSONSerialization.jsonObject(with: canonicalData()) as! JSONObject
+    }
+
+    private func paddedCanonicalData(byteCount: Int) -> Data {
+        var data = canonicalData()
+        precondition(byteCount >= data.count)
+        data.append(Data(repeating: 0x20, count: byteCount - data.count))
+        return data
     }
 
     private func normalizedNoFoodObject() -> JSONObject {

@@ -10,6 +10,9 @@ enum AnalysisContractError: Error, Equatable {
 struct StrictAnalysisDecoder: Sendable {
     private typealias JSONObject = [String: Any]
 
+    /// Maximum accepted analysis contract payload before parsing: exactly 256 KiB.
+    private static let maximumPayloadBytes = 256 * 1024
+
     private static let rootKeys: Set<String> = [
         "food_detected",
         "food_names",
@@ -46,6 +49,10 @@ struct StrictAnalysisDecoder: Sendable {
     ]
 
     func decode(_ data: Data) throws -> AnalysisResult {
+        guard data.count <= Self.maximumPayloadBytes else {
+            throw AnalysisContractError.invalidValue
+        }
+
         let serialized: Any
         do {
             serialized = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
