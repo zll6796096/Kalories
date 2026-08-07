@@ -55,12 +55,15 @@ final class ImageProcessorTests: XCTestCase {
         XCTAssertEqual(decoded.imageOrientation, .up)
         XCTAssertEqual(try pixelSize(of: decoded), PixelSize(width: 80, height: 120))
 
-        let firstHalf = try rgbaPixel(in: decoded, x: 40, y: 20)
-        let secondHalf = try rgbaPixel(in: decoded, x: 40, y: 100)
+        let topSample = try rgbaPixel(in: decoded, x: 40, y: 20)
+        let bottomSample = try rgbaPixel(in: decoded, x: 40, y: 100)
         XCTAssertTrue(
-            (firstHalf.isPredominantlyRed && secondHalf.isPredominantlyBlue)
-                || (firstHalf.isPredominantlyBlue && secondHalf.isPredominantlyRed),
-            "Expected orientation redraw to rotate the red/blue split into opposite vertical halves"
+            topSample.isPredominantlyRed,
+            "Expected the source's red left half to rotate into the normalized image's top half"
+        )
+        XCTAssertTrue(
+            bottomSample.isPredominantlyBlue,
+            "Expected the source's blue right half to rotate into the normalized image's bottom half"
         )
     }
 
