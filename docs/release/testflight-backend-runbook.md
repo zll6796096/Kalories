@@ -405,7 +405,7 @@ KALORIES_CANDIDATE_REVISION="$(jq -er '
 ' "${candidate_service_json}")"
 test -n "${KALORIES_CANDIDATE_URL}"
 test -n "${KALORIES_CANDIDATE_REVISION}"
-if ! jq -e '
+if ! jq -e --arg expected_secret 'kalories-gemini-api-key' '
   def all_env:
     [.spec.template.spec.containers[]?.env[]?, .template.containers[]?.env[]?];
   ([
@@ -415,14 +415,33 @@ if ! jq -e '
   ] | map(select(. != null) | tostring)) as $max_values
   | all_env as $env
   | [$env[] | select(.name? == "GEMINI_API_KEY")] as $key_entries
-  | ([$key_entries[0].valueFrom.secretKeyRef?, $key_entries[0].valueSource.secretKeyRef?]
-      | map(select(. != null))) as $key_refs
+  | ([$key_entries[0].valueFrom.secretKeyRef?]
+      | map(select(. != null))) as $v1_key_refs
+  | ([$key_entries[0].valueSource.secretKeyRef?]
+      | map(select(. != null))) as $v2_key_refs
   | [$env[] | select(.name? == "GEMINI_MODEL")] as $model_entries
   | (($max_values | length) == 1 and $max_values[0] == "1")
   and (($key_entries | length) == 1)
   and ($key_entries[0] | has("value") | not)
-  and (($key_refs | length) == 1)
-  and ($key_refs[0] | type == "object" and length > 0)
+  and (
+    (
+      ($v1_key_refs | length) == 1
+      and ($v2_key_refs | length) == 0
+      and ($key_entries[0] | has("valueFrom"))
+      and ($key_entries[0] | has("valueSource") | not)
+      and $v1_key_refs[0].name? == $expected_secret
+      and ($v1_key_refs[0].key? | type == "string" and length > 0)
+    )
+    or
+    (
+      ($v1_key_refs | length) == 0
+      and ($v2_key_refs | length) == 1
+      and ($key_entries[0] | has("valueFrom") | not)
+      and ($key_entries[0] | has("valueSource"))
+      and $v2_key_refs[0].secret? == $expected_secret
+      and ($v2_key_refs[0].version? | type == "string" and length > 0)
+    )
+  )
   and (($model_entries | length) == 1)
   and ($model_entries[0].value? == "gemini-3.6-flash")
   and ($model_entries[0] | has("valueFrom") | not)
@@ -518,7 +537,7 @@ if [[ "${request_status}" != 200 ]] ||
   printf '%s\n' 'NO-GO: candidate real-image status or latency failed'
   exit 1
 fi
-jq -e '
+if ! jq -e '
   def nutrient_keys:
     ["calories_kcal", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g", "sodium_mg"];
   .food_detected == true
@@ -527,7 +546,10 @@ jq -e '
   and (.assessment | type == "object")
   and (has("provider") | not)
   and (has("raw_provider") | not)
-' "${candidate_response_json}" >/dev/null
+' "${candidate_response_json}" >/dev/null; then
+  printf '%s\n' 'NO-GO: candidate real-image response schema is invalid'
+  exit 1
+fi
 printf 'CHECK candidate real-image: HTTP 200, schema valid, latency %ss\n' \
   "${request_latency_seconds}"
 ```
@@ -586,6 +608,99 @@ After successful promotion and post-promotion health/real-request/log checks,
 identify the old credential by resource identity and creation context, exclude
 `kalories-gemini-testflight`, and revoke the old credential. Never compare key
 strings. Do not revoke it before promotion succeeds.
+
+Deletion is a separate Task 6 mutation checkpoint. Immediately before it, the
+user must reconfirm the exact old key resource name and that production remains
+healthy on the replacement key. List metadata only; never retrieve key strings:
+
+```bash
+if ! gcloud services api-keys list \
+  --project=zhang23-23 \
+  --format='table(name,displayName,createTime,deleteTime)'; then
+  printf '%s\n' 'NO-GO: API key metadata list failed'
+  exit 1
+fi
+: "${KALORIES_OLD_KEY_RESOURCE:?Set the exact old key resource name from metadata}"
+: "${KALORIES_OLD_KEY_DELETION_CONFIRMED:?Set to yes only after fresh user confirmation}"
+if [[ "${KALORIES_OLD_KEY_DELETION_CONFIRMED}" != yes ]]; then
+  printf '%s\n' 'NO-GO: old API key deletion is not confirmed'
+  exit 1
+fi
+if ! KALORIES_PROJECT_NUMBER="$(gcloud projects describe zhang23-23 \
+  --format='value(projectNumber)')"; then
+  printf '%s\n' 'NO-GO: project number resolution failed'
+  exit 1
+fi
+test -n "${KALORIES_PROJECT_NUMBER}"
+expected_old_key_prefix="projects/${KALORIES_PROJECT_NUMBER}/locations/global/keys/"
+if [[ "${KALORIES_OLD_KEY_RESOURCE}" != "${expected_old_key_prefix}"* ]] ||
+  [[ "${KALORIES_OLD_KEY_RESOURCE##*/}" == kalories-gemini-testflight ]]; then
+  printf '%s\n' 'NO-GO: old API key resource is outside scope or is the replacement'
+  exit 1
+fi
+if ! KALORIES_OLD_KEY_DELETE_TIME_BEFORE="$(gcloud services api-keys describe \
+  "${KALORIES_OLD_KEY_RESOURCE}" \
+  --project=zhang23-23 \
+  --location=global \
+  --format='value(deleteTime)')"; then
+  printf '%s\n' 'NO-GO: old API key metadata read failed'
+  exit 1
+fi
+if ! KALORIES_REPLACEMENT_DELETE_TIME_BEFORE="$(gcloud services api-keys describe \
+  kalories-gemini-testflight \
+  --project=zhang23-23 \
+  --location=global \
+  --format='value(deleteTime)')"; then
+  printf '%s\n' 'NO-GO: replacement API key metadata read failed'
+  exit 1
+fi
+if [[ -n "${KALORIES_OLD_KEY_DELETE_TIME_BEFORE}" ]] ||
+  [[ -n "${KALORIES_REPLACEMENT_DELETE_TIME_BEFORE}" ]]; then
+  printf '%s\n' 'NO-GO: old or replacement API key metadata is not active'
+  exit 1
+fi
+if ! gcloud services api-keys delete "${KALORIES_OLD_KEY_RESOURCE}" \
+  --project=zhang23-23 \
+  --location=global \
+  --quiet >/dev/null; then
+  printf '%s\n' 'NO-GO: old API key deletion command failed'
+  exit 1
+fi
+if ! KALORIES_OLD_KEY_DELETE_TIME_AFTER="$(gcloud services api-keys describe \
+  "${KALORIES_OLD_KEY_RESOURCE}" \
+  --project=zhang23-23 \
+  --location=global \
+  --format='value(deleteTime)')"; then
+  printf '%s\n' 'NO-GO: deleted API key verification read failed'
+  exit 1
+fi
+if ! KALORIES_REPLACEMENT_DELETE_TIME_AFTER="$(gcloud services api-keys describe \
+  kalories-gemini-testflight \
+  --project=zhang23-23 \
+  --location=global \
+  --format='value(deleteTime)')"; then
+  printf '%s\n' 'NO-GO: replacement API key verification read failed'
+  exit 1
+fi
+if [[ -z "${KALORIES_OLD_KEY_DELETE_TIME_AFTER}" ]] ||
+  [[ -n "${KALORIES_REPLACEMENT_DELETE_TIME_AFTER}" ]]; then
+  printf '%s\n' 'NO-GO: API key deletion verification failed'
+  exit 1
+fi
+printf '%s\n' 'CHECK old API key deleted; replacement key remains active'
+unset \
+  KALORIES_OLD_KEY_RESOURCE \
+  KALORIES_OLD_KEY_DELETION_CONFIRMED \
+  KALORIES_PROJECT_NUMBER \
+  KALORIES_OLD_KEY_DELETE_TIME_BEFORE \
+  KALORIES_REPLACEMENT_DELETE_TIME_BEFORE \
+  KALORIES_OLD_KEY_DELETE_TIME_AFTER \
+  KALORIES_REPLACEMENT_DELETE_TIME_AFTER \
+  expected_old_key_prefix
+```
+
+Deletion is recoverable for 30 days, but rollback must never restore use of the
+deleted credential. Record only the old resource identity and deletion time.
 
 The exact prior revision is `kalories-00003-djq`. Traffic rollback is:
 

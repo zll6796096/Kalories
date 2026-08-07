@@ -8,6 +8,7 @@ readonly PROJECT_ID="zhang23-23"
 readonly REGION_ID="asia-northeast1"
 readonly SERVICE_ID="kalories"
 readonly EXPECTED_MODEL="gemini-3.6-flash"
+readonly EXPECTED_SECRET_ID="kalories-gemini-api-key"
 
 preflight_tmp="$(mktemp -d)"
 service_json="${preflight_tmp}/service.json"
@@ -91,7 +92,7 @@ if [[ "${service_described}" == true ]]; then
     add_finding 'Cloud Run maxScale is not exactly 1'
   fi
 
-  if ! jq -e '
+  if ! jq -e --arg expected_secret "${EXPECTED_SECRET_ID}" '
     def all_env:
       [
         .spec.template.spec.containers[]?.env[]?,
@@ -99,15 +100,30 @@ if [[ "${service_described}" == true ]]; then
       ];
     all_env as $env
     | [$env[] | select(.name? == "GEMINI_API_KEY")] as $matches
-    | ([
-        $matches[0].valueFrom.secretKeyRef?,
-        $matches[0].valueSource.secretKeyRef?
-      ] | map(select(. != null))) as $refs
+    | ([$matches[0].valueFrom.secretKeyRef?] | map(select(. != null))) as $v1_refs
+    | ([$matches[0].valueSource.secretKeyRef?] | map(select(. != null))) as $v2_refs
     | (
         ($matches | length) == 1
         and ($matches[0] | has("value") | not)
-        and ($refs | length) == 1
-        and ($refs[0] | type == "object" and length > 0)
+        and (
+          (
+            ($v1_refs | length) == 1
+            and ($v2_refs | length) == 0
+            and ($matches[0] | has("valueFrom"))
+            and ($matches[0] | has("valueSource") | not)
+            and $v1_refs[0].name? == $expected_secret
+            and ($v1_refs[0].key? | type == "string" and length > 0)
+          )
+          or
+          (
+            ($v1_refs | length) == 0
+            and ($v2_refs | length) == 1
+            and ($matches[0] | has("valueFrom") | not)
+            and ($matches[0] | has("valueSource"))
+            and $v2_refs[0].secret? == $expected_secret
+            and ($v2_refs[0].version? | type == "string" and length > 0)
+          )
+        )
       )
   ' "${service_json}" >/dev/null 2>&1; then
     add_finding 'GEMINI_API_KEY is not exactly one secret-backed entry without plaintext value'
