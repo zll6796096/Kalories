@@ -12,6 +12,8 @@ enum AppScreen {
 @MainActor
 @Observable
 final class AppFlowModel {
+    private final class OperationToken {}
+
     private(set) var screen: AppScreen = .capture
     private(set) var selectedImage: UIImage?
 
@@ -25,11 +27,15 @@ final class AppFlowModel {
     private let processor: any ImageProcessing
 
     @ObservationIgnored
-    private var generation: UInt = 0
+    private var currentOperation: OperationToken?
 
     init(service: any AnalysisServing, processor: any ImageProcessing) {
         self.service = service
         self.processor = processor
+    }
+
+    deinit {
+        analysisTask?.cancel()
     }
 
     func select(_ image: UIImage) {
@@ -46,38 +52,37 @@ final class AppFlowModel {
             return
         }
 
-        let operation = generation
+        let operation = OperationToken()
         let service = service
         let processor = processor
+        var pendingImage: UIImage? = selectedImage
+        currentOperation = operation
         screen = .analyzing
 
-        analysisTask = Task { [weak self] in
+        analysisTask = Task { @MainActor [weak self] in
+            guard self?.canRun(operation: operation) == true else {
+                return
+            }
+
             do {
-                let dataURI = try processor.dataURI(for: selectedImage)
-                try Task.checkCancellation()
-                guard self?.isCurrent(operation: operation) == true else {
+                let dataURI = try Self.process(
+                    pendingImage: &pendingImage,
+                    using: processor
+                )
+                guard self?.canRun(operation: operation) == true else {
                     return
                 }
 
                 let result = try await service.analyze(dataURI: dataURI)
-                try Task.checkCancellation()
                 self?.complete(
                     operation: operation,
                     with: result.foodDetected ? .result(result) : .failure(.noFood)
                 )
             } catch is CancellationError {
-                self?.clearTask(for: operation)
+                self?.complete(operation: operation, with: .failure(.analysisFailed))
             } catch let failure as AppFailure {
-                guard !Task.isCancelled else {
-                    self?.clearTask(for: operation)
-                    return
-                }
                 self?.complete(operation: operation, with: .failure(failure))
             } catch {
-                guard !Task.isCancelled else {
-                    self?.clearTask(for: operation)
-                    return
-                }
                 self?.complete(operation: operation, with: .failure(.analysisFailed))
             }
         }
@@ -99,27 +104,32 @@ final class AppFlowModel {
     }
 
     private func invalidateAnalysis() {
-        generation &+= 1
+        currentOperation = nil
         analysisTask?.cancel()
         analysisTask = nil
     }
 
-    private func isCurrent(operation: UInt) -> Bool {
-        operation == generation && !Task.isCancelled
+    private func canRun(operation: OperationToken) -> Bool {
+        currentOperation === operation && !Task.isCancelled
     }
 
-    private func complete(operation: UInt, with screen: AppScreen) {
-        guard isCurrent(operation: operation) else {
+    private func complete(operation: OperationToken, with screen: AppScreen) {
+        guard canRun(operation: operation) else {
             return
         }
         self.screen = screen
+        currentOperation = nil
         analysisTask = nil
     }
 
-    private func clearTask(for operation: UInt) {
-        guard operation == generation else {
-            return
+    private static func process(
+        pendingImage: inout UIImage?,
+        using processor: any ImageProcessing
+    ) throws -> String {
+        guard let image = pendingImage else {
+            throw AppFailure.invalidImage
         }
-        analysisTask = nil
+        defer { pendingImage = nil }
+        return try processor.dataURI(for: image)
     }
 }
