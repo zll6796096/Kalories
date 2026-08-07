@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -581,6 +582,9 @@ class RunbookCommandMockTests(unittest.TestCase):
         self.tmp_dir.mkdir()
         self.calls = self.root / "calls.txt"
         self.mktemp_paths = self.root / "mktemp-paths.txt"
+        self.real_jq = shutil.which("jq")
+        if self.real_jq is None:
+            self.fail("jq is required for the runbook regression tests")
         self.runtime_sa = f"{SENTINEL}@example.invalid"
         self.dimensions = {"model": "gemini-3.6-flash"}
         self._write_fakes()
@@ -620,6 +624,46 @@ set -euo pipefail
 created_path="$(/usr/bin/mktemp "$@")"
 printf '%s\\n' "${created_path}" >>"${FAKE_MKTEMP_PATHS}"
 printf '%s\\n' "${created_path}"
+""",
+        )
+        self._write_executable(
+            "jq",
+            """#!/usr/bin/env bash
+set -euo pipefail
+last_arg=''
+for last_arg in "$@"; do :; done
+if [[ "${FAKE_JQ_PROJECT_ROLE_ENUM_FAIL:-0}" == 1 ]] &&
+  [[ "${last_arg}" == */project-iam.json ]] &&
+  [[ "$*" == *"unique[]"* ]]; then
+  exit 55
+fi
+if [[ "${FAKE_JQ_ANCESTOR_ENUM_FAIL:-0}" == 1 ]] &&
+  [[ "$*" == *'select(.type != "project")'* ]]; then
+  exit 56
+fi
+exec __REAL_JQ__ "$@"
+""".replace("__REAL_JQ__", self.real_jq),
+        )
+        self._write_executable(
+            "curl",
+            """#!/usr/bin/env bash
+set -euo pipefail
+output_file=''
+while (($# > 0)); do
+  case "$1" in
+    --output)
+      output_file="$2"
+      shift 2
+      ;;
+    *) shift ;;
+  esac
+done
+if [[ "${output_file}" == /dev/null ]]; then
+  printf '%s' '200'
+else
+  command cp "${FAKE_FIXTURES}/candidate-invalid-response.json" "${output_file}"
+  printf '%s' '200 0.10'
+fi
 """,
         )
         self._write_executable(
@@ -865,6 +909,7 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self._write("budget-create", budget)
         self._write("budget-readback", budget)
         self._write("promotion", {"status": "safe"})
+        self._write("candidate-invalid-response", {"private": SENTINEL})
 
     def _run_block(
         self,
@@ -1053,6 +1098,23 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self.assertNotEqual(0, result.returncode)
         self.assertIn("NO-GO: inherited accessor audit unavailable", result.stdout)
 
+    def test_iam_jq_enumeration_failures_are_no_go(self) -> None:
+        for failure_flag in (
+            "FAKE_JQ_PROJECT_ROLE_ENUM_FAIL",
+            "FAKE_JQ_ANCESTOR_ENUM_FAIL",
+        ):
+            with self.subTest(failure=failure_flag):
+                self._write_defaults()
+                result = self._run_block("iam_mutation_json=", **{failure_flag: "1"})
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(
+                    "NO-GO: inherited accessor audit unavailable", result.stdout
+                )
+                self.assertNotIn(
+                    "CHECK secret accessor is exact; identities omitted",
+                    result.stdout,
+                )
+
     def test_candidate_log_scanner_error_is_no_go(self) -> None:
         block = self._block("candidate_payload_json=")
         begin = block.find("# BEGIN CANDIDATE_LOG_SAFETY_SCAN")
@@ -1078,6 +1140,24 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         )
         self.assertNotEqual(0, result.returncode)
         self.assertIn("NO-GO: candidate log safety scan failed", result.stdout)
+
+    def test_candidate_schema_failure_never_leaks_private_response(self) -> None:
+        synthetic_image = self.root / "synthetic.jpg"
+        synthetic_image.write_bytes(b"not-a-real-personal-image")
+        result = self._run_block(
+            "candidate_payload_json=",
+            KALORIES_CANDIDATE_URL="https://candidate.invalid",
+            KALORIES_CANDIDATE_REVISION=REVISION,
+            KALORIES_SYNTHETIC_MEAL_IMAGE=str(synthetic_image),
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "NO-GO: candidate response violates the real backend schema",
+            result.stdout,
+        )
+        self.assertNotIn(SENTINEL, result.stdout + result.stderr)
+        self.assertNotIn("Traceback", result.stdout + result.stderr)
+        self.assertNotIn("input_value", result.stdout + result.stderr)
 
     def test_candidate_block_checks_aggregate_traffic_and_revision_identity(self) -> None:
         result = self._run_block(

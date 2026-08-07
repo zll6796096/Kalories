@@ -306,12 +306,14 @@ iam_mutation_json="${iam_tmp}/iam-mutation.json"
 iam_readback_json="${iam_tmp}/iam-readback.json"
 ancestors_json="${iam_tmp}/ancestors.json"
 project_iam_json="${iam_tmp}/project-iam.json"
+ancestor_entries_file="${iam_tmp}/ancestor-entries.tsv"
 iam_private_files=(
   "${service_before_json}"
   "${iam_mutation_json}"
   "${iam_readback_json}"
   "${ancestors_json}"
   "${project_iam_json}"
+  "${ancestor_entries_file}"
 )
 cleanup_iam() {
   local iam_file
@@ -367,11 +369,13 @@ if ! gcloud projects get-ancestors zhang23-23 \
 fi
 
 inherited_role_index=0
+inherited_policy_index=0
 audit_inherited_policy() {
   local policy_file="$1"
   local role_name
   local role_json
   local role_id
+  local role_names_file
   local role_scope
   if ! jq -e '
     type == "object"
@@ -386,6 +390,16 @@ audit_inherited_policy() {
     | select((.members | length) > 0)] | length > 0' \
     "${policy_file}" >/dev/null; then
     return 10
+  fi
+  role_names_file="${iam_tmp}/policy-roles-${inherited_policy_index}.txt"
+  iam_private_files+=("${role_names_file}")
+  inherited_policy_index=$((inherited_policy_index + 1))
+  : >"${role_names_file}"
+  chmod 600 "${role_names_file}"
+  if ! jq -r '[.bindings[]?
+    | select((.members | length) > 0)
+    | .role] | unique[]' "${policy_file}" >"${role_names_file}"; then
+    return 2
   fi
   while IFS= read -r role_name; do
     role_json="${iam_tmp}/role-${inherited_role_index}.json"
@@ -432,9 +446,7 @@ audit_inherited_policy() {
     ' "${role_json}" >/dev/null; then
       return 10
     fi
-  done < <(jq -r '[.bindings[]?
-    | select((.members | length) > 0)
-    | .role] | unique[]' "${policy_file}")
+  done <"${role_names_file}"
   return 0
 }
 
@@ -456,6 +468,13 @@ else
 fi
 
 ancestor_index=0
+: >"${ancestor_entries_file}"
+chmod 600 "${ancestor_entries_file}"
+if ! jq -r '.[] | select(.type != "project") | [.type, .id] | @tsv' \
+  "${ancestors_json}" >"${ancestor_entries_file}"; then
+  printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+  exit 1
+fi
 while IFS=$'\t' read -r ancestor_type ancestor_id; do
   ancestor_policy_json="${iam_tmp}/ancestor-${ancestor_index}.json"
   iam_private_files+=("${ancestor_policy_json}")
@@ -491,8 +510,7 @@ while IFS=$'\t' read -r ancestor_type ancestor_id; do
     fi
     exit 1
   fi
-done < <(jq -r '.[] | select(.type != "project") | [.type, .id] | @tsv' \
-  "${ancestors_json}")
+done <"${ancestor_entries_file}"
 printf '%s\n' 'CHECK secret accessor is exact; identities omitted'
 cleanup_iam
 trap - EXIT
@@ -862,17 +880,21 @@ candidate_test_tmp="$(mktemp -d)"
 candidate_payload_json="${candidate_test_tmp}/request.json"
 candidate_response_json="${candidate_test_tmp}/response.json"
 candidate_logs_json="${candidate_test_tmp}/logs.json"
+candidate_schema_error="${candidate_test_tmp}/schema-error.txt"
 cleanup_candidate_test() {
   local candidate_test_file
   for candidate_test_file in \
     "${candidate_payload_json}" \
     "${candidate_response_json}" \
-    "${candidate_logs_json}"; do
+    "${candidate_logs_json}" \
+    "${candidate_schema_error}"; do
     if [[ -f "${candidate_test_file}" ]]; then unlink -- "${candidate_test_file}"; fi
   done
   if [[ -d "${candidate_test_tmp}" ]]; then rmdir -- "${candidate_test_tmp}"; fi
 }
 trap cleanup_candidate_test EXIT
+: >"${candidate_schema_error}"
+chmod 600 "${candidate_schema_error}"
 
 for endpoint_spec in 'health|/health' 'privacy|/privacy/' 'support|/support/'; do
   endpoint_name="${endpoint_spec%%|*}"
@@ -914,7 +936,7 @@ if [[ "${request_status}" != 200 ]] || ! awk -v seconds="${request_latency_secon
   printf '%s\n' 'NO-GO: candidate real-image status or latency failed'
   exit 1
 fi
-if ! .venv/bin/python - "${candidate_response_json}" <<'PY'
+if ! .venv/bin/python - "${candidate_response_json}" 2>"${candidate_schema_error}" <<'PY'
 from pathlib import Path
 import sys
 
