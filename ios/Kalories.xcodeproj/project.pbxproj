@@ -16,6 +16,7 @@
 		2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */; };
 		28540AB098FDD7A95786C581 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */; };
 		2E9BA91F974E0A3194AEEF93 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0FD041F9961852BEBCE952 /* AppEnvironment.swift */; };
+		3137CA31053B20FF32F9C233 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56CF5C50DE8E5EEAC41D0693 /* ResultView.swift */; };
 		35EBB01FC891CDF08980EE72 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA2981F04F50E5CEA1262D3 /* RootView.swift */; };
 		3E22FB64F8D229506D57386D /* AnalysisAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FF1C75CADEAC16B644F78A /* AnalysisAPIClient.swift */; };
 		3FE95E5014EAA04C4DBF4594 /* CameraAuthorizationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0B54C98D9AF703458B7F5C /* CameraAuthorizationService.swift */; };
@@ -30,9 +31,13 @@
 		91DC01CD82DC3BDE6BDE4ADF /* AppIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3341A57486FA371C62F536 /* AppIdentityTests.swift */; };
 		A8158CE9CFD0C56B90C494B9 /* AnalysisAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */; };
 		B4F9B9108DC194EBD7593BCC /* AppLocalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */; };
+		CF4EC5028E97CB00903F8825 /* ResultPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCE2B8815F6D9C45527248D /* ResultPresenter.swift */; };
+		D03EF02485D712C7D6941FA3 /* ResultPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AC2E903E8B1379D71857872 /* ResultPresenterTests.swift */; };
 		D38F56162650283BDC5BECA8 /* AnalyzingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3F31216A0338F8ECE146F2 /* AnalyzingView.swift */; };
 		E34A09CE6846A1F0BF07B67F /* AnalysisContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDDEE8E88D0E06092B70B142 /* AnalysisContractTests.swift */; };
+		E4E12B49B5233D345973C120 /* ScoreCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6616704ADFFFBE9FD7A4BB0 /* ScoreCard.swift */; };
 		EEEFC37DB4D6629E93594BB2 /* StrictAnalysisDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4813BDD27D56243200621FB8 /* StrictAnalysisDecoder.swift */; };
+		F4809B4B48466E612D2F7D75 /* NutritionMetricView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96745D73D0AC23C0E93CAB01 /* NutritionMetricView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +61,7 @@
 		140662A23ADEC0296955D896 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		17C911829E999FA726AE34CA /* AppLocalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLocalizer.swift; sourceTree = "<group>"; };
 		17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisAPIClientTests.swift; sourceTree = "<group>"; };
+		1BCE2B8815F6D9C45527248D /* ResultPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPresenter.swift; sourceTree = "<group>"; };
 		1CA2981F04F50E5CEA1262D3 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
 		1E8BD752F796DC0CE62321EC /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -68,6 +74,7 @@
 		4813BDD27D56243200621FB8 /* StrictAnalysisDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrictAnalysisDecoder.swift; sourceTree = "<group>"; };
 		49B9241745ADD10195E9283D /* AppFlowModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFlowModel.swift; sourceTree = "<group>"; };
 		5110ACE21AA819C12B35A6F4 /* KaloriesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaloriesApp.swift; sourceTree = "<group>"; };
+		56CF5C50DE8E5EEAC41D0693 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		58B1260FD6B6B05A98B9E249 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		5D3341A57486FA371C62F536 /* AppIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentityTests.swift; sourceTree = "<group>"; };
 		6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFlowModelTests.swift; sourceTree = "<group>"; };
@@ -76,11 +83,14 @@
 		7B1E8AD110BD363DE5D417F7 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		7E0FD041F9961852BEBCE952 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		7FFEC1E5509BE22EC8CC460A /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		8AC2E903E8B1379D71857872 /* ResultPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultPresenterTests.swift; sourceTree = "<group>"; };
 		8B771A52187BCC70E297FF7C /* CameraAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraAuthorizationTests.swift; sourceTree = "<group>"; };
+		96745D73D0AC23C0E93CAB01 /* NutritionMetricView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionMetricView.swift; sourceTree = "<group>"; };
 		9F4E835639B3101F4A11EF16 /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureView.swift; sourceTree = "<group>"; };
 		A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessorTests.swift; sourceTree = "<group>"; };
 		A584BA7AA6F27C245B49543E /* Kalories.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kalories.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5A615D3424247D075A7BB10 /* KaloriesTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KaloriesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6616704ADFFFBE9FD7A4BB0 /* ScoreCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCard.swift; sourceTree = "<group>"; };
 		BDDEE8E88D0E06092B70B142 /* AnalysisContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisContractTests.swift; sourceTree = "<group>"; };
 		C17FC3967F994490B1391C0B /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		C81B6393D94662D1B52074CD /* URLProtocolStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLProtocolStub.swift; sourceTree = "<group>"; };
@@ -123,6 +133,7 @@
 				24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */,
 				8B771A52187BCC70E297FF7C /* CameraAuthorizationTests.swift */,
 				A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */,
+				8AC2E903E8B1379D71857872 /* ResultPresenterTests.swift */,
 				C81B6393D94662D1B52074CD /* URLProtocolStub.swift */,
 			);
 			path = KaloriesTests;
@@ -156,6 +167,7 @@
 			children = (
 				DFE88AFCC2FD775E56AF6C8B /* Analysis */,
 				CE95906F9698CFBBFC58354A /* Capture */,
+				A6595A04ADB5E47505378447 /* Result */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -196,6 +208,17 @@
 				2844322ECCCE2856D1FF6FAC /* KaloriesUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A6595A04ADB5E47505378447 /* Result */ = {
+			isa = PBXGroup;
+			children = (
+				96745D73D0AC23C0E93CAB01 /* NutritionMetricView.swift */,
+				1BCE2B8815F6D9C45527248D /* ResultPresenter.swift */,
+				56CF5C50DE8E5EEAC41D0693 /* ResultView.swift */,
+				B6616704ADFFFBE9FD7A4BB0 /* ScoreCard.swift */,
+			);
+			path = Result;
 			sourceTree = "<group>";
 		};
 		AF5EA88CA4DE4AD535AB0977 /* Resources */ = {
@@ -369,6 +392,7 @@
 				B4F9B9108DC194EBD7593BCC /* AppLocalizerTests.swift in Sources */,
 				560272B3E721B63F6CEAA75C /* CameraAuthorizationTests.swift in Sources */,
 				281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */,
+				D03EF02485D712C7D6941FA3 /* ResultPresenterTests.swift in Sources */,
 				11B29C1B860576BA49173131 /* URLProtocolStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -389,7 +413,11 @@
 				76228F2FB0ED170C0CCAF25E /* CaptureView.swift in Sources */,
 				1C0C7408C1C3BD9BC40AA8DD /* ImageProcessor.swift in Sources */,
 				771BE255EE2EF00C982134C4 /* KaloriesApp.swift in Sources */,
+				F4809B4B48466E612D2F7D75 /* NutritionMetricView.swift in Sources */,
+				CF4EC5028E97CB00903F8825 /* ResultPresenter.swift in Sources */,
+				3137CA31053B20FF32F9C233 /* ResultView.swift in Sources */,
 				35EBB01FC891CDF08980EE72 /* RootView.swift in Sources */,
+				E4E12B49B5233D345973C120 /* ScoreCard.swift in Sources */,
 				EEEFC37DB4D6629E93594BB2 /* StrictAnalysisDecoder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

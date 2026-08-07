@@ -32,46 +32,16 @@ struct RootView: View {
             )
         case .analyzing:
             AnalyzingView(flow: flow, localizer: localizer)
-        case .result:
-            ResultPlaceholderView(
+        case let .result(result):
+            ResultView(
+                result: result,
                 image: flow.selectedImage,
-                flow: flow,
-                localizer: localizer
+                localizer: localizer,
+                onRetake: flow.retake
             )
         case let .failure(failure):
             FailureView(failure: failure, flow: flow, localizer: localizer)
         }
-    }
-}
-
-private struct ResultPlaceholderView: View {
-    let image: UIImage?
-    let flow: AppFlowModel
-    let localizer: AppLocalizer
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity)
-                }
-
-                Button {
-                    flow.retake()
-                } label: {
-                    Text(localizer.text("retake"))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(24)
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
-        }
-        .background(Color(uiColor: .systemGroupedBackground))
     }
 }
 
