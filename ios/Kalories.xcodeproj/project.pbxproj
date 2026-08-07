@@ -13,9 +13,11 @@
 		11B29C1B860576BA49173131 /* URLProtocolStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81B6393D94662D1B52074CD /* URLProtocolStub.swift */; };
 		1C0C7408C1C3BD9BC40AA8DD /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AB1475C741D034F377ED5 /* ImageProcessor.swift */; };
 		281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */; };
+		2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */; };
 		28540AB098FDD7A95786C581 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */; };
 		3E22FB64F8D229506D57386D /* AnalysisAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FF1C75CADEAC16B644F78A /* AnalysisAPIClient.swift */; };
 		45FACFBFA4F51C812868FA26 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140662A23ADEC0296955D896 /* AppConfiguration.swift */; };
+		5F4FC91DB555ABE6A1981695 /* AppFlowModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B9241745ADD10195E9283D /* AppFlowModel.swift */; };
 		65C77351DCD383214DC271AE /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 746CD7498DA4454D0EFF6187 /* Localizable.strings */; };
 		771BE255EE2EF00C982134C4 /* KaloriesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5110ACE21AA819C12B35A6F4 /* KaloriesApp.swift */; };
 		7D9353369CE08D47FE94F44A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 71A42B96B01DB23F6A556CCF /* InfoPlist.strings */; };
@@ -56,9 +58,11 @@
 		38FF1C75CADEAC16B644F78A /* AnalysisAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisAPIClient.swift; sourceTree = "<group>"; };
 		420AB1475C741D034F377ED5 /* ImageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessor.swift; sourceTree = "<group>"; };
 		4813BDD27D56243200621FB8 /* StrictAnalysisDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrictAnalysisDecoder.swift; sourceTree = "<group>"; };
+		49B9241745ADD10195E9283D /* AppFlowModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFlowModel.swift; sourceTree = "<group>"; };
 		5110ACE21AA819C12B35A6F4 /* KaloriesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaloriesApp.swift; sourceTree = "<group>"; };
 		58B1260FD6B6B05A98B9E249 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		5D3341A57486FA371C62F536 /* AppIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentityTests.swift; sourceTree = "<group>"; };
+		6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFlowModelTests.swift; sourceTree = "<group>"; };
 		79D3207AE5833386F9BCF2AA /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/Localizable.strings; sourceTree = "<group>"; };
 		7B1E8AD110BD363DE5D417F7 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		7FFEC1E5509BE22EC8CC460A /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -100,6 +104,7 @@
 			children = (
 				17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */,
 				BDDEE8E88D0E06092B70B142 /* AnalysisContractTests.swift */,
+				6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */,
 				5D3341A57486FA371C62F536 /* AppIdentityTests.swift */,
 				24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */,
 				A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */,
@@ -112,6 +117,7 @@
 			isa = PBXGroup;
 			children = (
 				751AA50237FC4C2C0B14C8CC /* App */,
+				3D8D17E8C89CB4F1A440BF6E /* Features */,
 				779B5E72F3CE938D4EB0CBA4 /* Models */,
 				AF5EA88CA4DE4AD535AB0977 /* Resources */,
 				292A7A3BF1603F941DDD5AD0 /* Services */,
@@ -128,6 +134,14 @@
 				420AB1475C741D034F377ED5 /* ImageProcessor.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		3D8D17E8C89CB4F1A440BF6E /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				DFE88AFCC2FD775E56AF6C8B /* Analysis */,
+			);
+			path = Features;
 			sourceTree = "<group>";
 		};
 		6B339A65D63E2FCA2BE83E16 /* Configuration */ = {
@@ -174,6 +188,14 @@
 				746CD7498DA4454D0EFF6187 /* Localizable.strings */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		DFE88AFCC2FD775E56AF6C8B /* Analysis */ = {
+			isa = PBXGroup;
+			children = (
+				49B9241745ADD10195E9283D /* AppFlowModel.swift */,
+			);
+			path = Analysis;
 			sourceTree = "<group>";
 		};
 		F095872E953D3A0DA0DF19F2 /* KaloriesUITests */ = {
@@ -313,6 +335,7 @@
 			files = (
 				A8158CE9CFD0C56B90C494B9 /* AnalysisAPIClientTests.swift in Sources */,
 				E34A09CE6846A1F0BF07B67F /* AnalysisContractTests.swift in Sources */,
+				2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */,
 				91DC01CD82DC3BDE6BDE4ADF /* AppIdentityTests.swift in Sources */,
 				B4F9B9108DC194EBD7593BCC /* AppLocalizerTests.swift in Sources */,
 				281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */,
@@ -327,6 +350,7 @@
 				3E22FB64F8D229506D57386D /* AnalysisAPIClient.swift in Sources */,
 				01209E2397B3E1985BB426E6 /* AnalysisModels.swift in Sources */,
 				45FACFBFA4F51C812868FA26 /* AppConfiguration.swift in Sources */,
+				5F4FC91DB555ABE6A1981695 /* AppFlowModel.swift in Sources */,
 				0EB81A96E7ACCF9656EE3B03 /* AppLocalizer.swift in Sources */,
 				1C0C7408C1C3BD9BC40AA8DD /* ImageProcessor.swift in Sources */,
 				771BE255EE2EF00C982134C4 /* KaloriesApp.swift in Sources */,
