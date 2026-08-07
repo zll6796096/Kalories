@@ -355,6 +355,30 @@ exit "${FAKE_CURL_EXIT:-0}"
                     result.stdout,
                 )
 
+    def test_short_stringified_provider_json_is_no_go_without_payload_leak(self) -> None:
+        sensitive_strings = [
+            (
+                '{"food_detected":true,"nutrients":{"calories_kcal":640},'
+                f'"assessment":{{"marker":"{SENTINEL}"}}}}'
+            ),
+            f'{{"providerResponse":{{"marker":"{SENTINEL}"}}}}',
+            f'request={{"marker":"{SENTINEL}"}}',
+            f'response={{"marker":"{SENTINEL}"}}',
+            f'authorization=Bearer {SENTINEL}',
+            f'x-goog-api-key={SENTINEL}',
+            f'api_key={SENTINEL}',
+            "data:image/jpeg;base64," + ("A" * 32),
+        ]
+        for provider_payload in sensitive_strings:
+            with self.subTest(marker=provider_payload.split("=", 1)[0][:32]):
+                self.logs = self.logs[:3] + [{"textPayload": provider_payload}]
+                result = self._run()
+                self.assertIn(
+                    "NO-GO: Cloud Run logs contain sensitive application data",
+                    result.stdout,
+                )
+                self.assertNotIn(provider_payload, result.stdout + result.stderr)
+
     def test_log_read_failure_is_no_go(self) -> None:
         result = self._run(FAKE_LOG_EXIT="3")
         self.assertIn("NO-GO: Cloud Run log read failed", result.stdout)
@@ -397,6 +421,8 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.assertIn("type == \"array\" and length > 0", self.runbook)
         self.assertIn("x-goog-api-key", self.runbook)
         self.assertIn("providerResponse", self.runbook)
+        self.assertIn("food_detected", self.runbook)
+        self.assertIn("candidate_log_scan_status", self.runbook)
         self.assertIn("target request log", self.runbook)
 
     def test_response_schema_uses_the_real_backend_contract(self) -> None:
@@ -423,6 +449,9 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.assertIn("iam_mutation_json", self.runbook)
         self.assertIn("iam_readback_json", self.runbook)
         self.assertIn("length == 1", self.runbook)
+        self.assertIn("inherited accessor audit", self.runbook)
+        self.assertIn("projects get-ancestors", self.runbook)
+        self.assertIn("has(\"condition\") | not", self.runbook)
 
     def test_quota_create_has_complete_fail_closed_readback(self) -> None:
         self.assertIn("quota_readback_json", self.runbook)
@@ -430,12 +459,42 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.assertIn("grantedValue", self.runbook)
         self.assertIn("preferredValue", self.runbook)
         self.assertIn("dimensions", self.runbook)
+        self.assertIn('.service == "generativelanguage.googleapis.com"', self.runbook)
+        self.assertIn(".quotaId == $expected_quota_id", self.runbook)
+        describe_line = next(
+            line
+            for line in self.runbook.splitlines()
+            if line.startswith("gcloud beta quotas preferences describe")
+        )
+        self.assertNotIn("--service", describe_line)
+        self.assertNotIn("--quota-id", describe_line)
 
     def test_budget_requires_user_amount_and_exact_readback(self) -> None:
         self.assertIn("KALORIES_MONTHLY_BUDGET_AMOUNT", self.runbook)
         self.assertIn("budget_readback_json", self.runbook)
         self.assertIn("budget alert read-back is mismatched", self.runbook)
         self.assertRegex(self.runbook, r"alert notifies; it neither caps spend")
+        self.assertIn('rule.get("spendBasis") == "CURRENT_SPEND"', self.runbook)
+
+    def test_legacy_rollback_is_never_ready_after_old_key_revocation(self) -> None:
+        self.assertNotIn("Rollback | READY", self.runbook)
+        self.assertIn("limited pre-revocation rollback window", self.runbook)
+        self.assertIn("legacy_rollback_guard=", self.runbook)
+        self.assertIn("post-revocation legacy rollback is forbidden", self.runbook)
+        self.assertIn("private automated equality check", self.runbook)
+
+    def test_sensitive_fences_have_success_cleanup_and_clear_exit_traps(self) -> None:
+        for marker in (
+            "key_material_json=",
+            "iam_mutation_json=",
+            "quota_readback_json=",
+            "budget_readback_json=",
+            "candidate_traffic_total=",
+            "candidate_payload_json=",
+        ):
+            with self.subTest(marker=marker):
+                block = RunbookCommandMockTests._block(marker)
+                self.assertIn("trap - EXIT", block)
 
     def test_readme_has_no_direct_production_deploy_and_imports_rate_limit(self) -> None:
         self.assertNotIn("gcloud run deploy kalories", self.readme)
@@ -521,6 +580,7 @@ class RunbookCommandMockTests(unittest.TestCase):
         self.fixture_dir.mkdir()
         self.tmp_dir.mkdir()
         self.calls = self.root / "calls.txt"
+        self.mktemp_paths = self.root / "mktemp-paths.txt"
         self.runtime_sa = f"{SENTINEL}@example.invalid"
         self.dimensions = {"model": "gemini-3.6-flash"}
         self._write_fakes()
@@ -554,14 +614,29 @@ class RunbookCommandMockTests(unittest.TestCase):
 
     def _write_fakes(self) -> None:
         self._write_executable(
+            "mktemp",
+            """#!/usr/bin/env bash
+set -euo pipefail
+created_path="$(/usr/bin/mktemp "$@")"
+printf '%s\\n' "${created_path}" >>"${FAKE_MKTEMP_PATHS}"
+printf '%s\\n' "${created_path}"
+""",
+        )
+        self._write_executable(
             "gcloud",
             """#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$*" >>"${FAKE_CALLS}"
 case "$*" in
   "services api-keys describe kalories-gemini-testflight"*)
-    command cat "${FAKE_FIXTURES}/key-metadata.json" ;;
+    if [[ "$*" == *"--format=value(name)"* ]]; then
+      printf '%s\n' 'projects/123456789/locations/global/keys/replacement-key'
+    else
+      command cat "${FAKE_FIXTURES}/key-metadata.json"
+    fi ;;
   "services api-keys get-key-string kalories-gemini-testflight"*)
+    command cat "${FAKE_FIXTURES}/key-material.json" ;;
+  "services api-keys get-key-string projects/123456789/locations/global/keys/old-key"*)
     command cat "${FAKE_FIXTURES}/key-material.json" ;;
   "secrets describe kalories-gemini-api-key"*)
     exit 0 ;;
@@ -571,16 +646,44 @@ case "$*" in
     command cat "${FAKE_FIXTURES}/secret-version-readback.json" ;;
   "run services describe kalories"*)
     command cat "${FAKE_FIXTURES}/service.json" ;;
+  "projects get-ancestors zhang23-23"*)
+    command cat "${FAKE_FIXTURES}/ancestors.json" ;;
+  "projects get-iam-policy zhang23-23"*)
+    command cat "${FAKE_FIXTURES}/project-iam.json" ;;
+  "resource-manager folders get-iam-policy "*)
+    if [[ "${FAKE_ANCESTOR_READ_FAIL:-}" == folder ]]; then exit 41; fi
+    command cat "${FAKE_FIXTURES}/folder-iam.json" ;;
+  "organizations get-iam-policy "*)
+    if [[ "${FAKE_ANCESTOR_READ_FAIL:-}" == organization ]]; then exit 42; fi
+    command cat "${FAKE_FIXTURES}/organization-iam.json" ;;
+  "iam roles describe roles/secretmanager.admin"*)
+    command cat "${FAKE_FIXTURES}/admin-role.json" ;;
+  "iam roles describe customAccessor --organization=67890"*)
+    command cat "${FAKE_FIXTURES}/custom-accessor-role.json" ;;
   "secrets add-iam-policy-binding kalories-gemini-api-key"*)
     command cat "${FAKE_FIXTURES}/iam-mutation.json" ;;
   "secrets get-iam-policy kalories-gemini-api-key"*)
     command cat "${FAKE_FIXTURES}/iam-readback.json" ;;
+  "run revisions describe kalories-00003-djq"*)
+    command cat "${FAKE_FIXTURES}/legacy-revision.json" ;;
   "run revisions describe "*)
     command cat "${FAKE_FIXTURES}/revision.json" ;;
   "beta quotas preferences create "*)
     command cat "${FAKE_FIXTURES}/quota-create.json" ;;
   "beta quotas preferences describe "*)
     command cat "${FAKE_FIXTURES}/quota-readback.json" ;;
+  "billing projects describe zhang23-23"*)
+    printf '%s\\n' 'billingAccounts/SAFE-BILLING' ;;
+  "projects describe zhang23-23"*)
+    printf '%s\\n' '123456789' ;;
+  "billing budgets create "*)
+    command cat "${FAKE_FIXTURES}/budget-create.json" ;;
+  "billing budgets describe "*)
+    command cat "${FAKE_FIXTURES}/budget-readback.json" ;;
+  "services api-keys describe projects/123456789/locations/global/keys/old-key"*)
+    if [[ "${FAKE_OLD_KEY_REVOKED:-0}" == 1 ]]; then
+      printf '%s\\n' '2026-08-08T00:00:00Z'
+    fi ;;
   "run services update-traffic kalories"*)
     if [[ "${FAKE_PROMOTION_EXIT:-0}" != 0 ]]; then
       exit "${FAKE_PROMOTION_EXIT}"
@@ -683,6 +786,21 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                 },
             },
         )
+        self._write(
+            "legacy-revision",
+            {
+                "metadata": {"name": "kalories-00003-djq"},
+                "spec": {
+                    "containers": [
+                        {
+                            "env": [
+                                {"name": "GEMINI_API_KEY", "value": SENTINEL}
+                            ]
+                        }
+                    ]
+                },
+            },
+        )
         exact_policy = {
             "bindings": [
                 {
@@ -693,17 +811,59 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         }
         self._write("iam-mutation", exact_policy)
         self._write("iam-readback", exact_policy)
+        self._write(
+            "ancestors",
+            [
+                {"id": "zhang23-23", "type": "project"},
+                {"id": "12345", "type": "folder"},
+                {"id": "67890", "type": "organization"},
+            ],
+        )
+        self._write("project-iam", {"etag": "project", "bindings": []})
+        self._write("folder-iam", {"etag": "folder", "bindings": []})
+        self._write(
+            "organization-iam", {"etag": "organization", "bindings": []}
+        )
+        self._write(
+            "admin-role",
+            {"includedPermissions": ["secretmanager.versions.access"]},
+        )
+        self._write(
+            "custom-accessor-role",
+            {"includedPermissions": ["secretmanager.versions.access"]},
+        )
         quota = {
-            "name": (
-                "projects/p/locations/global/services/generativelanguage.googleapis.com/"
-                "quotaPreferences/kalories-testflight-rpd-200"
-            ),
+            "name": "projects/123456789/locations/global/quotaPreferences/kalories-testflight-rpd-200",
             "reconciling": False,
             "dimensions": self.dimensions,
+            "service": "generativelanguage.googleapis.com",
+            "quotaId": "verified-rpd-id",
             "quotaConfig": {"grantedValue": "200", "preferredValue": "200"},
         }
         self._write("quota-create", quota)
         self._write("quota-readback", quota)
+        budget = {
+            "name": "billingAccounts/SAFE-BILLING/budgets/budget-one",
+            "displayName": "Kalories TestFlight monthly alert",
+            "budgetFilter": {
+                "projects": ["projects/123456789"],
+                "calendarPeriod": "MONTH",
+            },
+            "amount": {
+                "specifiedAmount": {
+                    "currencyCode": "JPY",
+                    "units": "1000",
+                    "nanos": 0,
+                }
+            },
+            "thresholdRules": [
+                {"thresholdPercent": 0.5, "spendBasis": "CURRENT_SPEND"},
+                {"thresholdPercent": 0.8, "spendBasis": "CURRENT_SPEND"},
+                {"thresholdPercent": 1.0, "spendBasis": "CURRENT_SPEND"},
+            ],
+        }
+        self._write("budget-create", budget)
+        self._write("budget-readback", budget)
         self._write("promotion", {"status": "safe"})
 
     def _run_block(
@@ -716,27 +876,42 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         block = self._block(marker)
         if replace is not None:
             block = block.replace(*replace)
+        return self._run_shell(block, **overrides)
+
+    def _run_shell(
+        self, script: str, **overrides: str
+    ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         env.update(
             {
                 "PATH": f"{self.bin_dir}:{env['PATH']}",
                 "FAKE_CALLS": str(self.calls),
                 "FAKE_FIXTURES": str(self.fixture_dir),
+                "FAKE_MKTEMP_PATHS": str(self.mktemp_paths),
                 "TMPDIR": str(self.tmp_dir),
             }
         )
         env.update(overrides)
-        before = set(self.tmp_dir.iterdir())
+        self.calls.touch(exist_ok=True)
+        before_paths = (
+            self.mktemp_paths.read_text(encoding="utf-8").splitlines()
+            if self.mktemp_paths.exists()
+            else []
+        )
         result = subprocess.run(
             ["bash", "-s"],
-            input=block,
+            input=script,
             cwd=ROOT,
             env=env,
             text=True,
             capture_output=True,
             check=False,
         )
-        self.assertEqual(before, set(self.tmp_dir.iterdir()), "runbook temp leaked")
+        after_paths = self.mktemp_paths.read_text(encoding="utf-8").splitlines()
+        created_paths = after_paths[len(before_paths) :]
+        self.assertTrue(created_paths, "runbook block did not create tracked temp state")
+        for created_path in created_paths:
+            self.assertFalse(Path(created_path).exists(), f"runbook temp leaked: {created_path}")
         self.assertNotIn(SENTINEL, result.stdout + result.stderr)
         return result
 
@@ -762,6 +937,16 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self.assertNotEqual(0, result.returncode)
         self.assertIn("NO-GO: pinned secret version read-back failed", result.stdout)
 
+    def test_secret_then_iam_blocks_cleanup_before_trap_is_replaced(self) -> None:
+        combined = "\n".join(
+            (
+                self._block("key_material_json="),
+                self._block("iam_mutation_json="),
+            )
+        )
+        result = self._run_shell(combined)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
     def test_iam_block_rejects_extra_accessor_without_printing_identity(self) -> None:
         result = self._run_block("iam_mutation_json=")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -784,6 +969,115 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self.assertNotEqual(0, result.returncode)
         self.assertIn("NO-GO: secret accessor read-back is not exact", result.stdout)
         self.assertNotIn("extra@example.invalid", result.stdout + result.stderr)
+
+        self._write_defaults()
+        extra_binding = json.loads(
+            (self.fixture_dir / "iam-readback.json").read_text(encoding="utf-8")
+        )
+        extra_binding["bindings"].append(
+            {
+                "role": "roles/secretmanager.admin",
+                "members": ["serviceAccount:extra@example.invalid"],
+            }
+        )
+        self._write("iam-readback", extra_binding)
+        result = self._run_block("iam_mutation_json=")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: secret accessor read-back is not exact", result.stdout)
+        self.assertNotIn("extra@example.invalid", result.stdout + result.stderr)
+
+        self._write_defaults()
+        conditional = json.loads(
+            (self.fixture_dir / "iam-readback.json").read_text(encoding="utf-8")
+        )
+        conditional["bindings"][0]["condition"] = {
+            "title": "temporary",
+            "expression": "request.time < timestamp('2099-01-01T00:00:00Z')",
+        }
+        self._write("iam-readback", conditional)
+        result = self._run_block("iam_mutation_json=")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: secret accessor read-back is not exact", result.stdout)
+
+    def test_iam_block_rejects_inherited_accessor_and_ancestor_read_failure(self) -> None:
+        inherited = {
+            "etag": "folder",
+            "bindings": [
+                {
+                    "role": "roles/secretmanager.secretAccessor",
+                    "members": [f"serviceAccount:{SENTINEL}@ancestor.invalid"],
+                }
+            ],
+        }
+        self._write("folder-iam", inherited)
+        result = self._run_block("iam_mutation_json=")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: inherited secret accessor exists", result.stdout)
+
+        self._write_defaults()
+        self._write(
+            "folder-iam",
+            {
+                "bindings": [
+                    {
+                        "role": "roles/secretmanager.admin",
+                        "members": [f"serviceAccount:{SENTINEL}@ancestor.invalid"],
+                    }
+                ]
+            },
+        )
+        result = self._run_block("iam_mutation_json=")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: inherited secret accessor exists", result.stdout)
+
+        self._write_defaults()
+        self._write(
+            "organization-iam",
+            {
+                "bindings": [
+                    {
+                        "role": "organizations/67890/roles/customAccessor",
+                        "members": [f"serviceAccount:{SENTINEL}@ancestor.invalid"],
+                    }
+                ]
+            },
+        )
+        result = self._run_block("iam_mutation_json=")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: inherited secret accessor exists", result.stdout)
+
+        self._write_defaults()
+        result = self._run_block(
+            "iam_mutation_json=", FAKE_ANCESTOR_READ_FAIL="organization"
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: inherited accessor audit unavailable", result.stdout)
+
+    def test_candidate_log_scanner_error_is_no_go(self) -> None:
+        block = self._block("candidate_payload_json=")
+        begin = block.find("# BEGIN CANDIDATE_LOG_SAFETY_SCAN")
+        end = block.find("# END CANDIDATE_LOG_SAFETY_SCAN")
+        self.assertGreaterEqual(begin, 0)
+        self.assertGreater(end, begin)
+        scanner = block[begin:end]
+        script = "\n".join(
+            (
+                "set -euo pipefail",
+                "jq() { return 3; }",
+                "candidate_logs_json=/dev/null",
+                scanner,
+            )
+        )
+        result = subprocess.run(
+            ["bash", "-s"],
+            input=script,
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: candidate log safety scan failed", result.stdout)
 
     def test_candidate_block_checks_aggregate_traffic_and_revision_identity(self) -> None:
         result = self._run_block(
@@ -812,6 +1106,43 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self.assertNotEqual(0, result.returncode)
         self.assertIn("NO-GO: immutable candidate revision is noncompliant", result.stdout)
 
+    def test_candidate_rejects_missing_or_non_numeric_percent_and_bad_tag_url(self) -> None:
+        for bad_percent in (None, "0"):
+            with self.subTest(percent=bad_percent):
+                self._write_defaults()
+                service = json.loads(
+                    (self.fixture_dir / "service.json").read_text(encoding="utf-8")
+                )
+                tag_entry = service["status"]["traffic"][0]
+                if bad_percent is None:
+                    tag_entry.pop("percent")
+                else:
+                    tag_entry["percent"] = bad_percent
+                self._write("service", service)
+                result = self._run_block(
+                    "candidate_traffic_total=", KALORIES_SECRET_VERSION="7"
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("NO-GO: candidate traffic schema is invalid", result.stdout)
+
+        for bad_url in (
+            "http://localhost/candidate",
+            "https://bad..host.example/candidate",
+            "https://-bad.example/candidate",
+        ):
+            with self.subTest(url=bad_url):
+                self._write_defaults()
+                service = json.loads(
+                    (self.fixture_dir / "service.json").read_text(encoding="utf-8")
+                )
+                service["status"]["traffic"][0]["url"] = bad_url
+                self._write("service", service)
+                result = self._run_block(
+                    "candidate_traffic_total=", KALORIES_SECRET_VERSION="7"
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("NO-GO: candidate tag URL is invalid", result.stdout)
+
     def test_quota_block_rejects_pending_partial_and_wrong_dimensions(self) -> None:
         base_env = {
             "KALORIES_RPD_QUOTA_ID": "verified-rpd-id",
@@ -825,6 +1156,14 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
             {"quotaConfig": {"grantedValue": "199", "preferredValue": "200"}},
             {"quotaConfig": {"grantedValue": "200", "preferredValue": "199"}},
             {"dimensions": {"model": "wrong"}},
+            {"service": "wrong.googleapis.com"},
+            {"quotaId": "wrong-quota-id"},
+            {
+                "name": (
+                    "projects/123456789/locations/global/quotaPreferences/"
+                    "wrong-preference"
+                )
+            },
         ]
         for changes in bad_states:
             with self.subTest(changes=changes):
@@ -840,6 +1179,100 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                     "NO-GO: quota preference is pending, partial, or mismatched",
                     result.stdout,
                 )
+
+        calls = self.calls.read_text(encoding="utf-8")
+        describe_call = next(
+            line
+            for line in calls.splitlines()
+            if line.startswith("beta quotas preferences describe ")
+        )
+        self.assertNotIn("--service", describe_call)
+        self.assertNotIn("--quota-id", describe_call)
+
+    def test_budget_rejects_missing_or_forecast_spend_basis(self) -> None:
+        result = self._run_block(
+            "budget_readback_json=", KALORIES_MONTHLY_BUDGET_AMOUNT="1000JPY"
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+        for basis in (None, "FORECASTED_SPEND"):
+            with self.subTest(basis=basis):
+                self._write_defaults()
+                budget = json.loads(
+                    (self.fixture_dir / "budget-readback.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                if basis is None:
+                    budget["thresholdRules"][0].pop("spendBasis")
+                else:
+                    budget["thresholdRules"][0]["spendBasis"] = basis
+                self._write("budget-readback", budget)
+                result = self._run_block(
+                    "budget_readback_json=",
+                    KALORIES_MONTHLY_BUDGET_AMOUNT="1000JPY",
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("NO-GO: budget alert read-back is mismatched", result.stdout)
+
+    def test_post_revocation_legacy_rollback_guard_never_changes_traffic(self) -> None:
+        env = {
+            "KALORIES_OLD_KEY_RESOURCE": (
+                "projects/123456789/locations/global/keys/old-key"
+            ),
+            "KALORIES_OLD_KEY_REVOKED": "yes",
+        }
+        result = self._run_block("legacy_rollback_guard=", **env)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "NO-GO: post-revocation legacy rollback is forbidden", result.stdout
+        )
+        self.assertNotIn("run services update-traffic", self.calls.read_text())
+
+        self.calls.write_text("", encoding="utf-8")
+        env["KALORIES_OLD_KEY_REVOKED"] = "no"
+        result = self._run_block(
+            "legacy_rollback_guard=", FAKE_OLD_KEY_REVOKED="1", **env
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "NO-GO: post-revocation legacy rollback is forbidden", result.stdout
+        )
+        self.assertNotIn("run services update-traffic", self.calls.read_text())
+
+        self.calls.write_text("", encoding="utf-8")
+        result = self._run_block("legacy_rollback_guard=", **env)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn(
+            "--to-revisions=kalories-00003-djq=100",
+            self.calls.read_text(encoding="utf-8"),
+        )
+
+        self.calls.write_text("", encoding="utf-8")
+        legacy_revision = json.loads(
+            (self.fixture_dir / "legacy-revision.json").read_text(encoding="utf-8")
+        )
+        legacy_revision["spec"]["containers"][0]["env"][0]["value"] = (
+            SENTINEL + "_OTHER"
+        )
+        self._write("legacy-revision", legacy_revision)
+        result = self._run_block("legacy_rollback_guard=", **env)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "NO-GO: legacy revision credential does not match rollback key",
+            result.stdout,
+        )
+        self.assertNotIn("run services update-traffic", self.calls.read_text())
+
+        self.calls.write_text("", encoding="utf-8")
+        self._write_defaults()
+        env["KALORIES_OLD_KEY_RESOURCE"] = (
+            "projects/123456789/locations/global/keys/replacement-key"
+        )
+        result = self._run_block("legacy_rollback_guard=", **env)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("NO-GO: legacy rollback key identity is invalid", result.stdout)
+        self.assertNotIn("run services update-traffic", self.calls.read_text())
 
     def test_promotion_failure_stops_before_exact_postcheck(self) -> None:
         replacement = ("scripts/check-testflight-backend.sh", "fake-postcheck")

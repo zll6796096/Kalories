@@ -26,14 +26,16 @@ Firebase, accounts, or another identity design.
 | Preferred Gemini limit | RPD `200`, only after the exact enforceable quota ID and dimensions are verified |
 | Controlled audience | Invited testers who are 18 or older |
 
-Never print, paste, compare, screenshot, or commit an API key value, request
-image, provider response, IAM identity list, or log content. Use `set -euo
+Never print, paste, manually compare, screenshot, or commit an API key value,
+request image, provider response, IAM identity list, or log content. The only
+key comparison below is a private automated equality check over mode-600 files;
+it emits only a fixed boolean verdict and deletes both files. Use `set -euo
 pipefail`, no shell tracing, `umask 077`, exact temporary paths, fixed safe
 findings, and cleanup traps.
 
 ## Read-only baseline
 
-Captured at `2026-08-08 08:00:38 JST (+0900)`; rerun immediately before any
+Captured at `2026-08-08 08:38:28 JST (+0900)`; rerun immediately before any
 future checkpoint because live state can drift.
 
 | Evidence | Observed state | Gate result |
@@ -98,7 +100,7 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | Candidate logs | UNVERIFIED | Nonempty target request logs and recursive safe scan |
 | Promotion | PENDING | Every preceding gate PASS; exact candidate promoted and postchecked |
 | Old-key revocation | PENDING | Only after promotion and replacement-key health/log evidence |
-| Rollback | READY AS PROCEDURE ONLY | Exact prior revision and no return to revoked plaintext credential |
+| Rollback | LIMITED PRE-REVOCATION ONLY | Legacy revision is unavailable after old-key revocation; no pinned-secret rollback revision exists yet |
 | TestFlight upload | OUTSIDE BACKEND TASK | Separate signed-build upload evidence |
 | TestFlight processing/invites | OUTSIDE BACKEND TASK | Processing complete; invited 18+ testers only |
 | Public App Store | OUT OF SCOPE / UNRESOLVED | Private support, age/compliance, privacy, review, release and storefront gates |
@@ -287,6 +289,8 @@ if ! jq -e --arg version "${KALORIES_SECRET_VERSION}" '
   exit 1
 fi
 printf '%s\n' 'CHECK replacement key is stored in one enabled pinned secret version'
+cleanup_secret_material
+trap - EXIT
 ```
 
 Resolve the actual runtime service account from the live service, then make and
@@ -298,16 +302,20 @@ set -euo pipefail
 umask 077
 iam_tmp="$(mktemp -d)"
 service_before_json="${iam_tmp}/service-before.json"
-service_now_json="${iam_tmp}/service-now.json"
 iam_mutation_json="${iam_tmp}/iam-mutation.json"
 iam_readback_json="${iam_tmp}/iam-readback.json"
+ancestors_json="${iam_tmp}/ancestors.json"
+project_iam_json="${iam_tmp}/project-iam.json"
+iam_private_files=(
+  "${service_before_json}"
+  "${iam_mutation_json}"
+  "${iam_readback_json}"
+  "${ancestors_json}"
+  "${project_iam_json}"
+)
 cleanup_iam() {
   local iam_file
-  for iam_file in \
-    "${service_before_json}" \
-    "${service_now_json}" \
-    "${iam_mutation_json}" \
-    "${iam_readback_json}"; do
+  for iam_file in "${iam_private_files[@]}"; do
     if [[ -f "${iam_file}" ]]; then unlink -- "${iam_file}"; fi
   done
   if [[ -d "${iam_tmp}" ]]; then rmdir -- "${iam_tmp}"; fi
@@ -332,30 +340,162 @@ gcloud secrets add-iam-policy-binding kalories-gemini-api-key \
 gcloud secrets get-iam-policy kalories-gemini-api-key \
   --project=zhang23-23 --format=json >"${iam_readback_json}" 2>/dev/null
 if ! jq -e --arg member "serviceAccount:${KALORIES_RUNTIME_SA}" '
-  [.bindings[]?
-   | select(.role == "roles/secretmanager.secretAccessor")
-   | .members[]?] as $accessors
-  | (($accessors | length) == 1 and $accessors[0] == $member)
+  [.bindings[]? | select(.role == "roles/secretmanager.secretAccessor")] as $bindings
+  | ((.bindings | type) == "array")
+  and ((.bindings | length) == 1)
+  and (($bindings | length) == 1)
+  and ($bindings[0] | has("condition") | not)
+  and (($bindings[0].members | type) == "array")
+  and (($bindings[0].members | length) == 1)
+  and ($bindings[0].members[0] == $member)
 ' "${iam_readback_json}" >/dev/null; then
   printf '%s\n' 'NO-GO: secret accessor read-back is not exact'
   exit 1
 fi
-printf '%s\n' 'CHECK secret accessor is exact; identities omitted'
-```
 
-Immediately before deployment, repeat the service describe and compare
-`resourceVersion`; any drift aborts the candidate deployment:
-
-```bash
-gcloud run services describe kalories \
-  --project=zhang23-23 --region=asia-northeast1 \
-  --format=json >"${service_now_json}" 2>/dev/null
-if ! jq -e --arg expected "${KALORIES_SERVICE_RESOURCE_VERSION}" '
-  .metadata.resourceVersion == $expected
-' "${service_now_json}" >/dev/null; then
-  printf '%s\n' 'NO-GO: live service changed after concurrency pre-audit'
+if ! gcloud projects get-ancestors zhang23-23 \
+  --format=json >"${ancestors_json}" 2>/dev/null ||
+  ! jq -e '
+    type == "array" and length > 0
+    and all(.[];
+      (.type == "project" or .type == "folder" or .type == "organization")
+      and (.id | type == "string" and length > 0))
+    and ([.[] | select(.type == "project" and .id == "zhang23-23")] | length == 1)
+  ' "${ancestors_json}" >/dev/null; then
+  printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
   exit 1
 fi
+
+inherited_role_index=0
+audit_inherited_policy() {
+  local policy_file="$1"
+  local role_name
+  local role_json
+  local role_id
+  local role_scope
+  if ! jq -e '
+    type == "object"
+    and ((.bindings // []) | type == "array")
+    and all(.bindings[]?;
+      (.role | type == "string") and (.members | type == "array"))
+  ' "${policy_file}" >/dev/null; then
+    return 2
+  fi
+  if jq -e '[.bindings[]?
+    | select(.role == "roles/secretmanager.secretAccessor")
+    | select((.members | length) > 0)] | length > 0' \
+    "${policy_file}" >/dev/null; then
+    return 10
+  fi
+  while IFS= read -r role_name; do
+    role_json="${iam_tmp}/role-${inherited_role_index}.json"
+    iam_private_files+=("${role_json}")
+    inherited_role_index=$((inherited_role_index + 1))
+    case "${role_name}" in
+      roles/*)
+        if ! gcloud iam roles describe "${role_name}" \
+          --format=json >"${role_json}" 2>/dev/null; then
+          return 2
+        fi
+        ;;
+      projects/*/roles/*)
+        role_scope="${role_name#projects/}"
+        role_scope="${role_scope%%/roles/*}"
+        role_id="${role_name##*/}"
+        if ! gcloud iam roles describe "${role_id}" \
+          --project="${role_scope}" --format=json >"${role_json}" 2>/dev/null; then
+          return 2
+        fi
+        ;;
+      organizations/*/roles/*)
+        role_scope="${role_name#organizations/}"
+        role_scope="${role_scope%%/roles/*}"
+        role_id="${role_name##*/}"
+        if ! gcloud iam roles describe "${role_id}" \
+          --organization="${role_scope}" --format=json >"${role_json}" 2>/dev/null; then
+          return 2
+        fi
+        ;;
+      *) return 2 ;;
+    esac
+    if ! jq -e '
+      type == "object"
+      and (.deleted? != true)
+      and (.stage? != "DISABLED")
+      and (.includedPermissions | type == "array")
+      and all(.includedPermissions[]; type == "string")
+    ' "${role_json}" >/dev/null; then
+      return 2
+    fi
+    if jq -e '
+      any(.includedPermissions[]; . == "secretmanager.versions.access")
+    ' "${role_json}" >/dev/null; then
+      return 10
+    fi
+  done < <(jq -r '[.bindings[]?
+    | select((.members | length) > 0)
+    | .role] | unique[]' "${policy_file}")
+  return 0
+}
+
+if ! gcloud projects get-iam-policy zhang23-23 \
+  --format=json >"${project_iam_json}" 2>/dev/null; then
+  printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+  exit 1
+fi
+if audit_inherited_policy "${project_iam_json}"; then
+  :
+else
+  inherited_audit_status=$?
+  if [[ "${inherited_audit_status}" -eq 10 ]]; then
+    printf '%s\n' 'NO-GO: inherited secret accessor exists'
+  else
+    printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+  fi
+  exit 1
+fi
+
+ancestor_index=0
+while IFS=$'\t' read -r ancestor_type ancestor_id; do
+  ancestor_policy_json="${iam_tmp}/ancestor-${ancestor_index}.json"
+  iam_private_files+=("${ancestor_policy_json}")
+  ancestor_index=$((ancestor_index + 1))
+  case "${ancestor_type}" in
+    folder)
+      if ! gcloud resource-manager folders get-iam-policy "${ancestor_id}" \
+        --format=json >"${ancestor_policy_json}" 2>/dev/null; then
+        printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+        exit 1
+      fi
+      ;;
+    organization)
+      if ! gcloud organizations get-iam-policy "${ancestor_id}" \
+        --format=json >"${ancestor_policy_json}" 2>/dev/null; then
+        printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+        exit 1
+      fi
+      ;;
+    *)
+      printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+      exit 1
+      ;;
+  esac
+  if audit_inherited_policy "${ancestor_policy_json}"; then
+    :
+  else
+    inherited_audit_status=$?
+    if [[ "${inherited_audit_status}" -eq 10 ]]; then
+      printf '%s\n' 'NO-GO: inherited secret accessor exists'
+    else
+      printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
+    fi
+    exit 1
+  fi
+done < <(jq -r '.[] | select(.type != "project") | [.type, .id] | @tsv' \
+  "${ancestors_json}")
+printf '%s\n' 'CHECK secret accessor is exact; identities omitted'
+cleanup_iam
+trap - EXIT
 ```
 
 ## 6. Provider privacy gate
@@ -379,7 +519,9 @@ a fresh privacy review change that conclusion.
 First discover the enforceable project/model requests-per-day quota. Do not use
 a display name as its ID. Set the exact dimensions JSON only from that evidence.
 The example value below is intentionally not supplied because guessing a
-dimension is forbidden.
+dimension is forbidden. The create command accepts service and quota ID, while
+the official `preferences describe` command identifies the preference by its
+resource ID and project only.
 
 ```bash
 set -euo pipefail
@@ -405,6 +547,9 @@ cleanup_quota() {
 }
 trap cleanup_quota EXIT
 
+KALORIES_PROJECT_NUMBER="$(gcloud projects describe zhang23-23 \
+  --format='value(projectNumber)')"
+test -n "${KALORIES_PROJECT_NUMBER}"
 gcloud beta quotas preferences create \
   --project=zhang23-23 \
   --service=generativelanguage.googleapis.com \
@@ -417,11 +562,15 @@ gcloud beta quotas preferences create \
   --format=json >"${quota_create_json}" 2>/dev/null
 gcloud beta quotas preferences describe kalories-testflight-rpd-200 \
   --project=zhang23-23 \
-  --service=generativelanguage.googleapis.com \
-  --quota-id="${KALORIES_RPD_QUOTA_ID}" \
   --format=json >"${quota_readback_json}" 2>/dev/null
-if ! jq -e --argjson expected_dimensions "${KALORIES_RPD_DIMENSIONS_JSON}" '
-  (.name | endswith("/quotaPreferences/kalories-testflight-rpd-200"))
+if ! jq -e \
+  --arg project_number "${KALORIES_PROJECT_NUMBER}" \
+  --arg expected_quota_id "${KALORIES_RPD_QUOTA_ID}" \
+  --argjson expected_dimensions "${KALORIES_RPD_DIMENSIONS_JSON}" '
+  .name == ("projects/" + $project_number
+    + "/locations/global/quotaPreferences/kalories-testflight-rpd-200")
+  and .service == "generativelanguage.googleapis.com"
+  and .quotaId == $expected_quota_id
   and .reconciling == false
   and ((.quotaConfig.grantedValue | tonumber) == 200)
   and ((.quotaConfig.preferredValue | tonumber) == 200)
@@ -431,6 +580,8 @@ if ! jq -e --argjson expected_dimensions "${KALORIES_RPD_DIMENSIONS_JSON}" '
   exit 1
 fi
 printf '%s\n' 'CHECK exact quota preference is settled at RPD 200'
+cleanup_quota
+trap - EXIT
 ```
 
 If no exact enforceable RPD quota exists, external TestFlight stays `NO-GO`.
@@ -471,9 +622,9 @@ gcloud billing budgets create \
   --budget-amount="${KALORIES_MONTHLY_BUDGET_AMOUNT}" \
   --filter-projects="projects/${KALORIES_PROJECT_NUMBER}" \
   --calendar-period=month \
-  --threshold-rule=percent=0.50 \
-  --threshold-rule=percent=0.80 \
-  --threshold-rule=percent=1.00 \
+  --threshold-rule=percent=0.50,basis=current-spend \
+  --threshold-rule=percent=0.80,basis=current-spend \
+  --threshold-rule=percent=1.00,basis=current-spend \
   --format=json >"${budget_create_json}" 2>/dev/null
 KALORIES_BUDGET_RESOURCE="$(jq -er '.name' "${budget_create_json}")"
 gcloud billing budgets describe "${KALORIES_BUDGET_RESOURCE}" \
@@ -501,6 +652,7 @@ thresholds = sorted(
     Decimal(str(rule.get("thresholdPercent")))
     for rule in document.get("thresholdRules", [])
 )
+threshold_rules = document.get("thresholdRules", [])
 valid = (
     document.get("displayName") == "Kalories TestFlight monthly alert"
     and document.get("budgetFilter", {}).get("projects")
@@ -509,6 +661,7 @@ valid = (
     and money.get("currencyCode") == match.group(2)
     and actual == Decimal(match.group(1))
     and thresholds == [Decimal("0.5"), Decimal("0.8"), Decimal("1")]
+    and all(rule.get("spendBasis") == "CURRENT_SPEND" for rule in threshold_rules)
 )
 raise SystemExit(0 if valid else 1)
 PY
@@ -517,6 +670,8 @@ then
   exit 1
 fi
 printf '%s\n' 'CHECK user-approved budget alert read-back passed'
+cleanup_budget
+trap - EXIT
 ```
 
 ## 9. Zero-traffic immutable candidate
@@ -528,8 +683,26 @@ pinned to the verified numeric version.
 ```bash
 set -euo pipefail
 : "${KALORIES_SECRET_VERSION:?Use the verified numeric secret version}"
+: "${KALORIES_SERVICE_RESOURCE_VERSION:?Run the IAM/concurrency pre-audit first}"
 if [[ ! "${KALORIES_SECRET_VERSION}" =~ ^[1-9][0-9]*$ ]]; then
   printf '%s\n' 'NO-GO: secret version is not pinned'
+  exit 1
+fi
+umask 077
+candidate_deploy_tmp="$(mktemp -d)"
+service_now_json="${candidate_deploy_tmp}/service-now.json"
+cleanup_candidate_deploy() {
+  if [[ -f "${service_now_json}" ]]; then unlink -- "${service_now_json}"; fi
+  if [[ -d "${candidate_deploy_tmp}" ]]; then rmdir -- "${candidate_deploy_tmp}"; fi
+}
+trap cleanup_candidate_deploy EXIT
+gcloud run services describe kalories \
+  --project=zhang23-23 --region=asia-northeast1 \
+  --format=json >"${service_now_json}" 2>/dev/null
+if ! jq -e --arg expected "${KALORIES_SERVICE_RESOURCE_VERSION}" '
+  .metadata.resourceVersion == $expected
+' "${service_now_json}" >/dev/null; then
+  printf '%s\n' 'NO-GO: live service changed after concurrency pre-audit'
   exit 1
 fi
 if ! gcloud run deploy kalories \
@@ -547,6 +720,8 @@ if ! gcloud run deploy kalories \
   printf '%s\n' 'NO-GO: zero-traffic candidate deploy failed'
   exit 1
 fi
+cleanup_candidate_deploy
+trap - EXIT
 ```
 
 Resolve the tag, then describe and validate that immutable revision itself.
@@ -583,12 +758,24 @@ KALORIES_CANDIDATE_URL="$(jq -er '
   [.status.traffic[]? | select(.tag == "testflight-candidate")]
   | if length == 1 then .[0].url else empty end
 ' "${candidate_service_json}")"
-candidate_traffic_total="$(jq -er --arg revision "${KALORIES_CANDIDATE_REVISION}" '
-  [.status.traffic[]?
-   | select(.revisionName == $revision)
-   | (.percent // 0)]
-  | add // 0
-' "${candidate_service_json}")"
+if [[ ! "${KALORIES_CANDIDATE_URL}" =~ ^https://([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?[.])+[A-Za-z]{2,63}(:[0-9]{1,5})?(/.*)?$ ]]; then
+  printf '%s\n' 'NO-GO: candidate tag URL is invalid'
+  exit 1
+fi
+if ! candidate_traffic_total="$(jq -er \
+  --arg revision "${KALORIES_CANDIDATE_REVISION}" '
+    [.status.traffic[]? | select(.revisionName == $revision)] as $entries
+    | select(($entries | length) > 0)
+    | select(all($entries[];
+        has("percent")
+        and (.percent | type == "number")
+        and .percent >= 0
+        and .percent <= 100))
+    | ($entries | map(.percent) | add)
+  ' "${candidate_service_json}")"; then
+  printf '%s\n' 'NO-GO: candidate traffic schema is invalid'
+  exit 1
+fi
 if [[ "${candidate_traffic_total}" != 0 ]]; then
   printf '%s\n' 'NO-GO: candidate revision traffic is not zero'
   exit 1
@@ -637,6 +824,8 @@ if ! jq -e \
   exit 1
 fi
 printf '%s\n' 'CHECK immutable candidate is compliant and has aggregate traffic zero'
+cleanup_candidate_state
+trap - EXIT
 ```
 
 The model remains `gemini-3.6-flash`; deprecated sampling fields such as
@@ -648,6 +837,19 @@ latency under 20 seconds, and cost are still unverified at this point.
 Use one generated non-personal synthetic meal image outside the repository.
 Keep request, response and logs private. Every curl command must succeed at the
 transport layer as well as return HTTP 200.
+
+`AnalyzeResponse.model_validate_json` enforces the production Pydantic
+contract: complete nested shape, strict types, enum values, numeric ranges,
+nullability, forbidden extras, nonempty food names, unique assumption keys, and
+the full deterministic assessment. It rejects string nutrients, invalid
+confidence values, and an empty assessment. The HTTP result still does not
+prove cost; record a separate project/model usage and cost observation.
+
+This same private block reads logs after the target request, by immutable
+candidate revision. A valid nonempty JSON array and a target request log for
+`/api/analyze` are mandatory. The recursive scan rejects sensitive keys and
+markers in any string, including stringified provider JSON, without printing a
+match. This includes `providerResponse` and `provider_response` spellings.
 
 ```bash
 set -euo pipefail
@@ -729,23 +931,6 @@ then
 fi
 printf 'CHECK candidate real-image: HTTP 200, strict schema valid, latency %ss\n' \
   "${request_latency_seconds}"
-```
-
-`AnalyzeResponse.model_validate_json` enforces the production Pydantic
-contract: complete nested shape, strict types, enum values, numeric ranges,
-nullability, forbidden extras, nonempty food names, unique assumption keys, and
-the full deterministic assessment. It rejects string nutrients, invalid
-confidence values, and an empty assessment. The HTTP result still does not
-prove cost; record a separate project/model usage and cost observation.
-
-Read logs after the target request, by immutable candidate revision. A valid
-nonempty JSON array and a target request log for `/api/analyze` are mandatory.
-The recursive scan rejects sensitive keys or values including Authorization,
-`x-goog-api-key`, API key shapes, Bearer values, long base64/image data,
-request/providerResponse bodies, assessment, and nutrients. It never prints a
-match.
-
-```bash
 if ! gcloud logging read \
   "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"kalories\" AND resource.labels.location=\"asia-northeast1\" AND resource.labels.revision_name=\"${KALORIES_CANDIDATE_REVISION}\" AND timestamp>=\"${candidate_request_started_at}\"" \
   --project=zhang23-23 --limit=200 --order=desc --format=json \
@@ -758,24 +943,35 @@ if ! jq -e 'type == "array" and length > 0' \
   printf '%s\n' 'NO-GO: candidate logs are not a nonempty JSON array'
   exit 1
 fi
-if jq -e '
+# BEGIN CANDIDATE_LOG_SAFETY_SCAN
+candidate_log_scan_status=0
+jq -e '
   def normalized_key: ascii_downcase | gsub("[-_]"; "");
   def sensitive_key:
     normalized_key as $key
     | [
         "authorization", "xgoogapikey", "apikey", "geminiapikey",
         "request", "requestbody", "providerrequest", "providerresponse",
-        "responsebody", "assessment", "nutrients", "image", "prompt",
-        "contents", "candidates"
+        "response", "responsebody", "assessment", "nutrients",
+        "fooddetected", "image", "prompt", "contents", "candidates"
       ]
     | index($key) != null;
   any(.. | objects | keys_unsorted[]?; sensitive_key)
   or any(.. | strings;
-    test("(?i)data:image/|authorization:|api[_-]?key[=:]|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}"))
-' "${candidate_logs_json}" >/dev/null; then
-  printf '%s\n' 'NO-GO: candidate logs contain sensitive application data'
-  exit 1
-fi
+    test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|api[_-]?key)\\\"?[[:space:]]*[:=]"))
+' "${candidate_logs_json}" >/dev/null || candidate_log_scan_status=$?
+case "${candidate_log_scan_status}" in
+  0)
+    printf '%s\n' 'NO-GO: candidate logs contain sensitive application data'
+    exit 1
+    ;;
+  1) ;;
+  *)
+    printf '%s\n' 'NO-GO: candidate log safety scan failed'
+    exit 1
+    ;;
+esac
+# END CANDIDATE_LOG_SAFETY_SCAN
 if ! jq -e --arg revision "${KALORIES_CANDIDATE_REVISION}" '
   any(.[];
     .resource.labels.revision_name? == $revision
@@ -786,6 +982,9 @@ if ! jq -e --arg revision "${KALORIES_CANDIDATE_REVISION}" '
   exit 1
 fi
 printf '%s\n' 'CHECK candidate target request log collected; safe scan passed'
+cleanup_candidate_test
+trap - EXIT
+unset KALORIES_SYNTHETIC_MEAL_IMAGE
 ```
 
 ## 11. Exact promotion, postcheck, revocation, and rollback
@@ -817,6 +1016,8 @@ if ! KALORIES_EXPECTED_REVISION="${KALORIES_CANDIDATE_REVISION}" \
   printf '%s\n' 'NO-GO: promoted revision failed exact production postcheck'
   exit 1
 fi
+cleanup_promotion
+trap - EXIT
 ```
 
 The postcheck proves that the exact candidate revision is the sole production
@@ -825,9 +1026,117 @@ A pre-existing compliant production revision cannot make a failed promotion
 look successful. Repeat the real-image request and targeted safe-log gate
 against production before touching the old credential.
 
+The exact baseline revision `kalories-00003-djq` is known to use a plaintext,
+unpinned credential. Its limited pre-revocation rollback window exists only
+while the old key is still active. This emergency command must prove the old
+key has not been revoked before changing traffic:
+
+```bash
+set -euo pipefail
+: "${KALORIES_OLD_KEY_RESOURCE:?Set exact old key resource from metadata}"
+: "${KALORIES_OLD_KEY_REVOKED:?Set yes or no from the current revocation checkpoint}"
+legacy_rollback_guard='kalories-00003-djq'
+umask 077
+legacy_rollback_tmp="$(mktemp -d)"
+old_key_delete_time="${legacy_rollback_tmp}/old-key-delete-time"
+legacy_revision_json="${legacy_rollback_tmp}/legacy-revision.json"
+legacy_key_response_json="${legacy_rollback_tmp}/legacy-key-material.json"
+legacy_revision_key_file="${legacy_rollback_tmp}/legacy-revision-key"
+legacy_resource_key_file="${legacy_rollback_tmp}/legacy-resource-key"
+cleanup_legacy_rollback() {
+  local legacy_private_file
+  for legacy_private_file in \
+    "${old_key_delete_time}" \
+    "${legacy_revision_json}" \
+    "${legacy_key_response_json}" \
+    "${legacy_revision_key_file}" \
+    "${legacy_resource_key_file}"; do
+    if [[ -f "${legacy_private_file}" ]]; then unlink -- "${legacy_private_file}"; fi
+  done
+  if [[ -d "${legacy_rollback_tmp}" ]]; then rmdir -- "${legacy_rollback_tmp}"; fi
+}
+trap cleanup_legacy_rollback EXIT
+if [[ "${KALORIES_OLD_KEY_REVOKED}" == yes ]]; then
+  printf '%s\n' 'NO-GO: post-revocation legacy rollback is forbidden'
+  exit 1
+fi
+if [[ "${KALORIES_OLD_KEY_REVOKED}" != no ]]; then
+  printf '%s\n' 'NO-GO: old key revocation state is invalid'
+  exit 1
+fi
+if ! KALORIES_PROJECT_NUMBER="$(gcloud projects describe zhang23-23 \
+  --format='value(projectNumber)')" ||
+  ! KALORIES_REPLACEMENT_KEY_RESOURCE="$(gcloud services api-keys describe \
+    kalories-gemini-testflight --project=zhang23-23 --location=global \
+    --format='value(name)')"; then
+  printf '%s\n' 'NO-GO: legacy rollback key identity is unavailable'
+  exit 1
+fi
+expected_old_key_prefix="projects/${KALORIES_PROJECT_NUMBER}/locations/global/keys/"
+if [[ -z "${KALORIES_PROJECT_NUMBER}" ]] ||
+  [[ -z "${KALORIES_REPLACEMENT_KEY_RESOURCE}" ]] ||
+  [[ "${KALORIES_OLD_KEY_RESOURCE}" != "${expected_old_key_prefix}"* ]] ||
+  [[ "${KALORIES_OLD_KEY_RESOURCE}" == "${KALORIES_REPLACEMENT_KEY_RESOURCE}" ]]; then
+  printf '%s\n' 'NO-GO: legacy rollback key identity is invalid'
+  exit 1
+fi
+if ! gcloud services api-keys describe "${KALORIES_OLD_KEY_RESOURCE}" \
+  --project=zhang23-23 --location=global \
+  --format='value(deleteTime)' >"${old_key_delete_time}" 2>/dev/null; then
+  printf '%s\n' 'NO-GO: old API key status is unavailable'
+  exit 1
+fi
+if [[ -s "${old_key_delete_time}" ]]; then
+  printf '%s\n' 'NO-GO: post-revocation legacy rollback is forbidden'
+  exit 1
+fi
+if ! gcloud run revisions describe "${legacy_rollback_guard}" \
+  --project=zhang23-23 --region=asia-northeast1 \
+  --format=json >"${legacy_revision_json}" 2>/dev/null ||
+  ! jq -je --arg revision "${legacy_rollback_guard}" '
+    select(.metadata.name? == $revision)
+    | [.spec.containers[]?.env[]?, .containers[]?.env[]?
+       | select(.name? == "GEMINI_API_KEY")] as $keys
+    | select(($keys | length) == 1)
+    | select($keys[0] | has("value"))
+    | select($keys[0] | has("valueFrom") | not)
+    | select($keys[0] | has("valueSource") | not)
+    | $keys[0].value
+    | select(type == "string" and length > 0)
+  ' "${legacy_revision_json}" >"${legacy_revision_key_file}"; then
+  printf '%s\n' 'NO-GO: legacy revision credential is unavailable or not plaintext'
+  exit 1
+fi
+chmod 600 "${legacy_revision_json}" "${legacy_revision_key_file}"
+if ! gcloud services api-keys get-key-string "${KALORIES_OLD_KEY_RESOURCE}" \
+  --project=zhang23-23 --location=global \
+  --format=json >"${legacy_key_response_json}" 2>/dev/null ||
+  ! jq -je '.keyString | select(type == "string" and length > 0)' \
+    "${legacy_key_response_json}" >"${legacy_resource_key_file}"; then
+  printf '%s\n' 'NO-GO: legacy rollback key material is unavailable'
+  exit 1
+fi
+chmod 600 "${legacy_key_response_json}" "${legacy_resource_key_file}"
+if ! cmp -s "${legacy_revision_key_file}" "${legacy_resource_key_file}"; then
+  printf '%s\n' 'NO-GO: legacy revision credential does not match rollback key'
+  exit 1
+fi
+if ! gcloud run services update-traffic kalories \
+  --project=zhang23-23 \
+  --region=asia-northeast1 \
+  --to-revisions="${legacy_rollback_guard}=100" >/dev/null; then
+  printf '%s\n' 'NO-GO: limited pre-revocation rollback traffic command failed'
+  exit 1
+fi
+printf '%s\n' 'CHECK limited pre-revocation rollback completed; legacy credential still requires retirement'
+cleanup_legacy_rollback
+trap - EXIT
+```
+
 Old-key deletion is a separate, freshly confirmed mutation. Resolve by metadata
 identity, never by key value; exclude `kalories-gemini-testflight`. Run only
-after successful promotion and replacement-key production checks:
+after successful promotion and replacement-key production checks, accepting
+that this permanently closes the legacy rollback window:
 
 ```bash
 set -euo pipefail
@@ -877,24 +1186,13 @@ fi
 printf '%s\n' 'CHECK old key revoked; replacement remains active'
 ```
 
-The exact prior production revision in this baseline is
-`kalories-00003-djq`. Traffic rollback is:
-
-```bash
-if ! gcloud run services update-traffic kalories \
-  --project=zhang23-23 \
-  --region=asia-northeast1 \
-  --to-revisions=kalories-00003-djq=100 >/dev/null; then
-  printf '%s\n' 'NO-GO: rollback traffic command failed'
-  exit 1
-fi
-KALORIES_EXPECTED_REVISION=kalories-00003-djq \
-  scripts/check-testflight-backend.sh
-```
-
-Rollback changes traffic only. It must never restore a revoked plaintext key.
-If the prior code cannot use the new pinned secret, keep the safe revision and
-fix forward.
+After revocation, `kalories-00003-djq` is unavailable and must never receive
+traffic. There is currently no predeployed, validated pinned-secret rollback
+revision. A post-revocation incident must therefore fail closed and roll
+forward from the promoted pinned-secret revision. Deploying a future rollback
+candidate is a separate zero-traffic action requiring fresh confirmation and
+all candidate gates before the old key is revoked; do not improvise traffic
+mutation during an incident.
 
 ## 12. Runtime limits and monitoring
 

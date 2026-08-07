@@ -290,13 +290,13 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${have_rg}" == true &
           | [
               "authorization", "xgoogapikey", "apikey", "geminiapikey",
               "request", "requestbody", "providerrequest", "providerresponse",
-              "responsebody", "assessment", "nutrients", "image", "prompt",
-              "contents", "candidates"
+              "response", "responsebody", "assessment", "nutrients",
+              "fooddetected", "image", "prompt", "contents", "candidates"
             ]
           | index($key) != null;
         any(.. | objects | keys_unsorted[]?; sensitive_key)
         or any(.. | strings;
-          test("(?i)data:image/|authorization:|api[_-]?key[=:]|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}"))
+          test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|api[_-]?key)\\\"?[[:space:]]*[:=]"))
       ' "${logs_json}" >/dev/null 2>&1; then
         sensitive_log_data=true
       else
