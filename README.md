@@ -86,6 +86,13 @@ gcloud run deploy kalories \
 Kalories 专用 Secret Manager secret，并同时配置外部身份／滥用防护、
 速率限制、API 配额和预算告警；不要复用其他应用的 secret。
 
+TestFlight 后端发布使用只读的
+[`scripts/check-testflight-backend.sh`](scripts/check-testflight-backend.sh)
+和精确的
+[`docs/release/testflight-backend-runbook.md`](docs/release/testflight-backend-runbook.md)。
+当前本地测试与构建成功不代表已部署；线上预检目前预期返回 `NO-GO`，任何 Cloud Run
+候选部署、流量变更、密钥迁移或 TestFlight 操作都需要下一阶段的明确确认与独立证据。
+
 ## 图片与运行边界
 
 API 接受 JPEG、PNG 和 WebP。前端会在上传前缩放并压缩照片；后端对解码后的图片执行 3 MiB 上限、格式签名、真实解码和像素数校验。超过边界、格式不受支持或内容损坏的图片会被拒绝。
