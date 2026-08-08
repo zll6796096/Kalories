@@ -24,8 +24,8 @@ requires separate approval of its exact resource identity and effect.
 | Firebase iOS app ID | `1:788259830737:ios:a4459f14b5e8046297bef0`; pass this exact value as `KALORIES_EXPECTED_FIREBASE_IOS_APP_ID` |
 | App Check mode | `APP_CHECK_ENFORCEMENT=required`; App Attest only for TestFlight/Release |
 | Model | `gemini-3.6-flash` |
-| Replacement API key ID | `kalories-gemini-testflight` |
-| Secret Manager secret | `kalories-gemini-api-key` |
+| Replacement API key ID | unresolved; `kalories-gemini-testflight` was soft-deleted after output exposure and must not be restored |
+| Secret Manager secret | `kalories-gemini-api-key`; version `1` is disabled and has no runtime accessor |
 | Preferred Gemini limit | RPD `200`, only after the exact enforceable quota ID and dimensions are verified |
 | Controlled audience | Invited testers who are 18 or older |
 
@@ -33,8 +33,8 @@ Never print, paste, manually compare, or screenshot an API key value, request
 image, provider response, IAM identity list, or log content. Never commit a
 Gemini or other private API key. The only committed key exception is the public
 Firebase `API_KEY` inside the validated `GoogleService-Info.plist`; it is public
-configuration, not authorization. The only key comparison below is a private
-automated equality check over mode-600 files; it emits only a fixed boolean
+configuration, not authorization. The only key comparison below is a
+private automated equality check over mode-600 files; it emits only a fixed boolean
 verdict and deletes both files. Use `set -euo pipefail`, no shell tracing,
 `umask 077`, exact temporary paths, fixed safe findings, and cleanup traps.
 
@@ -104,6 +104,8 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | App Check implementation | PASS, local only | Backend/iOS tests and release scans; no external registration implied |
 | Firebase iOS registration / App Attest config | PASS | Exact project/app/bundle/team read-back, App Attest TTL `3600s`, validated real configuration file |
 | Apple Developer signing assets | BLOCKED | App ID capability and a matching valid App Store profile must be verified separately |
+| Required Cloud B1 APIs | PASS | `cloudquotas`, `cloudbilling`, and `billingbudgets` enabled and read back |
+| Restricted credential foundation | BLOCKED | Exposed first key soft-deleted, secret version `1` disabled, runtime accessor removed; approve a new key ID before retry |
 | Cloud mutation authorization | BLOCKED | Fresh approval of every mutation listed below |
 | Provider privacy | UNVERIFIED | Paid tier, developer logging disabled, dataset sharing disabled, official terms evidence |
 | Enforceable provider quota | UNVERIFIED | Exact quota ID/dimensions and settled granted/preferred RPD `200` |
@@ -232,6 +234,13 @@ placeholder command.
 
 ## 5. Restricted key, pinned secret version, and exact IAM
 
+Execution evidence and the controlled rollback are recorded in
+[`cloud-b1-evidence.md`](cloud-b1-evidence.md). Do not restore or reuse
+`kalories-gemini-testflight`. Before retrying this section, obtain explicit
+approval for a new key ID, replace every old key-ID literal, and rerun the
+release-documentation tests. The secret must receive a new version; disabled
+version `1` must never be re-enabled.
+
 These future Task 6 commands keep key material in mode-600 private files,
 remove any implicit newline, require a nonempty value without CR/LF, and read
 back a concrete enabled secret version. They never pipe a key through a shell
@@ -241,6 +250,7 @@ without `pipefail` and never use `latest`.
 set -euo pipefail
 umask 077
 secret_tmp="$(mktemp -d)"
+key_create_log="${secret_tmp}/key-create.log"
 key_metadata_json="${secret_tmp}/key-metadata.json"
 key_material_json="${secret_tmp}/key-material.json"
 key_material_file="${secret_tmp}/key-material"
@@ -249,6 +259,7 @@ secret_version_readback_json="${secret_tmp}/secret-version-readback.json"
 cleanup_secret_material() {
   local secret_file
   for secret_file in \
+    "${key_create_log}" \
     "${key_metadata_json}" \
     "${key_material_json}" \
     "${key_material_file}" \
@@ -267,7 +278,9 @@ if ! gcloud services api-keys describe kalories-gemini-testflight \
     --key-id=kalories-gemini-testflight \
     --display-name='Kalories Gemini TestFlight' \
     --api-target=service=generativelanguage.googleapis.com \
-    --format=json >"${key_metadata_json}"
+    --format=json >"${key_create_log}" 2>&1
+  gcloud services api-keys describe kalories-gemini-testflight \
+    --project=zhang23-23 --format=json >"${key_metadata_json}" 2>/dev/null
 fi
 if ! jq -e '
   (.restrictions.apiTargets // []) as $targets

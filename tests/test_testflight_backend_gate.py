@@ -524,6 +524,19 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.assertIn("secrets versions describe", self.runbook)
         self.assertNotIn("kalories-gemini-api-key:latest", self.runbook)
 
+    def test_api_key_create_output_is_private_and_metadata_is_read_back(self) -> None:
+        key_section = self.runbook.split(
+            "## 5. Restricted key, pinned secret version, and exact IAM", 1
+        )[1].split("Resolve the actual runtime service account", 1)[0]
+        self.assertIn('key_create_log="${secret_tmp}/key-create.log"', key_section)
+        self.assertIn('>"${key_create_log}" 2>&1', key_section)
+        self.assertGreaterEqual(
+            key_section.count(
+                "gcloud services api-keys describe kalories-gemini-testflight"
+            ),
+            2,
+        )
+
     def test_deploy_updates_only_named_config_and_has_concurrency_preflight(self) -> None:
         self.assertNotIn("--set-secrets", self.runbook)
         self.assertNotIn("--set-env-vars", self.runbook)
