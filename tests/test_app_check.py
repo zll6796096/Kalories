@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from json import JSONDecodeError
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -139,8 +140,22 @@ class FirebaseAppCheckVerifierTests(unittest.TestCase):
         }
 
         with patch.dict(os.environ, environment, clear=True):
-            self.verify_token.side_effect = PyJWKClientError("unknown key details")
+            self.verify_token.side_effect = PyJWKClientError(
+                'Unable to find a signing key that matches: "unknown-kid"'
+            )
             with self.assertRaises(AppCheckRejected):
+                self.verifier().verify("opaque-token")
+
+            self.verify_token.side_effect = PyJWKClientError(
+                "The JWKS endpoint did not return a JSON object"
+            )
+            with self.assertRaises(AppCheckUnavailable):
+                self.verifier().verify("opaque-token")
+
+            self.verify_token.side_effect = JSONDecodeError(
+                "invalid JWKS JSON", "not-json", 0
+            )
+            with self.assertRaises(AppCheckUnavailable):
                 self.verifier().verify("opaque-token")
 
             self.verify_token.side_effect = PyJWKClientConnectionError(

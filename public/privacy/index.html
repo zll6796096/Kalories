@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <title>Kalories プライバシーポリシー</title>
     <style>
       :root {
@@ -116,6 +117,67 @@
         </p>
       </section>
 
+      <section lang="ja" data-integrity-disclosure="true">
+        <h2>アプリの正当性確認</h2>
+        <p>
+          Kaloriesは、分析リクエストが正規のiOSアプリから送られたことを確認し、
+          不正利用を抑えるためにFirebase App CheckとApple App Attestを使用します。
+          この確認では、アテステーション資料とApp CheckトークンがAppleおよび
+          Google/Firebaseによって処理されます。
+        </p>
+        <p>
+          Firebase App Checkはアテステーション資料を保持しません。Kaloriesは
+          リプレイ保護機能を使用しないため、通常のApp CheckトークンはFirebase
+          サービスに保持されません。ただし、Appleへ送られた資料にはAppleの条件が
+          適用されます。Firebaseのサービスデータには、IPアドレス、アプリID、
+          バンドルID、技術・運用情報が含まれる場合があります。
+        </p>
+        <p>
+          これらはアプリの正当性確認と不正利用防止のためだけに使用します。
+          KaloriesはFirebase Analyticsを追加せず、広告、行動分析、追跡には使用しません。
+        </p>
+      </section>
+
+      <section lang="zh-CN" data-integrity-disclosure="true">
+        <h2>App 完整性验证</h2>
+        <p>
+          Kalories 使用 Firebase App Check 和 Apple App Attest，验证分析请求来自正版
+          iOS App 并减少未经授权的使用。验证过程中，证明材料和 App Check 令牌会由
+          Apple 与 Google/Firebase 处理。
+        </p>
+        <p>
+          Firebase App Check 不保留证明材料。Kalories 不使用重放保护，因此标准 App
+          Check 令牌不会由 Firebase 服务保留；发送给 Apple 的材料适用 Apple 的条款。
+          Firebase 服务数据可能包括 IP 地址、应用 ID、软件包 ID，以及技术和运营信息。
+        </p>
+        <p>
+          这些数据仅用于 App 完整性验证和防止滥用。Kalories 不加入 Firebase
+          Analytics，也不用于广告、行为分析或跟踪。
+        </p>
+      </section>
+
+      <section lang="en" data-integrity-disclosure="true">
+        <h2>App integrity verification</h2>
+        <p>
+          Kalories uses Firebase App Check and Apple App Attest to verify that analysis
+          requests come from the genuine iOS app and to reduce unauthorized use.
+          Attestation material and App Check tokens are processed by Apple and
+          Google/Firebase during verification.
+        </p>
+        <p>
+          Firebase App Check does not retain attestation material. Kalories does not use
+          replay protection, so standard App Check tokens are not retained by Firebase
+          services; material sent to Apple is subject to Apple's terms. Firebase service
+          data may include IP addresses, app IDs, bundle IDs, and technical or operational
+          information.
+        </p>
+        <p>
+          This processing is used only for app integrity and abuse prevention. Kalories
+          does not add Firebase Analytics and does not use this data for advertising,
+          behavioral analytics, or tracking.
+        </p>
+      </section>
+
       <section>
         <h2>ログ、アカウント、追跡</h2>
         <p>
@@ -168,12 +230,14 @@
       </section>
 
       <section>
-        <h2>Googleの関連資料</h2>
+        <h2>関連資料</h2>
         <ul>
           <li><a href="https://ai.google.dev/gemini-api/terms">Gemini API 利用規約</a></li>
           <li><a href="https://ai.google.dev/gemini-api/docs/usage-policies">不正使用の監視とデータ保持</a></li>
           <li><a href="https://ai.google.dev/gemini-api/docs/logs-policy">開発者ログとデータセット共有</a></li>
           <li><a href="https://ai.google.dev/gemini-api/docs/zdr">ゼロデータ保持（ZDR）</a></li>
+          <li><a href="https://firebase.google.com/support/privacy/">Firebaseのプライバシーとセキュリティ</a></li>
+          <li><a href="https://developer.apple.com/documentation/devicecheck">Apple DeviceCheckとApp Attest</a></li>
         </ul>
       </section>
     </main>

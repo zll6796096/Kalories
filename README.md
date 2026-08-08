@@ -45,9 +45,16 @@ uv pip install --python .venv/bin/python -r requirements.txt
 ```dotenv
 GEMINI_API_KEY=your_backend_key
 GEMINI_MODEL=gemini-3.6-flash
+APP_CHECK_ENFORCEMENT=required
+FIREBASE_PROJECT_ID=zhang23-23
+FIREBASE_IOS_APP_ID=the-approved-firebase-ios-app-id
 ```
 
 不要把真实密钥提交到 Git，也不要把它放进浏览器代码、`VITE_*` 变量或前端构建产物。
+`FIREBASE_IOS_APP_ID` 是外部注册后取得的 Firebase `GOOGLE_APP_ID`，不是 Apple bundle
+ID。生产与 TestFlight 的 `POST /api/analyze` 必须验证 Firebase App Check token；
+iOS Release 使用 Apple App Attest provider。公开网页、隐私政策、支持页和健康检查保持
+可读，但网页不提供照片分析入口。
 
 后端稳定默认模型是 `gemini-3.6-flash`。`GEMINI_MODEL` 是非密钥运行配置：
 读取时会移除首尾空白，未配置或仅包含空白时回退到稳定默认值。更换模型前必须重新通过
@@ -65,7 +72,8 @@ GEMINI_MODEL=gemini-3.6-flash
 npm run dev
 ```
 
-打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)。Vite 会把 `/api` 请求代理到本地 8000 端口。
+打开 [http://127.0.0.1:3000](http://127.0.0.1:3000) 查看静态产品与法律页面。
+真实照片分析仅由原生 iOS 客户端发起。
 
 ## Cloud Run
 
@@ -76,8 +84,9 @@ npm run dev
 
 未配置 `GEMINI_API_KEY` 时，页面仍可访问，但分析接口会以
 `SERVICE_NOT_CONFIGURED` fail-closed。启用真实分析时，必须使用
-Kalories 专用 Secret Manager secret，并同时配置外部身份／滥用防护、
-速率限制、API 配额和预算告警；不要复用其他应用的 secret。
+Kalories 专用 Secret Manager secret；分析接口还必须以 Firebase App Check 验证
+Apple App Attest token，并同时配置速率限制、API 配额和预算告警。不要复用其他应用
+的 secret。
 
 TestFlight 后端发布使用只读的
 [`scripts/check-testflight-backend.sh`](scripts/check-testflight-backend.sh)
@@ -85,9 +94,10 @@ TestFlight 后端发布使用只读的
 [`docs/release/testflight-backend-runbook.md`](docs/release/testflight-backend-runbook.md)。
 当前本地测试与构建成功不代表已部署；线上预检目前预期返回 `NO-GO`，任何 Cloud Run
 候选部署、流量变更、密钥迁移或 TestFlight 操作都需要下一阶段的明确确认与独立证据。
-当前服务的公网调用以及缺少可机器验证的应用层访问保护是硬 `NO-GO`；受邀 18+、
-maxScale、进程内限流、provider RPD 和预算告警都是控损手段，不是访问控制。Task 6
-和外部 TestFlight 必须等待单独的安全架构获用户确认、实现并通过验收。
+当前线上 revision 尚未配置 App Check，因此仍是硬 `NO-GO`。`allUsers` 调用权限只为
+公开页面提供传输入口，不是分析授权；受邀 18+、maxScale、进程内限流、provider RPD
+和预算告警也只是控损手段。Firebase/Apple 注册、真实 `GoogleService-Info.plist`、
+Cloud 变更和外部 TestFlight 都是独立的外部配置／发布门禁，需要再次明确批准。
 
 ## 图片与运行边界
 
@@ -103,10 +113,16 @@ npm run lint
 npm run build
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 .venv/bin/python -m compileall -q api lib tests
-.venv/bin/python -c "import api.analyze, lib.nutrition, lib.rate_limit"
+.venv/bin/python -c "import api.analyze, lib.app_check, lib.nutrition, lib.rate_limit"
 uv pip check --python .venv/bin/python
+scripts/check-ios-app-check-release.sh --local
 git diff --check
 ```
+
+本地 iOS 门禁验证精确 Firebase SDK 产品与版本、App Attest production entitlement、
+隐私清单和禁止的凭据／Debug provider。没有真实 `GoogleService-Info.plist` 时，分发模式
+会返回 `BLOCKED_BY_EXTERNAL_CONFIG`；`--local` PASS 不能替代 Firebase/Apple 外部配置
+与签名归档验证。
 
 自动化测试和浏览器 UI 验收不能证明实际 Gemini 调用成功。只有在后端密钥存在、真实请求返回且服务日志与响应契约都确认后，才能把模型参与标记为已验证。
 

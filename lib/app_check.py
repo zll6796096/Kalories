@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Mapping
+from json import JSONDecodeError
 from threading import Lock
 from typing import Any, Protocol
 
@@ -97,12 +98,16 @@ class FirebaseAppCheckVerifier:
         app = self._firebase_app(project_id)
         try:
             claims = self._verify_token(token, app=app)
+        except JSONDecodeError:
+            raise AppCheckUnavailable() from None
         except ValueError:
             raise AppCheckRejected() from None
         except PyJWKClientConnectionError:
             raise AppCheckUnavailable() from None
-        except PyJWKClientError:
-            raise AppCheckRejected() from None
+        except PyJWKClientError as error:
+            if str(error).startswith("Unable to find a signing key that matches:"):
+                raise AppCheckRejected() from None
+            raise AppCheckUnavailable() from None
         except Exception:
             raise AppCheckUnavailable() from None
 

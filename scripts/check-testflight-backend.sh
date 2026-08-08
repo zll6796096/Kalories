@@ -9,12 +9,14 @@ readonly REGION_ID="asia-northeast1"
 readonly SERVICE_ID="kalories"
 readonly EXPECTED_MODEL="gemini-3.6-flash"
 readonly EXPECTED_SECRET_ID="kalories-gemini-api-key"
+readonly EXPECTED_APP_CHECK_ENFORCEMENT="required"
 
 preflight_tmp="$(mktemp -d)"
 service_json="${preflight_tmp}/service.json"
 revision_json="${preflight_tmp}/revision.json"
 iam_json="${preflight_tmp}/iam.json"
 logs_json="${preflight_tmp}/logs.json"
+app_check_response_json="${preflight_tmp}/app-check-response.json"
 
 cleanup() {
   local exit_status=$?
@@ -25,7 +27,8 @@ cleanup() {
     "${service_json}" \
     "${revision_json}" \
     "${iam_json}" \
-    "${logs_json}"; do
+    "${logs_json}" \
+    "${app_check_response_json}"; do
     if [[ -f "${private_file}" ]]; then
       unlink -- "${private_file}" || true
     fi
@@ -197,6 +200,44 @@ if [[ "${revision_described}" == true ]]; then
     add_finding 'GEMINI_MODEL is not exactly one direct value set to gemini-3.6-flash'
   fi
 
+  if ! jq -e --arg expected_value "${EXPECTED_APP_CHECK_ENFORCEMENT}" '
+    def all_env:
+      [.spec.containers[]?.env[]?, .containers[]?.env[]?];
+    [all_env[] | select(.name? == "APP_CHECK_ENFORCEMENT")] as $matches
+    | (($matches | length) == 1)
+      and ($matches[0].value? == $expected_value)
+      and ($matches[0] | has("valueFrom") | not)
+      and ($matches[0] | has("valueSource") | not)
+  ' "${revision_json}" >/dev/null 2>&1; then
+    add_finding 'APP_CHECK_ENFORCEMENT is not exactly required'
+  fi
+
+  if ! jq -e --arg expected_value "${PROJECT_ID}" '
+    def all_env:
+      [.spec.containers[]?.env[]?, .containers[]?.env[]?];
+    [all_env[] | select(.name? == "FIREBASE_PROJECT_ID")] as $matches
+    | (($matches | length) == 1)
+      and ($matches[0].value? == $expected_value)
+      and ($matches[0] | has("valueFrom") | not)
+      and ($matches[0] | has("valueSource") | not)
+  ' "${revision_json}" >/dev/null 2>&1; then
+    add_finding 'FIREBASE_PROJECT_ID is not exactly zhang23-23'
+  fi
+
+  if [[ -z "${KALORIES_EXPECTED_FIREBASE_IOS_APP_ID:-}" ]]; then
+    add_finding 'expected Firebase iOS app ID is not configured for preflight'
+  elif ! jq -e --arg expected_value "${KALORIES_EXPECTED_FIREBASE_IOS_APP_ID}" '
+    def all_env:
+      [.spec.containers[]?.env[]?, .containers[]?.env[]?];
+    [all_env[] | select(.name? == "FIREBASE_IOS_APP_ID")] as $matches
+    | (($matches | length) == 1)
+      and ($matches[0].value? == $expected_value)
+      and ($matches[0] | has("valueFrom") | not)
+      and ($matches[0] | has("valueSource") | not)
+  ' "${revision_json}" >/dev/null 2>&1; then
+    add_finding 'FIREBASE_IOS_APP_ID does not match the approved app'
+  fi
+
   if ! jq -e '
     ([.spec.containers[]?.image?, .containers[]?.image?]
       | map(select(type == "string"))) as $images
@@ -225,9 +266,9 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${active_account_pres
   fi
 fi
 
-# No machine-verifiable application-layer access architecture exists in this
-# release gate. Public invoker policy is checked privately, but either public
-# access or this missing protection keeps external TestFlight fail-closed.
+# The combined service remains public for health, privacy, support, and static
+# pages. Paid POST routes are protected by Firebase App Check in the
+# application layer and are probed below without a token.
 public_invoker_present=false
 if [[ "${iam_read}" == true ]] && jq -e '
     any(.bindings[]?;
@@ -235,10 +276,8 @@ if [[ "${iam_read}" == true ]] && jq -e '
   ' "${iam_json}" >/dev/null 2>&1; then
   public_invoker_present=true
 fi
-if [[ "${public_invoker_present}" == true ]]; then
-  add_finding 'public access or application-layer protection is not compliant'
-else
-  add_finding 'application-layer access protection is not verified'
+if [[ "${iam_read}" == true && "${public_invoker_present}" != true ]]; then
+  add_finding 'Cloud Run public invoker is missing for public pages'
 fi
 
 request_started_at=''
@@ -260,6 +299,34 @@ if [[ -n "${service_url}" && "${have_curl}" == true ]]; then
       add_finding "/${endpoint_name} request failed"
     elif [[ "${http_status}" != '200' ]]; then
       add_finding "/${endpoint_name} did not return HTTP 200"
+    fi
+  done
+
+  for protected_path in '/api/analyze' '/'; do
+    app_check_status=''
+    if ! app_check_status="$(
+      curl \
+        --silent \
+        --output "${app_check_response_json}" \
+        --write-out '%{http_code}' \
+        --request POST \
+        --header 'Content-Type: application/json' \
+        --data '{"image":"data:image/jpeg;base64,AA=="}' \
+        --connect-timeout 10 \
+        --max-time 20 \
+        "${service_url}${protected_path}" 2>/dev/null
+    )"; then
+      add_finding "App Check no-token POST request failed for ${protected_path}"
+    elif [[ "${app_check_status}" != '401' ]]; then
+      add_finding "App Check no-token POST did not return HTTP 401 for ${protected_path}"
+    elif ! jq -e '
+      type == "object"
+      and keys == ["detail"]
+      and (.detail | type == "object")
+      and (.detail | keys == ["code"])
+      and .detail.code == "APP_CHECK_FAILED"
+    ' "${app_check_response_json}" >/dev/null 2>&1; then
+      add_finding "App Check no-token POST response contract is invalid for ${protected_path}"
     fi
   done
 fi
@@ -288,7 +355,8 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${have_rg}" == true &
         def sensitive_key:
           normalized_key as $key
           | [
-              "authorization", "xgoogapikey", "apikey", "geminiapikey",
+              "authorization", "xgoogapikey", "xfirebaseappcheck",
+              "appchecktoken", "apikey", "geminiapikey",
               "request", "requestbody", "providerrequest", "providerresponse",
               "response", "responsebody", "assessment", "nutrients",
               "fooddetected", "image", "prompt", "contents", "candidates"
@@ -296,7 +364,7 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${have_rg}" == true &
           | index($key) != null;
         any(.. | objects | keys_unsorted[]?; sensitive_key)
         or any(.. | strings;
-          test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|api[_-]?key)\\\"?[[:space:]]*[:=]"))
+          test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|x-firebase-app-check|app[_-]?check[_-]?token|api[_-]?key)\\\"?[[:space:]]*[:=]"))
       ' "${logs_json}" >/dev/null 2>&1; then
         sensitive_log_data=true
       else
@@ -311,6 +379,7 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${have_rg}" == true &
         -e 'data:image/' \
         -e 'GEMINI_API_KEY' \
         -e 'Authorization:' \
+        -e 'X-Firebase-AppCheck:' \
         -e 'api_key=' \
         "${logs_json}"
       literal_scan_status=$?
@@ -325,12 +394,21 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${have_rg}" == true &
         add_finding 'Cloud Run logs contain sensitive application data'
       fi
 
-      if [[ -z "${production_revision}" ]] || ! jq -e --arg revision "${production_revision}" '
+      if [[ -z "${production_revision}" ]] || ! jq -e \
+        --arg revision "${production_revision}" \
+        --arg service_url "${service_url}" '
         def target($suffix):
           any(.[];
             .resource.labels.revision_name? == $revision
             and ((.httpRequest.requestUrl? // "") | endswith($suffix)));
+        def protected_post($path):
+          any(.[];
+            .resource.labels.revision_name? == $revision
+            and .httpRequest.requestMethod? == "POST"
+            and .httpRequest.status? == 401
+            and .httpRequest.requestUrl? == ($service_url + $path));
         target("/health") and target("/privacy/") and target("/support/")
+        and protected_post("/api/analyze") and protected_post("/")
       ' "${logs_json}" >/dev/null 2>&1; then
         add_finding 'Cloud Run target request logs are missing'
       fi

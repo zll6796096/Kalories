@@ -24,8 +24,7 @@ README = ROOT / "README.md"
 
 REVISION = "kalories-00042-candidate"
 SENTINEL = "SENSITIVE_SENTINEL_MUST_NOT_LEAK"
-ACCESS_FINDING = "application-layer access protection is not verified"
-PUBLIC_ACCESS_FINDING = "public access or application-layer protection is not compliant"
+FIREBASE_IOS_APP_ID = "1:123456789:ios:abcdef123456"
 
 
 class PreflightBehaviorTests(unittest.TestCase):
@@ -64,7 +63,12 @@ class PreflightBehaviorTests(unittest.TestCase):
             },
             "spec": {"containers": [self._container()]},
         }
-        self.iam = {"etag": "etag-one", "bindings": []}
+        self.iam = {
+            "etag": "etag-one",
+            "bindings": [
+                {"role": "roles/run.invoker", "members": ["allUsers"]}
+            ],
+        }
         self.logs = [
             {
                 "timestamp": "2026-08-08T00:00:03Z",
@@ -90,6 +94,24 @@ class PreflightBehaviorTests(unittest.TestCase):
                     "status": 200,
                 },
             },
+            {
+                "timestamp": "2026-08-08T00:00:00Z",
+                "resource": {"labels": {"revision_name": REVISION}},
+                "httpRequest": {
+                    "requestUrl": "https://example.invalid/api/analyze",
+                    "requestMethod": "POST",
+                    "status": 401,
+                },
+            },
+            {
+                "timestamp": "2026-08-07T23:59:59Z",
+                "resource": {"labels": {"revision_name": REVISION}},
+                "httpRequest": {
+                    "requestUrl": "https://example.invalid/",
+                    "requestMethod": "POST",
+                    "status": 401,
+                },
+            },
         ]
         self._write_fakes()
         self._write_fixtures()
@@ -110,6 +132,9 @@ class PreflightBehaviorTests(unittest.TestCase):
                     },
                 },
                 {"name": "GEMINI_MODEL", "value": "gemini-3.6-flash"},
+                {"name": "APP_CHECK_ENFORCEMENT", "value": "required"},
+                {"name": "FIREBASE_PROJECT_ID", "value": "zhang23-23"},
+                {"name": "FIREBASE_IOS_APP_ID", "value": FIREBASE_IOS_APP_ID},
             ],
         }
 
@@ -147,8 +172,26 @@ fi
             """#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$*" >>"${FAKE_CALLS}"
-printf '%s' "${FAKE_CURL_STATUS:-200}"
-exit "${FAKE_CURL_EXIT:-0}"
+if [[ "${FAKE_CURL_EXIT:-0}" != 0 ]]; then
+  exit "${FAKE_CURL_EXIT}"
+fi
+output_file=/dev/null
+is_post=false
+previous=''
+for argument in "$@"; do
+  if [[ "${previous}" == --output ]]; then
+    output_file="${argument}"
+  elif [[ "${previous}" == --request && "${argument}" == POST ]]; then
+    is_post=true
+  fi
+  previous="${argument}"
+done
+if [[ "${is_post}" == true ]]; then
+  printf '%s' '{"detail":{"code":"APP_CHECK_FAILED"}}' >"${output_file}"
+  printf '%s' "${FAKE_POST_STATUS:-401}"
+else
+  printf '%s' "${FAKE_CURL_STATUS:-200}"
+fi
 """,
         )
 
@@ -172,6 +215,7 @@ exit "${FAKE_CURL_EXIT:-0}"
                 "FAKE_CALLS": str(self.calls),
                 "FAKE_FIXTURES": str(self.fixture_dir),
                 "TMPDIR": str(self.tmp_dir),
+                "KALORIES_EXPECTED_FIREBASE_IOS_APP_ID": FIREBASE_IOS_APP_ID,
             }
         )
         env.update(overrides)
@@ -189,22 +233,27 @@ exit "${FAKE_CURL_EXIT:-0}"
         self.assertNotIn(SENTINEL, result.stderr)
         return result
 
-    def _assert_only_access_no_go(self, result: subprocess.CompletedProcess[str]) -> None:
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn(f"NO-GO: {ACCESS_FINDING}", result.stdout)
-        reasons = [line for line in result.stdout.splitlines() if line.startswith("NO-GO: ")]
-        self.assertEqual(
-            reasons,
-            [
-                "NO-GO: TestFlight backend preflight",
-                f"NO-GO: {ACCESS_FINDING}",
-            ],
-        )
+    def _assert_pass(self, result: subprocess.CompletedProcess[str]) -> None:
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PASS: TestFlight backend preflight", result.stdout)
+        self.assertNotIn("NO-GO:", result.stdout)
 
-    def test_compliant_revision_still_blocks_without_verified_access_architecture(self) -> None:
-        self._assert_only_access_no_go(self._run())
+    def test_compliant_revision_and_no_token_probe_pass(self) -> None:
+        self._assert_pass(self._run())
         self.assertIn(f"run revisions describe {REVISION}", self.calls.read_text())
         self.assertIn("run services get-iam-policy kalories", self.calls.read_text())
+        post_calls = [
+            line
+            for line in self.calls.read_text().splitlines()
+            if "--request POST" in line
+        ]
+        self.assertEqual(len(post_calls), 2)
+        self.assertTrue(
+            any(line.endswith("https://example.invalid/api/analyze") for line in post_calls)
+        )
+        self.assertTrue(
+            any(line.endswith("https://example.invalid/") for line in post_calls)
+        )
 
     def test_accepts_unambiguous_v2_revision_fields(self) -> None:
         self.revision = {
@@ -224,11 +273,14 @@ exit "${FAKE_CURL_EXIT:-0}"
                             },
                         },
                         {"name": "GEMINI_MODEL", "value": "gemini-3.6-flash"},
+                        {"name": "APP_CHECK_ENFORCEMENT", "value": "required"},
+                        {"name": "FIREBASE_PROJECT_ID", "value": "zhang23-23"},
+                        {"name": "FIREBASE_IOS_APP_ID", "value": FIREBASE_IOS_APP_ID},
                     ],
                 }
             ],
         }
-        self._assert_only_access_no_go(self._run())
+        self._assert_pass(self._run())
 
     def test_uses_serving_revision_not_mutable_service_template(self) -> None:
         self.revision["metadata"]["annotations"][
@@ -258,7 +310,7 @@ exit "${FAKE_CURL_EXIT:-0}"
             {"revisionName": REVISION, "percent": 60},
             {"revisionName": REVISION, "percent": 40, "tag": "candidate"},
         ]
-        self._assert_only_access_no_go(self._run())
+        self._assert_pass(self._run())
 
     def test_expected_revision_enables_fail_closed_post_promotion_check(self) -> None:
         result = self._run(KALORIES_EXPECTED_REVISION="kalories-99999-wrong")
@@ -266,7 +318,7 @@ exit "${FAKE_CURL_EXIT:-0}"
             "NO-GO: expected production revision is not serving 100 percent",
             result.stdout,
         )
-        self._assert_only_access_no_go(self._run(KALORIES_EXPECTED_REVISION=REVISION))
+        self._assert_pass(self._run(KALORIES_EXPECTED_REVISION=REVISION))
 
     def test_rejects_wrong_or_malformed_secret_reference_without_leaking(self) -> None:
         bad_refs = [
@@ -291,7 +343,7 @@ exit "${FAKE_CURL_EXIT:-0}"
         result = self._run()
         self.assertIn("NO-GO: Cloud Run production revision image is not immutable", result.stdout)
 
-    def test_public_invoker_is_boolean_no_go_and_policy_is_never_printed(self) -> None:
+    def test_public_invoker_is_required_for_pages_and_policy_is_never_printed(self) -> None:
         self.iam = {
             "etag": "etag-two",
             "bindings": [
@@ -301,8 +353,14 @@ exit "${FAKE_CURL_EXIT:-0}"
                 }
             ],
         }
+        self._assert_pass(self._run())
+
+        self.iam = {"etag": "etag-three", "bindings": []}
         result = self._run()
-        self.assertIn(f"NO-GO: {PUBLIC_ACCESS_FINDING}", result.stdout)
+        self.assertIn(
+            "NO-GO: Cloud Run public invoker is missing for public pages",
+            result.stdout,
+        )
         self.assertNotIn("allUsers", result.stdout + result.stderr)
         self.assertNotIn("serviceAccount:", result.stdout + result.stderr)
 
@@ -316,6 +374,31 @@ exit "${FAKE_CURL_EXIT:-0}"
         self.assertIn("NO-GO: /health request failed", result.stdout)
         self.assertIn("NO-GO: /privacy request failed", result.stdout)
         self.assertIn("NO-GO: /support request failed", result.stdout)
+        self.assertIn("NO-GO: App Check no-token POST request failed", result.stdout)
+
+    def test_requires_exact_app_check_environment_and_no_token_contract(self) -> None:
+        env = self.revision["spec"]["containers"][0]["env"]
+        for name, finding in (
+            ("APP_CHECK_ENFORCEMENT", "APP_CHECK_ENFORCEMENT is not exactly required"),
+            ("FIREBASE_PROJECT_ID", "FIREBASE_PROJECT_ID is not exactly zhang23-23"),
+            ("FIREBASE_IOS_APP_ID", "FIREBASE_IOS_APP_ID does not match the approved app"),
+        ):
+            with self.subTest(name=name):
+                original = next(item for item in env if item["name"] == name)
+                original["value"] = "wrong"
+                result = self._run()
+                self.assertIn(f"NO-GO: {finding}", result.stdout)
+                original["value"] = (
+                    "required" if name == "APP_CHECK_ENFORCEMENT"
+                    else "zhang23-23" if name == "FIREBASE_PROJECT_ID"
+                    else FIREBASE_IOS_APP_ID
+                )
+
+        result = self._run(FAKE_POST_STATUS="200")
+        self.assertIn(
+            "NO-GO: App Check no-token POST did not return HTTP 401",
+            result.stdout,
+        )
 
     def test_logs_must_be_valid_nonempty_json_array(self) -> None:
         (self.fixture_dir / "logs.json").write_text("not-json", encoding="utf-8")
@@ -346,10 +429,11 @@ exit "${FAKE_CURL_EXIT:-0}"
             {"nutrients": {"calories": 500, "marker": SENTINEL}},
             {"providerResponse": {"marker": SENTINEL}},
             {"image": "A" * 600},
+            {"x-firebase-app-check": SENTINEL},
         ]
         for payload in sensitive_payloads:
             with self.subTest(payload=list(payload)):
-                self.logs = self.logs[:3] + [payload]
+                self.logs = self.logs[:5] + [payload]
                 result = self._run()
                 self.assertIn(
                     "NO-GO: Cloud Run logs contain sensitive application data",
@@ -367,12 +451,13 @@ exit "${FAKE_CURL_EXIT:-0}"
             f'response={{"marker":"{SENTINEL}"}}',
             f'authorization=Bearer {SENTINEL}',
             f'x-goog-api-key={SENTINEL}',
+            f'x-firebase-app-check={SENTINEL}',
             f'api_key={SENTINEL}',
             "data:image/jpeg;base64," + ("A" * 32),
         ]
         for provider_payload in sensitive_strings:
             with self.subTest(marker=provider_payload.split("=", 1)[0][:32]):
-                self.logs = self.logs[:3] + [{"textPayload": provider_payload}]
+                self.logs = self.logs[:5] + [{"textPayload": provider_payload}]
                 result = self._run()
                 self.assertIn(
                     "NO-GO: Cloud Run logs contain sensitive application data",
@@ -411,11 +496,12 @@ class ReleaseDocumentationTests(unittest.TestCase):
             self.runbook,
         )
 
-    def test_no_automatic_public_access_or_unconfirmed_identity_architecture(self) -> None:
+    def test_public_pages_and_app_check_remain_separate_access_layers(self) -> None:
         self.assertNotIn("--allow-unauthenticated", self.runbook + self.readme)
         self.assertIn("allUsers", self.runbook)
-        self.assertRegex(self.runbook, r"not access\s+control")
-        self.assertIn("Task 6", self.runbook)
+        self.assertRegex(self.runbook, r"not\s+access\s+control")
+        self.assertIn("Firebase App Check", self.runbook)
+        self.assertIn("for protected_path in '/api/analyze' '/'", self.runbook)
 
     def test_candidate_logs_are_nonempty_targeted_and_recursively_scanned(self) -> None:
         self.assertIn("candidate_logs_json", self.runbook)
@@ -582,6 +668,9 @@ class RunbookCommandMockTests(unittest.TestCase):
         self.tmp_dir.mkdir()
         self.calls = self.root / "calls.txt"
         self.mktemp_paths = self.root / "mktemp-paths.txt"
+        self.app_check_token_file = self.root / "app-check-token"
+        self.app_check_token_file.write_text("local-test-app-check-token", encoding="utf-8")
+        self.app_check_token_file.chmod(0o600)
         self.real_jq = shutil.which("jq")
         if self.real_jq is None:
             self.fail("jq is required for the runbook regression tests")
@@ -649,10 +738,17 @@ exec __REAL_JQ__ "$@"
             """#!/usr/bin/env bash
 set -euo pipefail
 output_file=''
+has_app_check=false
 while (($# > 0)); do
   case "$1" in
     --output)
       output_file="$2"
+      shift 2
+      ;;
+    --header)
+      if [[ "$2" == X-Firebase-AppCheck:* ]]; then
+        has_app_check=true
+      fi
       shift 2
       ;;
     *) shift ;;
@@ -660,6 +756,9 @@ while (($# > 0)); do
 done
 if [[ "${output_file}" == /dev/null ]]; then
   printf '%s' '200'
+elif [[ "${has_app_check}" == false ]]; then
+  printf '%s' '{"detail":{"code":"APP_CHECK_FAILED"}}' >"${output_file}"
+  printf '%s' '401'
 else
   command cp "${FAKE_FIXTURES}/candidate-invalid-response.json" "${output_file}"
   printf '%s' '200 0.10'
@@ -824,6 +923,18 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                                     "name": "GEMINI_MODEL",
                                     "value": "gemini-3.6-flash",
                                 },
+                                {
+                                    "name": "APP_CHECK_ENFORCEMENT",
+                                    "value": "required",
+                                },
+                                {
+                                    "name": "FIREBASE_PROJECT_ID",
+                                    "value": "zhang23-23",
+                                },
+                                {
+                                    "name": "FIREBASE_IOS_APP_ID",
+                                    "value": FIREBASE_IOS_APP_ID,
+                                },
                             ],
                         }
                     ]
@@ -934,6 +1045,8 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                 "FAKE_FIXTURES": str(self.fixture_dir),
                 "FAKE_MKTEMP_PATHS": str(self.mktemp_paths),
                 "TMPDIR": str(self.tmp_dir),
+                "KALORIES_APP_CHECK_TOKEN_FILE": str(self.app_check_token_file),
+                "KALORIES_FIREBASE_IOS_APP_ID": FIREBASE_IOS_APP_ID,
             }
         )
         env.update(overrides)

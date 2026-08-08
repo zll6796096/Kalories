@@ -242,6 +242,38 @@ final class AnalysisAPIClientTests: XCTestCase {
         XCTAssertEqual(refreshRequests, [false, true])
     }
 
+    func testAnalyzeNeverResendsPhotoForUnownedOrMalformed401() async {
+        let unownedResponses = [
+            backendErrorData(code: "UNKNOWN"),
+            Data(#"{"detail":{"code":"APP_CHECK_FAILED"},"proxy":"edge"}"#.utf8),
+            Data("not-json".utf8),
+        ]
+
+        for responseData in unownedResponses {
+            let requestCount = LockedBox(0)
+            URLProtocolStub.setHandler { request in
+                requestCount.set(requestCount.value + 1)
+                return makeStubbedResponse(
+                    for: request,
+                    statusCode: 401,
+                    data: responseData
+                )
+            }
+            let tokenProvider = TokenProviderStub(
+                outcomes: [.token("first-token"), .token("must-not-be-used")]
+            )
+
+            await assertAnalyzeThrows(
+                .appCheckFailed,
+                client: makeClient(tokenProvider: tokenProvider)
+            )
+
+            XCTAssertEqual(requestCount.value, 1)
+            let refreshRequests = await tokenProvider.refreshRequests()
+            XCTAssertEqual(refreshRequests, [false])
+        }
+    }
+
     func testAnalyzeMapsAnalysisFailedAndUnknownFallback() async {
         await assertBackendError(code: "ANALYSIS_FAILED", statusCode: 500, equals: .analysisFailed)
         await assertBackendError(code: "UNKNOWN", statusCode: 500, equals: .analysisFailed)

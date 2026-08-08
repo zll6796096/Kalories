@@ -17,6 +17,7 @@
 		2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */; };
 		28540AB098FDD7A95786C581 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */; };
 		2E9BA91F974E0A3194AEEF93 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0FD041F9961852BEBCE952 /* AppEnvironment.swift */; };
+		2F645D551BAC218438A8ED8C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B5D1010FE9C58A4607BE39BB /* PrivacyInfo.xcprivacy */; };
 		3137CA31053B20FF32F9C233 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56CF5C50DE8E5EEAC41D0693 /* ResultView.swift */; };
 		35EBB01FC891CDF08980EE72 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA2981F04F50E5CEA1262D3 /* RootView.swift */; };
 		3E22FB64F8D229506D57386D /* AnalysisAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38FF1C75CADEAC16B644F78A /* AnalysisAPIClient.swift */; };
@@ -101,6 +102,7 @@
 		A584BA7AA6F27C245B49543E /* Kalories.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kalories.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5A615D3424247D075A7BB10 /* KaloriesTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KaloriesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B180F0EA72EF8427F6B97D76 /* AppCheckTokenProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCheckTokenProvider.swift; sourceTree = "<group>"; };
+		B5D1010FE9C58A4607BE39BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B6616704ADFFFBE9FD7A4BB0 /* ScoreCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCard.swift; sourceTree = "<group>"; };
 		BA881E9221A75DE06A6DEAFA /* UITestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
 		BDDEE8E88D0E06092B70B142 /* AnalysisContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisContractTests.swift; sourceTree = "<group>"; };
@@ -255,6 +257,7 @@
 			isa = PBXGroup;
 			children = (
 				E1DA2C9128519E972D79C1B1 /* Info.plist */,
+				B5D1010FE9C58A4607BE39BB /* PrivacyInfo.xcprivacy */,
 				71A42B96B01DB23F6A556CCF /* InfoPlist.strings */,
 				746CD7498DA4454D0EFF6187 /* Localizable.strings */,
 			);
@@ -404,6 +407,7 @@
 			files = (
 				7D9353369CE08D47FE94F44A /* InfoPlist.strings in Resources */,
 				65C77351DCD383214DC271AE /* Localizable.strings in Resources */,
+				2F645D551BAC218438A8ED8C /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

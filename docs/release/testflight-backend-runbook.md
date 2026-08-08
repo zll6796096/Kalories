@@ -7,11 +7,11 @@ promotion, credential revocation, rollback, TestFlight upload, TestFlight
 processing, and public App Store release are separate gates. A PASS at one gate
 never advances another gate.
 
-All Google Cloud mutations below are reserved for Task 6. Task 6 itself and any
-external TestFlight distribution remain blocked until the user separately
-approves an access/abuse-protection architecture and that architecture is
-implemented and machine-verifiable. This runbook does not invent App Attest,
-Firebase, accounts, or another identity design.
+The Firebase App Check and Apple App Attest design is implemented and tested
+locally. That does not authorize attaching Firebase to the Cloud project,
+registering an Apple/Firebase app, changing Apple capabilities, deploying,
+changing traffic, or uploading TestFlight. Every external mutation below still
+requires separate approval of its exact resource identity and effect.
 
 ## Fixed scope and identifiers
 
@@ -20,6 +20,9 @@ Firebase, accounts, or another identity design.
 | Project | `zhang23-23` |
 | Region | `asia-northeast1` |
 | Cloud Run service | `kalories` |
+| Apple bundle ID | `com.ryuaistudio.kalories` |
+| Firebase iOS app ID | unresolved until the separately approved registration; pass the exact value as `KALORIES_EXPECTED_FIREBASE_IOS_APP_ID` |
+| App Check mode | `APP_CHECK_ENFORCEMENT=required`; App Attest only for TestFlight/Release |
 | Model | `gemini-3.6-flash` |
 | Replacement API key ID | `kalories-gemini-testflight` |
 | Secret Manager secret | `kalories-gemini-api-key` |
@@ -47,8 +50,8 @@ future checkpoint because live state can drift.
 | maxScale | `20` | NO-GO; must be exactly `1` |
 | `GEMINI_API_KEY` plaintext/secret-backed | `true` / `false` | NO-GO |
 | `GEMINI_MODEL` compliant | `false` | NO-GO |
-| Cloud Run public invoker | `true`; policy identities omitted | NO-GO |
-| Machine-verifiable application-layer access protection | absent | NO-GO |
+| Cloud Run public invoker | `true`; policy identities omitted | required for public pages; not sufficient for analysis access |
+| Machine-verifiable application-layer access protection | absent in live revision | NO-GO; local Firebase App Check implementation does not change production |
 | `GET /health` | HTTP 200 | transport evidence only |
 | `GET /privacy/` | HTTP 404 | NO-GO |
 | `GET /support/` | HTTP 404 | NO-GO |
@@ -58,7 +61,8 @@ The current state is an expected production `NO-GO`, not a failed local task.
 Run the safe read-only gate and record only its fixed findings:
 
 ```bash
-scripts/check-testflight-backend.sh
+KALORIES_EXPECTED_FIREBASE_IOS_APP_ID='the-approved-firebase-ios-app-id' \
+  scripts/check-testflight-backend.sh
 ```
 
 That snapshot exited `1` with exactly these safe findings:
@@ -66,7 +70,11 @@ That snapshot exited `1` with exactly these safe findings:
 - `Cloud Run production revision maxScale is not exactly 1`
 - `GEMINI_API_KEY is not exactly one pinned secret-backed entry`
 - `GEMINI_MODEL is not exactly one direct value set to gemini-3.6-flash`
-- `public access or application-layer protection is not compliant`
+- `APP_CHECK_ENFORCEMENT is not exactly required`
+- `FIREBASE_PROJECT_ID is not exactly zhang23-23`
+- `FIREBASE_IOS_APP_ID does not match the approved app`
+- `App Check no-token POST did not return HTTP 401 for /api/analyze`
+- `App Check no-token POST did not return HTTP 401 for /`
 - `/privacy did not return HTTP 200`
 - `/support did not return HTTP 200`
 - `Cloud Run logs are not a nonempty JSON array`
@@ -78,6 +86,7 @@ expected production revision:
 
 ```bash
 KALORIES_EXPECTED_REVISION="${KALORIES_CANDIDATE_REVISION}" \
+KALORIES_EXPECTED_FIREBASE_IOS_APP_ID="${KALORIES_FIREBASE_IOS_APP_ID}" \
   scripts/check-testflight-backend.sh
 ```
 
@@ -90,8 +99,9 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | --- | --- | --- |
 | Local code/pages | PASS, local only | Full backend and frontend suites, typecheck, build, dependency/import checks, clean commit |
 | Read-only production preflight | NO-GO | Fixed findings cleared; immutable production revision and targeted logs verified |
-| Access/abuse-protection architecture | NO-GO | Separate user-approved design, implementation, tests, and machine-verifiable gate |
-| Task 6 mutation authorization | BLOCKED | Access gate first; then fresh approval of every mutation listed below |
+| App Check implementation | PASS, local only | Backend/iOS tests and release scans; no external registration implied |
+| Firebase/Apple registration | BLOCKED | Separate approval, exact app/project/team identities, read-back, real configuration file |
+| Cloud mutation authorization | BLOCKED | Fresh approval of every mutation listed below |
 | Provider privacy | UNVERIFIED | Paid tier, developer logging disabled, dataset sharing disabled, official terms evidence |
 | Enforceable provider quota | UNVERIFIED | Exact quota ID/dimensions and settled granted/preferred RPD `200` |
 | Budget alert | UNVERIFIED | Later user-approved amount and read-back; alert does not cap spend |
@@ -125,38 +135,48 @@ git status --short --branch
 
 Local success proves neither deployment nor a real provider request.
 
-## 2. Access architecture hard stop
+## 2. App Check access boundary
 
-The service currently grants `allUsers` invocation and the repository has no
-machine-verifiable application-layer access protection. Therefore Task 6 and
-external TestFlight are hard `NO-GO`. Do not add or preserve public access via
-a deploy flag. The later security design requires its own user confirmation,
-implementation, threat review, and acceptance evidence.
+The combined service is intentionally reachable through `allUsers` because
+health, privacy, support, and static pages are public. Public invocation is not
+authorization for paid analysis. The application must enforce Firebase App
+Check on both `POST /api/analyze` and compatibility `POST /`, before decoding an
+image, taking a rate-limit token, or calling Gemini.
 
-Invited-testers-only wording, age `18+`, maxScale `1`, RPD `200`, a budget
-alert, and the process-local token bucket are loss controls; they are not access
-control and do not identify or authorize a caller.
+The production preflight requires exact runtime configuration, public pages at
+HTTP 200, and a no-token POST returning only HTTP 401 with
+`APP_CHECK_FAILED`. A valid debug-token request is a separate candidate gate;
+a real TestFlight App Attest request on an iPhone is a later distribution gate.
+
+App Check verifies an authentic registered app instance. It does not identify a
+human or prove TestFlight invitation status. Age wording, maxScale `1`, RPD
+`200`, the budget alert, and the token bucket remain loss controls and are not
+access control.
 
 The preflight reads Cloud Run IAM into a private file and emits only a boolean
 finding. Never print an IAM policy or its members.
 
-## 3. Exact Task 6 confirmation
+## 3. Exact external-mutation confirmation
 
-After the access architecture passes, stop again and ask the user to confirm
-each mutation explicitly:
+Before any external action, stop and ask the user to confirm each mutation
+explicitly:
 
-1. enable only the individually listed missing APIs;
-2. create/restrict API key `kalories-gemini-testflight` if absent;
-3. create secret `kalories-gemini-api-key` if absent and add one pinned version;
-4. add exactly one runtime service account `secretAccessor` binding;
-5. update only `GEMINI_API_KEY` and `GEMINI_MODEL`, plus max instances,
-   concurrency and timeout, in a zero-traffic candidate;
-6. create exact verified quota preference RPD `200`;
-7. create the user-approved monthly budget alert;
-8. promote the exact immutable candidate revision to 100%;
-9. revoke the exact old API key only after promotion succeeds.
+1. attach or enable Firebase on project `zhang23-23`;
+2. register only bundle `com.ryuaistudio.kalories` and configure Apple App
+   Attest with the separately confirmed Team ID;
+3. enable only the individually listed missing APIs;
+4. create/restrict API key `kalories-gemini-testflight` if absent;
+5. create secret `kalories-gemini-api-key` if absent and add one pinned version;
+6. add exactly one runtime service account `secretAccessor` binding;
+7. update only the named Gemini and Firebase/App Check environment entries,
+   plus max instances, concurrency, and timeout, in a zero-traffic candidate;
+8. create exact verified quota preference RPD `200`;
+9. create the user-approved monthly budget alert;
+10. promote the exact immutable candidate revision to 100%;
+11. revoke the exact old API key only after promotion succeeds.
 
-Approval of this runbook or Tasks 1–5 is not Task 6 approval.
+Approval of this runbook or the local implementation is not approval for any
+item above.
 
 ## 4. Required APIs
 
@@ -174,6 +194,7 @@ required_apis=(
   cloudquotas.googleapis.com
   cloudbilling.googleapis.com
   billingbudgets.googleapis.com
+  firebaseappcheck.googleapis.com
 )
 missing_api=false
 for required_api in "${required_apis[@]}"; do
@@ -702,8 +723,13 @@ pinned to the verified numeric version.
 set -euo pipefail
 : "${KALORIES_SECRET_VERSION:?Use the verified numeric secret version}"
 : "${KALORIES_SERVICE_RESOURCE_VERSION:?Run the IAM/concurrency pre-audit first}"
+: "${KALORIES_FIREBASE_IOS_APP_ID:?Use the exact approved Firebase iOS app ID}"
 if [[ ! "${KALORIES_SECRET_VERSION}" =~ ^[1-9][0-9]*$ ]]; then
   printf '%s\n' 'NO-GO: secret version is not pinned'
+  exit 1
+fi
+if [[ ! "${KALORIES_FIREBASE_IOS_APP_ID}" =~ ^1:[0-9]{6,}:ios:[A-Za-z0-9]+$ ]]; then
+  printf '%s\n' 'NO-GO: Firebase iOS app ID format is invalid'
   exit 1
 fi
 umask 077
@@ -729,7 +755,7 @@ if ! gcloud run deploy kalories \
   --region=asia-northeast1 \
   --remove-env-vars=GEMINI_API_KEY,GEMINI_MODEL \
   --update-secrets=GEMINI_API_KEY=kalories-gemini-api-key:${KALORIES_SECRET_VERSION} \
-  --update-env-vars=GEMINI_MODEL=gemini-3.6-flash \
+  --update-env-vars=GEMINI_MODEL=gemini-3.6-flash,APP_CHECK_ENFORCEMENT=required,FIREBASE_PROJECT_ID=zhang23-23,FIREBASE_IOS_APP_ID=${KALORIES_FIREBASE_IOS_APP_ID} \
   --max-instances=1 \
   --concurrency=4 \
   --timeout=30s \
@@ -804,7 +830,8 @@ gcloud run revisions describe "${KALORIES_CANDIDATE_REVISION}" \
   --format=json >"${candidate_revision_json}" 2>/dev/null
 if ! jq -e \
   --arg revision "${KALORIES_CANDIDATE_REVISION}" \
-  --arg secret_version "${KALORIES_SECRET_VERSION}" '
+  --arg secret_version "${KALORIES_SECRET_VERSION}" \
+  --arg firebase_app_id "${KALORIES_FIREBASE_IOS_APP_ID}" '
   def all_env: [.spec.containers[]?.env[]?, .containers[]?.env[]?];
   ([
     .metadata.annotations["autoscaling.knative.dev/maxScale"]?,
@@ -814,6 +841,9 @@ if ! jq -e \
   | all_env as $env
   | [$env[] | select(.name? == "GEMINI_API_KEY")] as $keys
   | [$env[] | select(.name? == "GEMINI_MODEL")] as $models
+  | [$env[] | select(.name? == "APP_CHECK_ENFORCEMENT")] as $enforcement
+  | [$env[] | select(.name? == "FIREBASE_PROJECT_ID")] as $projects
+  | [$env[] | select(.name? == "FIREBASE_IOS_APP_ID")] as $apps
   | ([.spec.containers[]?.image?, .containers[]?.image?]
      | map(select(type == "string"))) as $images
   | .metadata.name == $revision
@@ -836,6 +866,15 @@ if ! jq -e \
   and (($models | length) == 1 and $models[0].value? == "gemini-3.6-flash")
   and ($models[0] | has("valueFrom") | not)
   and ($models[0] | has("valueSource") | not)
+  and (($enforcement | length) == 1 and $enforcement[0].value? == "required")
+  and ($enforcement[0] | has("valueFrom") | not)
+  and ($enforcement[0] | has("valueSource") | not)
+  and (($projects | length) == 1 and $projects[0].value? == "zhang23-23")
+  and ($projects[0] | has("valueFrom") | not)
+  and ($projects[0] | has("valueSource") | not)
+  and (($apps | length) == 1 and $apps[0].value? == $firebase_app_id)
+  and ($apps[0] | has("valueFrom") | not)
+  and ($apps[0] | has("valueSource") | not)
   and (($images | length) == 1 and ($images[0] | test("@sha256:[0-9a-fA-F]{64}$")))
 ' "${candidate_revision_json}" >/dev/null; then
   printf '%s\n' 'NO-GO: immutable candidate revision is noncompliant'
@@ -852,9 +891,11 @@ latency under 20 seconds, and cost are still unverified at this point.
 
 ## 10. Candidate request, strict schema, and targeted safe logs
 
-Use one generated non-personal synthetic meal image outside the repository.
-Keep request, response and logs private. Every curl command must succeed at the
-transport layer as well as return HTTP 200.
+Use one generated non-personal synthetic meal image outside the repository and
+one short-lived App Check token obtained through the separately registered
+local DEBUG provider. Keep the token, request, response, and logs private. The
+no-token probe must be HTTP 401; public pages and the token-authenticated image
+request must be HTTP 200. Transport failure is always NO-GO.
 
 `AnalyzeResponse.model_validate_json` enforces the production Pydantic
 contract: complete nested shape, strict types, enum values, numeric ranges,
@@ -874,20 +915,34 @@ set -euo pipefail
 : "${KALORIES_CANDIDATE_URL:?Resolve candidate URL first}"
 : "${KALORIES_CANDIDATE_REVISION:?Resolve candidate revision first}"
 : "${KALORIES_SYNTHETIC_MEAL_IMAGE:?Set a generated non-personal JPEG path}"
+: "${KALORIES_APP_CHECK_TOKEN_FILE:?Set a mode-600 short-lived App Check token file}"
 test -f "${KALORIES_SYNTHETIC_MEAL_IMAGE}"
+test -f "${KALORIES_APP_CHECK_TOKEN_FILE}"
+if [[ "$(stat -f '%Lp' "${KALORIES_APP_CHECK_TOKEN_FILE}")" != 600 ]]; then
+  printf '%s\n' 'NO-GO: App Check token file mode is not 600'
+  exit 1
+fi
+app_check_token="$(<"${KALORIES_APP_CHECK_TOKEN_FILE}")"
+if [[ -z "${app_check_token}" || "${app_check_token}" == *$'\n'* ||
+  "${app_check_token}" == *$'\r'* ]]; then
+  printf '%s\n' 'NO-GO: App Check token file is invalid'
+  exit 1
+fi
 umask 077
 candidate_test_tmp="$(mktemp -d)"
 candidate_payload_json="${candidate_test_tmp}/request.json"
 candidate_response_json="${candidate_test_tmp}/response.json"
 candidate_logs_json="${candidate_test_tmp}/logs.json"
 candidate_schema_error="${candidate_test_tmp}/schema-error.txt"
+candidate_no_token_json="${candidate_test_tmp}/no-token.json"
 cleanup_candidate_test() {
   local candidate_test_file
   for candidate_test_file in \
     "${candidate_payload_json}" \
     "${candidate_response_json}" \
     "${candidate_logs_json}" \
-    "${candidate_schema_error}"; do
+    "${candidate_schema_error}" \
+    "${candidate_no_token_json}"; do
     if [[ -f "${candidate_test_file}" ]]; then unlink -- "${candidate_test_file}"; fi
   done
   if [[ -d "${candidate_test_tmp}" ]]; then rmdir -- "${candidate_test_tmp}"; fi
@@ -917,6 +972,29 @@ base64 <"${KALORIES_SYNTHETIC_MEAL_IMAGE}" \
   | tr -d '\n' \
   | jq -Rs '{image: ("data:image/jpeg;base64," + .)}' >"${candidate_payload_json}"
 candidate_request_started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+for protected_path in '/api/analyze' '/'; do
+  no_token_status=''
+  if ! no_token_status="$(curl \
+    --silent --show-error \
+    --output "${candidate_no_token_json}" \
+    --write-out '%{http_code}' \
+    --request POST \
+    --connect-timeout 10 --max-time 20 \
+    --header 'Content-Type: application/json' \
+    --data '{"image":"data:image/jpeg;base64,AA=="}' \
+    "${KALORIES_CANDIDATE_URL}${protected_path}")"; then
+    printf 'NO-GO: candidate no-token request failed for %s\n' "${protected_path}"
+    exit 1
+  fi
+  if [[ "${no_token_status}" != 401 ]] || ! jq -e '
+    type == "object" and keys == ["detail"]
+    and (.detail | type == "object") and (.detail | keys == ["code"])
+    and .detail.code == "APP_CHECK_FAILED"
+  ' "${candidate_no_token_json}" >/dev/null; then
+    printf 'NO-GO: candidate no-token contract is invalid for %s\n' "${protected_path}"
+    exit 1
+  fi
+done
 request_metrics=''
 if ! request_metrics="$(curl \
   --silent --show-error \
@@ -924,6 +1002,7 @@ if ! request_metrics="$(curl \
   --write-out '%{http_code} %{time_total}' \
   --connect-timeout 10 --max-time 20 \
   --header 'Content-Type: application/json' \
+  --header "X-Firebase-AppCheck: ${app_check_token}" \
   --data-binary "@${candidate_payload_json}" \
   "${KALORIES_CANDIDATE_URL}/api/analyze")"; then
   printf '%s\n' 'NO-GO: candidate real-image request failed'
@@ -972,7 +1051,8 @@ jq -e '
   def sensitive_key:
     normalized_key as $key
     | [
-        "authorization", "xgoogapikey", "apikey", "geminiapikey",
+        "authorization", "xgoogapikey", "xfirebaseappcheck",
+        "appchecktoken", "apikey", "geminiapikey",
         "request", "requestbody", "providerrequest", "providerresponse",
         "response", "responsebody", "assessment", "nutrients",
         "fooddetected", "image", "prompt", "contents", "candidates"
@@ -980,7 +1060,7 @@ jq -e '
     | index($key) != null;
   any(.. | objects | keys_unsorted[]?; sensitive_key)
   or any(.. | strings;
-    test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|api[_-]?key)\\\"?[[:space:]]*[:=]"))
+    test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|x-firebase-app-check|app[_-]?check[_-]?token|api[_-]?key)\\\"?[[:space:]]*[:=]"))
 ' "${candidate_logs_json}" >/dev/null || candidate_log_scan_status=$?
 case "${candidate_log_scan_status}" in
   0)
@@ -994,11 +1074,18 @@ case "${candidate_log_scan_status}" in
     ;;
 esac
 # END CANDIDATE_LOG_SAFETY_SCAN
-if ! jq -e --arg revision "${KALORIES_CANDIDATE_REVISION}" '
-  any(.[];
-    .resource.labels.revision_name? == $revision
-    and ((.httpRequest.requestUrl? // "") | endswith("/api/analyze"))
-    and .httpRequest.status? == 200)
+if ! jq -e \
+  --arg revision "${KALORIES_CANDIDATE_REVISION}" \
+  --arg candidate_url "${KALORIES_CANDIDATE_URL}" '
+  def exact_post($path; $status):
+    any(.[];
+      .resource.labels.revision_name? == $revision
+      and .httpRequest.requestMethod? == "POST"
+      and .httpRequest.status? == $status
+      and .httpRequest.requestUrl? == ($candidate_url + $path));
+  exact_post("/api/analyze"; 401)
+  and exact_post("/"; 401)
+  and exact_post("/api/analyze"; 200)
 ' "${candidate_logs_json}" >/dev/null; then
   printf '%s\n' 'NO-GO: candidate target request log is missing'
   exit 1
@@ -1007,6 +1094,7 @@ printf '%s\n' 'CHECK candidate target request log collected; safe scan passed'
 cleanup_candidate_test
 trap - EXIT
 unset KALORIES_SYNTHETIC_MEAL_IMAGE
+unset app_check_token
 ```
 
 ## 11. Exact promotion, postcheck, revocation, and rollback
@@ -1034,6 +1122,7 @@ if ! gcloud run services update-traffic kalories \
   exit 1
 fi
 if ! KALORIES_EXPECTED_REVISION="${KALORIES_CANDIDATE_REVISION}" \
+  KALORIES_EXPECTED_FIREBASE_IOS_APP_ID="${KALORIES_FIREBASE_IOS_APP_ID}" \
   scripts/check-testflight-backend.sh; then
   printf '%s\n' 'NO-GO: promoted revision failed exact production postcheck'
   exit 1
@@ -1218,13 +1307,13 @@ mutation during an incident.
 
 ## 12. Runtime limits and monitoring
 
-The anonymous global token bucket is process-local, resets on restart, and has
-no per-user fairness; one caller can starve others. It runs after image decode,
-so CPU and memory may be spent before a 429. Therefore maxScale `1` and
-monitoring of HTTP 429, memory, latency, concurrency saturation, and restarts
-remain required for the controlled phase. Provider RPD is a cost/request loss
-cap, not CPU protection; a budget alert is only notification. None is access
-control.
+Firebase App Check runs before image decoding and provider work. The remaining
+global token bucket is process-local, resets on restart, and has no per-user
+fairness; a caller with a valid app token can still starve others. Therefore
+maxScale `1` and monitoring of HTTP 401/429/503, memory, latency, concurrency
+saturation, App Attest failures, and restarts remain required. Provider RPD is
+a cost/request loss cap, not complete abuse protection; a budget alert is only
+notification.
 
 ## 13. TestFlight and public App Store boundary
 

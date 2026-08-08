@@ -20,6 +20,8 @@ APPROVED_HREFS = frozenset(
         "https://ai.google.dev/gemini-api/docs/usage-policies",
         "https://ai.google.dev/gemini-api/docs/logs-policy",
         "https://ai.google.dev/gemini-api/docs/zdr",
+        "https://firebase.google.com/support/privacy/",
+        "https://developer.apple.com/documentation/devicecheck",
         "https://github.com/zll6796096/Kalories/issues/new",
     }
 )
@@ -33,7 +35,6 @@ FORBIDDEN_TAGS = frozenset(
         "iframe",
         "img",
         "input",
-        "link",
         "object",
         "option",
         "script",
@@ -204,6 +205,21 @@ class PublicPageTests(unittest.TestCase):
                 self.assertEqual(page.title, expected_titles[page_name])
                 self.assertEqual(page.tags.count("main"), 1)
                 self.assertGreaterEqual(page.tags.count("h1"), 1)
+                icon_links = [
+                    attrs
+                    for tag, attrs in page.attributes
+                    if tag == "link" and attrs.get("rel") == "icon"
+                ]
+                self.assertEqual(
+                    icon_links,
+                    [
+                        {
+                            "rel": "icon",
+                            "href": "/favicon.svg",
+                            "type": "image/svg+xml",
+                        }
+                    ],
+                )
 
     def test_pages_have_no_javascript_tracking_or_external_assets(self) -> None:
         forbidden_markers = ("todo", "tbd", "placeholder", "要確認")
@@ -249,13 +265,20 @@ class PublicPageTests(unittest.TestCase):
                                 f"active URL scheme found on <{tag} {name}>",
                             )
                         if normalized_name in URL_BEARING_ATTRIBUTES:
-                            self.assertEqual(
-                                (tag, normalized_name),
-                                ("a", "href"),
+                            approved_anchor = (
+                                (tag, normalized_name) == ("a", "href")
+                                and value in APPROVED_HREFS
+                            )
+                            approved_favicon = (
+                                (tag, normalized_name) == ("link", "href")
+                                and value == "/favicon.svg"
+                            )
+                            self.assertTrue(
+                                approved_anchor or approved_favicon,
                                 f"unapproved URL-bearing attribute <{tag} {name}>",
                             )
-                            self.assertIn(value, APPROVED_HREFS)
-                            hrefs.append(value)
+                            if approved_anchor:
+                                hrefs.append(value)
                     if tag == "a":
                         self.assertEqual(len(hrefs), 1, "every link needs one approved href")
 
@@ -330,6 +353,24 @@ class PublicPageTests(unittest.TestCase):
             "医療診断",
             "医療助言",
             "臨床用途",
+            "Firebase App Check",
+            "Apple App Attest",
+            "IPアドレス",
+            "アプリID",
+            "バンドルID",
+            "技術・運用情報",
+            "アテステーション資料",
+            "App Checkトークン",
+            "行動分析",
+            "追跡",
+            "Firebase App Check 和 Apple App Attest",
+            "IP 地址",
+            "应用 ID",
+            "软件包 ID",
+            "Firebase App Check and Apple App Attest",
+            "IP addresses",
+            "app IDs",
+            "bundle IDs",
         )
         for term in required_terms:
             with self.subTest(term=term):
@@ -375,7 +416,10 @@ class PublicPageTests(unittest.TestCase):
         self.assertRegex(text, r"条件.+満たせない.+配布しません")
         self.assertRegex(text, r"送信済み.+保持期間")
         self.assertRegex(text, r"削除する.+履歴.+ありません")
-        self.assertNotRegex(text, r"保持しません|保存期間は0|ゼロ保持を適用")
+        self.assertNotRegex(
+            text,
+            r"(?:プロンプト|写真入力|分析出力).{0,80}保持しません|保存期間は0|ゼロ保持を適用",
+        )
         self.assertNotIn("自動的に期限切れ", text)
 
         retention_start = raw.index("<h2>保存期間</h2>")
@@ -406,6 +450,18 @@ class PublicPageTests(unittest.TestCase):
         self.assertIn("https://ai.google.dev/gemini-api/docs/usage-policies", hrefs)
         self.assertIn("https://ai.google.dev/gemini-api/docs/logs-policy", hrefs)
         self.assertIn("https://ai.google.dev/gemini-api/docs/zdr", hrefs)
+        self.assertIn("https://firebase.google.com/support/privacy/", hrefs)
+        self.assertIn("https://developer.apple.com/documentation/devicecheck", hrefs)
+
+        integrity_sections = [
+            attrs
+            for tag, attrs in page.attributes
+            if tag == "section" and attrs.get("data-integrity-disclosure") == "true"
+        ]
+        self.assertEqual(
+            [attrs.get("lang") for attrs in integrity_sections],
+            ["ja", "zh-CN", "en"],
+        )
 
     def test_support_page_is_japanese_first_and_covers_safe_manual_help(self) -> None:
         _raw, page = read_page("support")
@@ -443,7 +499,12 @@ class PublicPageTests(unittest.TestCase):
             "タイムアウト",
             "RATE_LIMITED",
             "手動で",
-            "自動再試行しません",
+            "APP_CHECK_FAILED",
+            "1回だけ",
+            "画像を読み取る前",
+            "完整性令牌",
+            "once",
+            "integrity token",
             "TestFlight",
             "18歳以上",
             "医療診断",

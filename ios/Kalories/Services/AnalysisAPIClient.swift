@@ -121,13 +121,12 @@ actor AnalysisAPIClient: AnalysisServing {
         }
 
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            let failure = Self.backendFailure(
+            let classification = Self.backendFailure(
                 from: data,
                 statusCode: httpResponse.statusCode
             )
             if
-                failure == .appCheckFailed,
-                httpResponse.statusCode == 401,
+                classification.isOwnedAppCheckRejection,
                 mayRefreshAfterRejection
             {
                 return try await analyze(
@@ -136,7 +135,7 @@ actor AnalysisAPIClient: AnalysisServing {
                     mayRefreshAfterRejection: false
                 )
             }
-            throw failure
+            throw classification.failure
         }
 
         do {
@@ -146,32 +145,60 @@ actor AnalysisAPIClient: AnalysisServing {
         }
     }
 
-    private static func backendFailure(from data: Data, statusCode: Int) -> AppFailure {
-        let code = try? JSONDecoder().decode(BackendErrorEnvelope.self, from: data).detail?.code
+    private static func backendFailure(
+        from data: Data,
+        statusCode: Int
+    ) -> BackendFailureClassification {
+        let code = exactBackendCode(from: data)
+        let failure: AppFailure
         switch code {
         case "INVALID_IMAGE":
-            return .invalidImage
+            failure = .invalidImage
         case "UNSUPPORTED_IMAGE":
-            return .unsupportedImage
+            failure = .unsupportedImage
         case "IMAGE_TOO_LARGE":
-            return .imageTooLarge
+            failure = .imageTooLarge
         case "SERVICE_NOT_CONFIGURED":
-            return .serviceNotConfigured
+            failure = .serviceNotConfigured
         case "RATE_LIMITED":
-            return .rateLimited
+            failure = .rateLimited
         case "APP_CHECK_FAILED":
-            return .appCheckFailed
+            failure = .appCheckFailed
         case "APP_CHECK_UNAVAILABLE":
-            return .appCheckUnavailable
+            failure = .appCheckUnavailable
         case "ANALYSIS_FAILED":
-            return .analysisFailed
+            failure = .analysisFailed
         default:
             if statusCode == 401 {
-                return .appCheckFailed
+                failure = .appCheckFailed
+            } else {
+                failure = statusCode == 429 ? .rateLimited : .analysisFailed
             }
-            return statusCode == 429 ? .rateLimited : .analysisFailed
         }
+        return BackendFailureClassification(
+            failure: failure,
+            isOwnedAppCheckRejection: statusCode == 401 && code == "APP_CHECK_FAILED"
+        )
     }
+
+    private static func exactBackendCode(from data: Data) -> String? {
+        guard
+            let envelope = try? JSONSerialization.jsonObject(with: data),
+            let root = envelope as? [String: Any],
+            Set(root.keys) == ["detail"],
+            let detail = root["detail"] as? [String: Any],
+            Set(detail.keys) == ["code"],
+            let code = detail["code"] as? String
+        else {
+            return nil
+        }
+        return code
+    }
+}
+
+private struct BackendFailureClassification {
+    let failure: AppFailure
+    let isOwnedAppCheckRejection: Bool
 }
 
 private enum AnalysisTransportOutcome: Sendable {
@@ -216,12 +243,4 @@ private final class AnalysisRedirectPolicy: NSObject, URLSessionTaskDelegate, @u
 
 private struct AnalysisRequest: Encodable {
     let image: String
-}
-
-private struct BackendErrorEnvelope: Decodable {
-    struct Detail: Decodable {
-        let code: String?
-    }
-
-    let detail: Detail?
 }
