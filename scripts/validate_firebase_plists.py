@@ -100,7 +100,12 @@ def validate_distribution(
         for key, expected_value in expected.items():
             if config.get(key) != expected_value:
                 raise ValidationError(f"{label} Firebase {key} is mismatched")
-        for key in ("IS_ANALYTICS_ENABLED", "IS_ADS_ENABLED", "IS_SIGNIN_ENABLED"):
+        for key in (
+            "IS_ANALYTICS_ENABLED",
+            "IS_ADS_ENABLED",
+            "IS_SIGNIN_ENABLED",
+            "IS_GCM_ENABLED",
+        ):
             if config.get(key) is True:
                 raise ValidationError(f"{label} Firebase config enables {key}")
     if configs[1] != configs[0]:

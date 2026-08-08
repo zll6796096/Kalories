@@ -29,7 +29,7 @@ class AppCheckReleaseGateTests(unittest.TestCase):
         self.assertIn("PASS: local iOS App Check release checks", result.stdout)
         self.assertIn("EXTERNAL CONFIGURATION: not verified", result.stdout)
 
-    def test_ios_distribution_gate_fails_closed_without_real_firebase_config(self) -> None:
+    def test_ios_distribution_gate_fails_closed_without_expected_firebase_app(self) -> None:
         result = subprocess.run(
             [str(IOS_GATE)],
             cwd=ROOT,
@@ -39,7 +39,7 @@ class AppCheckReleaseGateTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn(
-            "BLOCKED_BY_EXTERNAL_CONFIG: GoogleService-Info.plist is missing",
+            "BLOCKED_BY_EXTERNAL_CONFIG: expected Firebase iOS app ID is missing",
             result.stdout,
         )
         self.assertNotIn("PASS: distribution", result.stdout)
@@ -86,7 +86,7 @@ class AppCheckReleaseGateTests(unittest.TestCase):
             encoding="utf-8"
         )
         for expected in (
-            "--glob '!Kalories/Resources/GoogleService-Info.plist'",
+            "--glob '!**/Kalories/Resources/GoogleService-Info.plist'",
             "distribution app bundle is required",
             "packaged_firebase_plist=",
             "codesign --verify --deep --strict",
@@ -154,6 +154,15 @@ class AppCheckReleaseGateTests(unittest.TestCase):
                 0,
             )
 
+            messaging_enabled = dict(valid)
+            messaging_enabled["IS_GCM_ENABLED"] = True
+            self._write_plist(source_path, messaging_enabled)
+            self._write_plist(packaged_path, messaging_enabled)
+            self.assertNotEqual(
+                self._run_validator(source_path, packaged_path, info_path).returncode,
+                0,
+            )
+
     def test_source_firebase_plist_validation_precedes_local_pass(self) -> None:
         source = IOS_GATE.read_text(encoding="utf-8")
         self.assertLess(
@@ -171,6 +180,7 @@ class AppCheckReleaseGateTests(unittest.TestCase):
             "IS_ANALYTICS_ENABLED": False,
             "IS_ADS_ENABLED": False,
             "IS_SIGNIN_ENABLED": False,
+            "IS_GCM_ENABLED": False,
         }
 
     @staticmethod

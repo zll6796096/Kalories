@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyCfrrALmX7W1mOu_YGCJi5mtcToX6F9E9Q</string>
+	<key>BUNDLE_ID</key>
+	<string>com.ryuaistudio.kalories</string>
+	<key>GCM_SENDER_ID</key>
+	<string>788259830737</string>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:788259830737:ios:a4459f14b5e8046297bef0</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<false/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<false/>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>PROJECT_ID</key>
+	<string>zhang23-23</string>
+	<key>STORAGE_BUCKET</key>
+	<string>zhang23-23.firebasestorage.app</string>
+</dict>
+</plist>

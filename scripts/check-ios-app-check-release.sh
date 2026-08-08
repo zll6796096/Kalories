@@ -118,7 +118,7 @@ if rg "${credential_scan_args[@]}" \
   "${ROOT_DIR}/api" "${ROOT_DIR}/lib" \
   "${ROOT_DIR}/public" "${ROOT_DIR}/src" >/dev/null 2>&1 ||
   rg "${credential_scan_args[@]}" \
-    --glob '!Kalories/Resources/GoogleService-Info.plist' \
+    --glob '!**/Kalories/Resources/GoogleService-Info.plist' \
     "${ROOT_DIR}/ios" >/dev/null 2>&1; then
   printf '%s\n' 'NO-GO: release source contains forbidden credential material'
   exit 1

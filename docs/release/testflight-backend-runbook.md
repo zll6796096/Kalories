@@ -21,7 +21,7 @@ requires separate approval of its exact resource identity and effect.
 | Region | `asia-northeast1` |
 | Cloud Run service | `kalories` |
 | Apple bundle ID | `com.ryuaistudio.kalories` |
-| Firebase iOS app ID | unresolved until the separately approved registration; pass the exact value as `KALORIES_EXPECTED_FIREBASE_IOS_APP_ID` |
+| Firebase iOS app ID | `1:788259830737:ios:a4459f14b5e8046297bef0`; pass this exact value as `KALORIES_EXPECTED_FIREBASE_IOS_APP_ID` |
 | App Check mode | `APP_CHECK_ENFORCEMENT=required`; App Attest only for TestFlight/Release |
 | Model | `gemini-3.6-flash` |
 | Replacement API key ID | `kalories-gemini-testflight` |
@@ -29,12 +29,14 @@ requires separate approval of its exact resource identity and effect.
 | Preferred Gemini limit | RPD `200`, only after the exact enforceable quota ID and dimensions are verified |
 | Controlled audience | Invited testers who are 18 or older |
 
-Never print, paste, manually compare, screenshot, or commit an API key value,
-request image, provider response, IAM identity list, or log content. The only
-key comparison below is a private automated equality check over mode-600 files;
-it emits only a fixed boolean verdict and deletes both files. Use `set -euo
-pipefail`, no shell tracing, `umask 077`, exact temporary paths, fixed safe
-findings, and cleanup traps.
+Never print, paste, manually compare, or screenshot an API key value, request
+image, provider response, IAM identity list, or log content. Never commit a
+Gemini or other private API key. The only committed key exception is the public
+Firebase `API_KEY` inside the validated `GoogleService-Info.plist`; it is public
+configuration, not authorization. The only key comparison below is a private
+automated equality check over mode-600 files; it emits only a fixed boolean
+verdict and deletes both files. Use `set -euo pipefail`, no shell tracing,
+`umask 077`, exact temporary paths, fixed safe findings, and cleanup traps.
 
 ## Read-only baseline
 
@@ -100,7 +102,8 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | Local code/pages | PASS, local only | Full backend and frontend suites, typecheck, build, dependency/import checks, clean commit |
 | Read-only production preflight | NO-GO | Fixed findings cleared; immutable production revision and targeted logs verified |
 | App Check implementation | PASS, local only | Backend/iOS tests and release scans; no external registration implied |
-| Firebase/Apple registration | BLOCKED | Separate approval, exact app/project/team identities, read-back, real configuration file |
+| Firebase iOS registration / App Attest config | PASS | Exact project/app/bundle/team read-back, App Attest TTL `3600s`, validated real configuration file |
+| Apple Developer signing assets | BLOCKED | App ID capability and a matching valid App Store profile must be verified separately |
 | Cloud mutation authorization | BLOCKED | Fresh approval of every mutation listed below |
 | Provider privacy | UNVERIFIED | Paid tier, developer logging disabled, dataset sharing disabled, official terms evidence |
 | Enforceable provider quota | UNVERIFIED | Exact quota ID/dimensions and settled granted/preferred RPD `200` |
@@ -158,12 +161,23 @@ finding. Never print an IAM policy or its members.
 
 ## 3. Exact external-mutation confirmation
 
+Batch A completed the Firebase portions of items 1 and 2 at
+`2026-08-08 17:39:30 JST (+0900)`: Firebase was already active on project
+`zhang23-23`; exactly one active iOS app was registered for bundle
+`com.ryuaistudio.kalories` and Team ID `YMUG864233`; Firebase App Attest was
+read back with TTL `3600s`. The generated public Firebase key has a nonempty
+API allowlist and does not allow `generativelanguage.googleapis.com`. It has no
+iOS application restriction; Batch A did not modify that restriction. The
+validated plist disables Analytics, Ads, Sign-In, and GCM flags and is packaged
+only in the app target. Do not repeat the registration. Apple Developer signing
+asset changes and every later mutation remain separately gated.
+
 Before any external action, stop and ask the user to confirm each mutation
 explicitly:
 
-1. attach or enable Firebase on project `zhang23-23`;
-2. register only bundle `com.ryuaistudio.kalories` and configure Apple App
-   Attest with the separately confirmed Team ID;
+1. completed/no-op: Firebase was already active on project `zhang23-23`;
+2. completed, Firebase only: registered bundle `com.ryuaistudio.kalories` and
+   configured App Attest for Team ID `YMUG864233`;
 3. enable only the individually listed missing APIs;
 4. create/restrict API key `kalories-gemini-testflight` if absent;
 5. create secret `kalories-gemini-api-key` if absent and add one pinned version;
