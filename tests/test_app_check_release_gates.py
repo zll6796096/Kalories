@@ -14,9 +14,27 @@ FIREBASE_PLIST_VALIDATOR = ROOT / "scripts" / "validate_firebase_plists.py"
 BACKEND_GATE = ROOT / "scripts" / "check-testflight-backend.sh"
 RUNBOOK = ROOT / "docs" / "release" / "testflight-backend-runbook.md"
 README = ROOT / "README.md"
+XCODEGEN_SPEC = ROOT / "ios" / "project.yml"
+XCODE_PROJECT = ROOT / "ios" / "Kalories.xcodeproj" / "project.pbxproj"
 
 
 class AppCheckReleaseGateTests(unittest.TestCase):
+    def test_release_signing_profile_is_scoped_to_the_app_target(self) -> None:
+        spec = XCODEGEN_SPEC.read_text(encoding="utf-8")
+        project = XCODE_PROJECT.read_text(encoding="utf-8")
+
+        self.assertIn("CODE_SIGN_STYLE: Manual", spec)
+        self.assertIn("CODE_SIGN_IDENTITY: Apple Distribution", spec)
+        self.assertIn("PROVISIONING_PROFILE_SPECIFIER: Kalories App Store", spec)
+        self.assertEqual(
+            project.count('PROVISIONING_PROFILE_SPECIFIER = "Kalories App Store";'),
+            1,
+        )
+        self.assertEqual(
+            project.count('CODE_SIGN_IDENTITY = "Apple Distribution";'),
+            1,
+        )
+
     def test_ios_local_gate_passes_without_claiming_external_configuration(self) -> None:
         result = subprocess.run(
             [str(IOS_GATE), "--local"],
