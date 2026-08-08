@@ -25,6 +25,8 @@
 "detectedFood" = "Estimated meal";
 "disclaimer" = "Values are estimated from a photo for single-meal reference only. This is not a medical diagnosis.";
 "errorAnalysisFailed" = "Analysis failed. Please try again shortly.";
+"errorAppCheckFailed" = "This app could not be verified. Reopen it and try again.";
+"errorAppCheckUnavailable" = "The app cannot be verified right now. Try again shortly.";
 "errorCameraDenied" = "Camera access is unavailable. Allow camera access in Settings.";
 "errorCaptureFailed" = "The photo could not be captured. Please try again.";
 "errorImageTooLarge" = "The image is too large.";

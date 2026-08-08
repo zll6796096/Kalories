@@ -13,15 +13,23 @@ struct AppEnvironment {
     let privacyURL: URL
     let supportURL: URL
 
-    static func live(bundle: Bundle = .main) throws -> AppEnvironment {
+    static func live(
+        bundle: Bundle = .main,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        appCheckBootstrap: (() throws -> any AppCheckTokenProviding)? = nil
+    ) throws -> AppEnvironment {
 #if DEBUG
-        if let fixtureEnvironment = try UITestFixtures.environmentIfRequested() {
+        if let fixtureEnvironment = try UITestFixtures.environmentIfRequested(
+            arguments: arguments
+        ) {
             return fixtureEnvironment
         }
 #endif
 
         let configuration = try AppConfiguration.from(bundle: bundle)
         let links = try links(for: configuration)
+        let tokenProvider = try appCheckBootstrap?()
+            ?? FirebaseAppCheckBootstrap.configure(bundle: bundle)
         let localePreference = AppLocalePreference(defaults: .standard)
         let locale = AppLocale.resolve(
             saved: localePreference.load()?.rawValue,
@@ -29,7 +37,11 @@ struct AppEnvironment {
         )
 
         let session = URLSession(configuration: .default)
-        let service = AnalysisAPIClient(session: session, configuration: configuration)
+        let service = AnalysisAPIClient(
+            session: session,
+            configuration: configuration,
+            tokenProvider: tokenProvider
+        )
         let processor = ImageProcessor()
         let flow = AppFlowModel(service: service, processor: processor)
         let cameraPresentation = CameraPresentationController(

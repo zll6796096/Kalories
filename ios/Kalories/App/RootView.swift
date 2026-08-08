@@ -4,7 +4,8 @@ import UIKit
 extension AppFailure {
     var isRetryable: Bool {
         switch self {
-        case .network, .timeout, .rateLimited, .analysisFailed, .malformedResponse:
+        case .network, .timeout, .rateLimited, .analysisFailed, .malformedResponse,
+             .appCheckFailed, .appCheckUnavailable:
             true
         case .cameraDenied, .captureFailed, .invalidImage, .unsupportedImage,
              .imageTooLarge, .noFood, .serviceNotConfigured, .invalidConfiguration:
@@ -114,6 +115,10 @@ private struct FailureView: View {
             "errorTimeout"
         case .rateLimited:
             "errorRateLimited"
+        case .appCheckFailed:
+            "errorAppCheckFailed"
+        case .appCheckUnavailable:
+            "errorAppCheckUnavailable"
         case .malformedResponse:
             "errorAnalysisFailed"
         case .invalidConfiguration:

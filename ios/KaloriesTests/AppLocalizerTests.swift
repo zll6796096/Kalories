@@ -82,6 +82,35 @@ final class AppLocalizerTests: XCTestCase {
         }
     }
 
+    func testAppCheckFailuresHaveOwnedLocalizedMessages() {
+        let expected: [AppLocale: (failed: String, unavailable: String)] = [
+            .zh: (
+                "无法验证此 App，请重新打开后再试。",
+                "暂时无法验证 App，请稍后再试。"
+            ),
+            .ja: (
+                "このアプリを確認できませんでした。アプリを開き直してお試しください。",
+                "アプリを一時的に確認できません。しばらくしてからお試しください。"
+            ),
+            .en: (
+                "This app could not be verified. Reopen it and try again.",
+                "The app cannot be verified right now. Try again shortly."
+            ),
+        ]
+
+        for locale in AppLocale.allCases {
+            let localizer = AppLocalizer(locale: locale)
+            XCTAssertEqual(
+                localizer.text("errorAppCheckFailed"),
+                expected[locale]?.failed
+            )
+            XCTAssertEqual(
+                localizer.text("errorAppCheckUnavailable"),
+                expected[locale]?.unavailable
+            )
+        }
+    }
+
     func testMissingLocalizationKeyReturnsTheKey() {
         XCTAssertEqual(AppLocalizer(locale: .ja).text("missing.localization.key"), "missing.localization.key")
     }

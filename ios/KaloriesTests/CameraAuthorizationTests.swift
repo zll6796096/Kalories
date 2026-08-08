@@ -14,6 +14,8 @@ final class CameraAuthorizationTests: XCTestCase {
             (.noFood, false),
             (.serviceNotConfigured, false),
             (.analysisFailed, true),
+            (.appCheckFailed, true),
+            (.appCheckUnavailable, true),
             (.network, true),
             (.timeout, true),
             (.rateLimited, true),

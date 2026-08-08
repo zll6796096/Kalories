@@ -70,6 +70,8 @@ export interface Messages {
   errorNoFood: string;
   errorServiceNotConfigured: string;
   errorRateLimited: string;
+  errorAppCheckFailed: string;
+  errorAppCheckUnavailable: string;
   errorAnalysisFailed: string;
   errorNetwork: string;
   errorSaveFailed: string;
@@ -144,6 +146,8 @@ export const messages: Record<Locale, Messages> = {
     errorNoFood: '没有识别到食物，请重新拍摄完整餐食。',
     errorServiceNotConfigured: '分析服务尚未完成配置。',
     errorRateLimited: '请求过于频繁，请稍后再试。',
+    errorAppCheckFailed: '无法验证此 App，请重新打开后再试。',
+    errorAppCheckUnavailable: '暂时无法验证 App，请稍后再试。',
     errorAnalysisFailed: '分析失败，请稍后重试。',
     errorNetwork: '网络连接失败。',
     errorSaveFailed: '无法保存结果。',
@@ -217,6 +221,8 @@ export const messages: Record<Locale, Messages> = {
     errorNoFood: '食事を認識できませんでした。料理全体を撮り直してください。',
     errorServiceNotConfigured: '分析サービスが設定されていません。',
     errorRateLimited: 'リクエストが多すぎます。少し待ってからお試しください。',
+    errorAppCheckFailed: 'このアプリを確認できませんでした。アプリを開き直してお試しください。',
+    errorAppCheckUnavailable: 'アプリを一時的に確認できません。しばらくしてからお試しください。',
     errorAnalysisFailed: '分析に失敗しました。しばらくしてからお試しください。',
     errorNetwork: 'ネットワークに接続できません。',
     errorSaveFailed: '結果を保存できませんでした。',
@@ -292,6 +298,8 @@ export const messages: Record<Locale, Messages> = {
     errorNoFood: 'No meal was detected. Retake the photo with the whole meal visible.',
     errorServiceNotConfigured: 'The analysis service is not configured.',
     errorRateLimited: 'Too many requests. Try again shortly.',
+    errorAppCheckFailed: 'This app could not be verified. Reopen it and try again.',
+    errorAppCheckUnavailable: 'The app cannot be verified right now. Try again shortly.',
     errorAnalysisFailed: 'Analysis failed. Please try again shortly.',
     errorNetwork: 'The network connection failed.',
     errorSaveFailed: 'The result could not be saved.',

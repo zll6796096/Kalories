@@ -27,6 +27,10 @@ final class AnalysisAPIClientTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertEqual(request.url?.absoluteString, "\(expectedOrigin)/api/analyze")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-Firebase-AppCheck"),
+            "valid-app-check-token"
+        )
         XCTAssertEqual(request.timeoutInterval, 25)
         let body = try XCTUnwrap(capturedBody.value)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -38,12 +42,16 @@ final class AnalysisAPIClientTests: XCTestCase {
         let redirectedURL = URL(string: "https://redirect-target.example/api/analyze")!
         let redirectedRequestObserved = LockedBox(false)
         let redirectedBody = LockedBox<Data?>(nil)
+        let redirectedToken = LockedBox<String?>(nil)
         let dataURI = "data:image/jpeg;base64,AQID"
         let successData = canonicalData()
         URLProtocolStub.setHandler { request in
             if request.url?.host == redirectedURL.host {
                 redirectedRequestObserved.set(true)
                 redirectedBody.set(try requestBodyData(from: request))
+                redirectedToken.set(
+                    request.value(forHTTPHeaderField: "X-Firebase-AppCheck")
+                )
                 return makeStubbedResponse(for: request, statusCode: 200, data: successData)
             }
             return makeRedirectResponse(for: request, to: redirectedURL)
@@ -62,6 +70,10 @@ final class AnalysisAPIClientTests: XCTestCase {
         XCTAssertNil(
             redirectedBody.value,
             "Redirect target must never receive the photo body"
+        )
+        XCTAssertNil(
+            redirectedToken.value,
+            "Redirect target must never receive the App Check token"
         )
     }
 
@@ -99,6 +111,135 @@ final class AnalysisAPIClientTests: XCTestCase {
             statusCode: 503,
             equals: .serviceNotConfigured
         )
+    }
+
+    func testAnalyzeMapsAppCheckUnavailableWithoutAutomaticRetry() async {
+        let tokenProvider = TokenProviderStub(outcomes: [.token("first-token")])
+        stub(
+            statusCode: 503,
+            data: backendErrorData(code: "APP_CHECK_UNAVAILABLE")
+        )
+
+        await assertAnalyzeThrows(
+            .appCheckUnavailable,
+            client: makeClient(tokenProvider: tokenProvider)
+        )
+
+        let refreshRequests = await tokenProvider.refreshRequests()
+        XCTAssertEqual(refreshRequests, [false])
+    }
+
+    func testAnalyzeTokenFailureSendsNoImageRequest() async {
+        let requestObserved = LockedBox(false)
+        URLProtocolStub.setHandler { request in
+            requestObserved.set(true)
+            return makeStubbedResponse(
+                for: request,
+                statusCode: 500,
+                data: Data()
+            )
+        }
+        let tokenProvider = TokenProviderStub(
+            outcomes: [.failure(.appCheckUnavailable)]
+        )
+
+        await assertAnalyzeThrows(
+            .appCheckUnavailable,
+            client: makeClient(tokenProvider: tokenProvider)
+        )
+
+        XCTAssertFalse(requestObserved.value)
+        let refreshRequests = await tokenProvider.refreshRequests()
+        XCTAssertEqual(refreshRequests, [false])
+    }
+
+    func testAnalyzeNormalizesCancelledTokenAcquisitionWithoutSendingImage() async {
+        let requestObserved = LockedBox(false)
+        URLProtocolStub.setHandler { request in
+            requestObserved.set(true)
+            return makeStubbedResponse(
+                for: request,
+                statusCode: 500,
+                data: Data()
+            )
+        }
+        let tokenProvider = TokenProviderStub(outcomes: [.urlCancelled])
+
+        do {
+            _ = try await makeClient(tokenProvider: tokenProvider).analyze(
+                dataURI: "data:image/jpeg;base64,AQID"
+            )
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            // Token acquisition cancellation must remain cancellation.
+        } catch {
+            XCTFail("Expected CancellationError, got \(error)")
+        }
+
+        XCTAssertFalse(requestObserved.value)
+    }
+
+    func testAnalyzeRefreshesOnceAfter401ThenSucceedsWithFreshToken() async throws {
+        let requests = LockedBox<[URLRequest]>([])
+        let successData = canonicalData()
+        URLProtocolStub.setHandler { request in
+            let observed = requests.value
+            requests.set(observed + [request])
+            if observed.isEmpty {
+                return makeStubbedResponse(
+                    for: request,
+                    statusCode: 401,
+                    data: backendErrorData(code: "APP_CHECK_FAILED")
+                )
+            }
+            return makeStubbedResponse(
+                for: request,
+                statusCode: 200,
+                data: successData
+            )
+        }
+        let tokenProvider = TokenProviderStub(
+            outcomes: [.token("first-token"), .token("fresh-token")]
+        )
+
+        let result = try await makeClient(tokenProvider: tokenProvider).analyze(
+            dataURI: "data:image/jpeg;base64,AQID"
+        )
+
+        XCTAssertTrue(result.foodDetected)
+        let refreshRequests = await tokenProvider.refreshRequests()
+        XCTAssertEqual(refreshRequests, [false, true])
+        XCTAssertEqual(requests.value.count, 2)
+        XCTAssertEqual(
+            requests.value.map {
+                $0.value(forHTTPHeaderField: "X-Firebase-AppCheck")
+            },
+            ["first-token", "fresh-token"]
+        )
+    }
+
+    func testAnalyzeStopsAfterSecond401WithoutRetryLoop() async {
+        let requestCount = LockedBox(0)
+        URLProtocolStub.setHandler { request in
+            requestCount.set(requestCount.value + 1)
+            return makeStubbedResponse(
+                for: request,
+                statusCode: 401,
+                data: backendErrorData(code: "APP_CHECK_FAILED")
+            )
+        }
+        let tokenProvider = TokenProviderStub(
+            outcomes: [.token("first-token"), .token("fresh-token")]
+        )
+
+        await assertAnalyzeThrows(
+            .appCheckFailed,
+            client: makeClient(tokenProvider: tokenProvider)
+        )
+
+        XCTAssertEqual(requestCount.value, 2)
+        let refreshRequests = await tokenProvider.refreshRequests()
+        XCTAssertEqual(refreshRequests, [false, true])
     }
 
     func testAnalyzeMapsAnalysisFailedAndUnknownFallback() async {
@@ -241,12 +382,20 @@ final class AnalysisAPIClientTests: XCTestCase {
         }
     }
 
-    private func makeClient() -> AnalysisAPIClient {
+    private func makeClient(
+        tokenProvider: any AppCheckTokenProviding = TokenProviderStub(
+            outcomes: [.token("valid-app-check-token")]
+        )
+    ) -> AnalysisAPIClient {
         let sessionConfiguration = URLSessionConfiguration.ephemeral
         sessionConfiguration.protocolClasses = [URLProtocolStub.self]
         let session = URLSession(configuration: sessionConfiguration)
         let configuration = try! AppConfiguration(apiBaseURL: URL(string: expectedOrigin)!)
-        return AnalysisAPIClient(session: session, configuration: configuration)
+        return AnalysisAPIClient(
+            session: session,
+            configuration: configuration,
+            tokenProvider: tokenProvider
+        )
     }
 
     private func stub(statusCode: Int, data: Data) {
@@ -268,22 +417,21 @@ final class AnalysisAPIClientTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        let detail: Any = code.map { ["code": $0] } ?? [:]
-        let data = try! JSONSerialization.data(
-            withJSONObject: ["detail": detail],
-            options: [.sortedKeys]
-        )
+        let data = backendErrorData(code: code)
         stub(statusCode: statusCode, data: data)
         await assertAnalyzeThrows(expected, file: file, line: line)
     }
 
     private func assertAnalyzeThrows(
         _ expected: AppFailure,
+        client: AnalysisAPIClient? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
         do {
-            _ = try await makeClient().analyze(dataURI: "data:image/jpeg;base64,AQID")
+            _ = try await (client ?? makeClient()).analyze(
+                dataURI: "data:image/jpeg;base64,AQID"
+            )
             XCTFail("Expected \(expected)", file: file, line: line)
         } catch {
             XCTAssertEqual(error as? AppFailure, expected, file: file, line: line)
@@ -322,6 +470,48 @@ final class AnalysisAPIClientTests: XCTestCase {
         try data.write(to: bundleURL.appendingPathComponent("Info.plist"), options: .atomic)
         return try XCTUnwrap(Bundle(url: bundleURL))
     }
+}
+
+private actor TokenProviderStub: AppCheckTokenProviding {
+    enum Outcome: Sendable {
+        case token(String)
+        case failure(AppFailure)
+        case urlCancelled
+    }
+
+    private var outcomes: [Outcome]
+    private var observedRefreshRequests: [Bool] = []
+
+    init(outcomes: [Outcome]) {
+        self.outcomes = outcomes
+    }
+
+    func token(forcingRefresh: Bool) async throws -> String {
+        observedRefreshRequests.append(forcingRefresh)
+        guard !outcomes.isEmpty else {
+            throw AppFailure.appCheckFailed
+        }
+        switch outcomes.removeFirst() {
+        case let .token(token):
+            return token
+        case let .failure(failure):
+            throw failure
+        case .urlCancelled:
+            throw URLError(.cancelled)
+        }
+    }
+
+    func refreshRequests() -> [Bool] {
+        observedRefreshRequests
+    }
+}
+
+private func backendErrorData(code: String?) -> Data {
+    let detail: Any = code.map { ["code": $0] } ?? [:]
+    return try! JSONSerialization.data(
+        withJSONObject: ["detail": detail],
+        options: [.sortedKeys]
+    )
 }
 
 private func makeStubbedResponse(

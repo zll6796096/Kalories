@@ -4,6 +4,22 @@ import XCTest
 #if DEBUG
 @MainActor
 final class UITestFixturesTests: XCTestCase {
+    func testAppEnvironmentFixtureReturnsBeforeFirebaseBootstrap() throws {
+        var bootstrapCalls = 0
+
+        let environment = try AppEnvironment.live(
+            bundle: Bundle(for: Self.self),
+            arguments: ["Kalories", "--ui-testing", "--fixture-success"],
+            appCheckBootstrap: {
+                bootstrapCalls += 1
+                throw AppFailure.appCheckUnavailable
+            }
+        )
+
+        XCTAssertEqual(bootstrapCalls, 0)
+        XCTAssertEqual(environment.privacyURL.host, "kalories.invalid")
+    }
+
     func testEnvironmentIsInactiveWithoutUITesting() throws {
         let argumentSets = [
             ["Kalories"],

@@ -5,25 +5,64 @@ actor AnalysisAPIClient: AnalysisServing {
 
     private let session: URLSession
     private let configuration: AppConfiguration
+    private let tokenProvider: any AppCheckTokenProviding
     private let decoder: StrictAnalysisDecoder
 
     init(
         session: URLSession,
         configuration: AppConfiguration,
+        tokenProvider: any AppCheckTokenProviding,
         decoder: StrictAnalysisDecoder = StrictAnalysisDecoder()
     ) {
         self.session = session
         self.configuration = configuration
+        self.tokenProvider = tokenProvider
         self.decoder = decoder
     }
 
     func analyze(dataURI: String) async throws -> AnalysisResult {
+        try await analyze(
+            dataURI: dataURI,
+            forcingTokenRefresh: false,
+            mayRefreshAfterRejection: true
+        )
+    }
+
+    private func analyze(
+        dataURI: String,
+        forcingTokenRefresh: Bool,
+        mayRefreshAfterRejection: Bool
+    ) async throws -> AnalysisResult {
         try Task.checkCancellation()
+
+        let appCheckToken: String
+        do {
+            appCheckToken = try await tokenProvider.token(
+                forcingRefresh: forcingTokenRefresh
+            )
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            throw AppFailure.appCheckUnavailable
+        }
+        guard
+            !appCheckToken.isEmpty,
+            appCheckToken == appCheckToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        else {
+            throw AppFailure.appCheckUnavailable
+        }
 
         let endpoint = configuration.apiBaseURL.appendingPathComponent("api/analyze")
         var request = URLRequest(url: endpoint, timeoutInterval: 25)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(appCheckToken, forHTTPHeaderField: "X-Firebase-AppCheck")
         do {
             request.httpBody = try JSONEncoder().encode(AnalysisRequest(image: dataURI))
         } catch {
@@ -82,7 +121,22 @@ actor AnalysisAPIClient: AnalysisServing {
         }
 
         guard (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw Self.backendFailure(from: data, statusCode: httpResponse.statusCode)
+            let failure = Self.backendFailure(
+                from: data,
+                statusCode: httpResponse.statusCode
+            )
+            if
+                failure == .appCheckFailed,
+                httpResponse.statusCode == 401,
+                mayRefreshAfterRejection
+            {
+                return try await analyze(
+                    dataURI: dataURI,
+                    forcingTokenRefresh: true,
+                    mayRefreshAfterRejection: false
+                )
+            }
+            throw failure
         }
 
         do {
@@ -105,9 +159,16 @@ actor AnalysisAPIClient: AnalysisServing {
             return .serviceNotConfigured
         case "RATE_LIMITED":
             return .rateLimited
+        case "APP_CHECK_FAILED":
+            return .appCheckFailed
+        case "APP_CHECK_UNAVAILABLE":
+            return .appCheckUnavailable
         case "ANALYSIS_FAILED":
             return .analysisFailed
         default:
+            if statusCode == 401 {
+                return .appCheckFailed
+            }
             return statusCode == 429 ? .rateLimited : .analysisFailed
         }
     }

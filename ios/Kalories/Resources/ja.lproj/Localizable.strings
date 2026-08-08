@@ -25,6 +25,8 @@
 "detectedFood" = "推定した料理";
 "disclaimer" = "写真からの推定値です。1食の参考であり、医療上の診断ではありません。";
 "errorAnalysisFailed" = "分析に失敗しました。しばらくしてからお試しください。";
+"errorAppCheckFailed" = "このアプリを確認できませんでした。アプリを開き直してお試しください。";
+"errorAppCheckUnavailable" = "アプリを一時的に確認できません。しばらくしてからお試しください。";
 "errorCameraDenied" = "カメラを利用できません。「設定」でカメラへのアクセスを許可してください。";
 "errorCaptureFailed" = "撮影できませんでした。もう一度お試しください。";
 "errorImageTooLarge" = "画像サイズが大きすぎます。";

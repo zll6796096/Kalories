@@ -37,6 +37,7 @@ struct AppConfiguration: Sendable {
 enum AppFailure: Error, Equatable, Sendable {
     case cameraDenied, captureFailed, invalidImage, unsupportedImage
     case imageTooLarge, noFood, serviceNotConfigured, analysisFailed
+    case appCheckFailed, appCheckUnavailable
     case network, timeout, rateLimited, malformedResponse, invalidConfiguration
 }
 

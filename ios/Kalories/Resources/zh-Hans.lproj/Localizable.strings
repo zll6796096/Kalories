@@ -25,6 +25,8 @@
 "detectedFood" = "识别到的食物";
 "disclaimer" = "本结果为照片估算，仅作单餐参考，不是医疗诊断。";
 "errorAnalysisFailed" = "分析失败，请稍后重试。";
+"errorAppCheckFailed" = "无法验证此 App，请重新打开后再试。";
+"errorAppCheckUnavailable" = "暂时无法验证 App，请稍后再试。";
 "errorCameraDenied" = "无法使用相机，请在“设置”中允许访问相机。";
 "errorCaptureFailed" = "拍摄失败，请重试。";
 "errorImageTooLarge" = "图片尺寸过大。";
