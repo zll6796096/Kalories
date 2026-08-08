@@ -33,8 +33,8 @@ Never print, paste, manually compare, or screenshot an API key value, request
 image, provider response, IAM identity list, or log content. Never commit a
 Gemini or other private API key. The only committed key exception is the public
 Firebase `API_KEY` inside the validated `GoogleService-Info.plist`; it is public
-configuration, not authorization. The only key comparison below is a private
-automated equality check over mode-600 files; it emits only a fixed boolean
+configuration, not authorization. The only key comparison below is a
+private automated equality check over mode-600 files; it emits only a fixed boolean
 verdict and deletes both files. Use `set -euo pipefail`, no shell tracing,
 `umask 077`, exact temporary paths, fixed safe findings, and cleanup traps.
 
@@ -103,7 +103,7 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | Read-only production preflight | NO-GO | Fixed findings cleared; immutable production revision and targeted logs verified |
 | App Check implementation | PASS, local only | Backend/iOS tests and release scans; no external registration implied |
 | Firebase iOS registration / App Attest config | PASS | Exact project/app/bundle/team read-back, App Attest TTL `3600s`, validated real configuration file |
-| Apple Developer signing assets | BLOCKED | App ID capability and a matching valid App Store profile must be verified separately |
+| Apple Developer signing assets | BLOCKED_BY_APPLE_LOGIN | One matching Distribution identity is local, but no matching profile or ASC API credentials exist; see `apple-signing-evidence.md` |
 | Cloud mutation authorization | BLOCKED | Fresh approval of every mutation listed below |
 | Provider privacy | UNVERIFIED | Paid tier, developer logging disabled, dataset sharing disabled, official terms evidence |
 | Enforceable provider quota | UNVERIFIED | Exact quota ID/dimensions and settled granted/preferred RPD `200` |
