@@ -306,6 +306,46 @@ export const messages: Record<Locale, Messages> = {
   },
 };
 
+export interface WebMessages {
+  iosOnlyTitle: string;
+  noWebUpload: string;
+  integrityTitle: string;
+  integrityBody: string;
+  legalNavigation: string;
+  privacy: string;
+  support: string;
+}
+
+export const webMessages: Record<Locale, WebMessages> = {
+  zh: {
+    iosOnlyTitle: '照片分析仅可在 iOS 版中使用。',
+    noWebUpload: '此网页不会上传或分析照片。',
+    integrityTitle: '保护分析接口',
+    integrityBody: 'iOS 版会验证 App 完整性，以减少未经授权的使用。',
+    legalNavigation: '隐私与支持',
+    privacy: '隐私政策',
+    support: '支持',
+  },
+  ja: {
+    iosOnlyTitle: '写真分析はiOS版でご利用いただけます。',
+    noWebUpload: 'このWebページでは写真の送信や分析を行いません。',
+    integrityTitle: '分析機能を保護',
+    integrityBody: 'iOS版ではアプリの正当性を確認し、不正利用を抑えます。',
+    legalNavigation: 'プライバシーとサポート',
+    privacy: 'プライバシーポリシー',
+    support: 'サポート',
+  },
+  en: {
+    iosOnlyTitle: 'Photo analysis is available in the iOS app.',
+    noWebUpload: 'This website does not upload or analyze photos.',
+    integrityTitle: 'Protected analysis',
+    integrityBody: 'The iOS app verifies app integrity to reduce unauthorized use.',
+    legalNavigation: 'Privacy and support',
+    privacy: 'Privacy policy',
+    support: 'Support',
+  },
+};
+
 const supportedLocales = new Set<Locale>(['zh', 'ja', 'en']);
 const documentLanguages: Record<Locale, string> = {
   zh: 'zh-CN',

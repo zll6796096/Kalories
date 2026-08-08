@@ -76,6 +76,8 @@ const expectedMessageKeys = [
   'errorNoFood',
   'errorServiceNotConfigured',
   'errorRateLimited',
+  'errorAppCheckFailed',
+  'errorAppCheckUnavailable',
   'errorAnalysisFailed',
   'errorNetwork',
   'errorSaveFailed',

@@ -15,11 +15,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "html2canvas": "^1.4.1",
     "lucide-react": "^0.546.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-webcam": "^7.2.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

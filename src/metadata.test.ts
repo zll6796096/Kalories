@@ -26,7 +26,7 @@ describe('product metadata', () => {
     expect(metadata.name).toBe('Kalories');
     expect(typeof metadata.description).toBe('string');
     expect((metadata.description as string).trim()).not.toBe('');
-    expect(metadata.requestFramePermissions).toEqual(['camera']);
+    expect(metadata.requestFramePermissions).toEqual([]);
     expect(Object.keys(metadata).sort()).toEqual([
       'description',
       'name',
@@ -78,7 +78,7 @@ describe('Python deployment metadata', () => {
     expect(readRepositoryFile('.python-version').trim()).toBe('3.12');
   });
 
-  it('keeps only the seven human-maintained direct dependencies in requirements.in', () => {
+  it('keeps only the eight human-maintained direct dependencies in requirements.in', () => {
     expect(existsSync(repositoryFile('requirements.in'))).toBe(true);
     expect(
       readRepositoryFile('requirements.in')
@@ -87,6 +87,7 @@ describe('Python deployment metadata', () => {
         .filter(Boolean),
     ).toEqual([
       'fastapi',
+      'firebase-admin==7.5.0',
       'uvicorn',
       'google-genai',
       'python-multipart',
