@@ -103,7 +103,7 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | Read-only production preflight | NO-GO | Fixed findings cleared; immutable production revision and targeted logs verified |
 | App Check implementation | PASS, local only | Backend/iOS tests and release scans; no external registration implied |
 | Firebase iOS registration / App Attest config | PASS | Exact project/app/bundle/team read-back, App Attest TTL `3600s`, validated real configuration file |
-| Apple Developer signing assets | BLOCKED_BY_APPLE_LOGIN | One matching Distribution identity is local, but no matching profile or ASC API credentials exist; see `apple-signing-evidence.md` |
+| Apple Developer signing assets | PASS | Explicit App ID with App Attest, one matching unexpired App Store profile, and signed Release gate; see `apple-signing-evidence.md` |
 | Cloud mutation authorization | BLOCKED | Fresh approval of every mutation listed below |
 | Provider privacy | UNVERIFIED | Paid tier, developer logging disabled, dataset sharing disabled, official terms evidence |
 | Enforceable provider quota | UNVERIFIED | Exact quota ID/dimensions and settled granted/preferred RPD `200` |
@@ -170,7 +170,8 @@ API allowlist and does not allow `generativelanguage.googleapis.com`. It has no
 iOS application restriction; Batch A did not modify that restriction. The
 validated plist disables Analytics, Ads, Sign-In, and GCM flags and is packaged
 only in the app target. Do not repeat the registration. Apple Developer signing
-asset changes and every later mutation remain separately gated.
+assets are verified separately in `apple-signing-evidence.md`; every later
+mutation remains separately gated.
 
 Before any external action, stop and ask the user to confirm each mutation
 explicitly:
