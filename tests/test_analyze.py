@@ -21,6 +21,7 @@ with warnings.catch_warnings():
     from starlette.testclient import TestClient
 
 import api.analyze as analyze
+from lib.app_check import AppCheckRejected, AppCheckUnavailable
 
 
 def real_image_bytes(image_format: str) -> bytes:
@@ -37,6 +38,7 @@ IMAGE_BYTES_BY_MIME = {
     "image/png": PNG_BYTES,
     "image/webp": WEBP_BYTES,
 }
+VALID_APP_CHECK_HEADERS = {"X-Firebase-AppCheck": "valid-test-token"}
 
 
 def image_data_uri(payload=JPEG_BYTES, mime_type="image/jpeg"):
@@ -606,7 +608,17 @@ class ApplicationContractTests(unittest.TestCase):
         limiter_patch.start()
         self.addCleanup(limiter_patch.stop)
 
-    def test_post_routes_and_no_cors_middleware(self):
+        self.app_check_verifier = MagicMock()
+        verifier_patch = patch.object(
+            analyze,
+            "APP_CHECK_VERIFIER",
+            self.app_check_verifier,
+            create=True,
+        )
+        verifier_patch.start()
+        self.addCleanup(verifier_patch.stop)
+
+    def test_post_routes_have_only_the_app_check_middleware_and_no_cors(self):
         post_paths = {
             route.path
             for route in analyze.app.routes
@@ -614,10 +626,13 @@ class ApplicationContractTests(unittest.TestCase):
         }
 
         self.assertTrue({"/", "/api/analyze"}.issubset(post_paths))
-        self.assertEqual([], analyze.app.user_middleware)
+        self.assertEqual(
+            ["AppCheckASGIMiddleware"],
+            [middleware.cls.__name__ for middleware in analyze.app.user_middleware],
+        )
 
     def test_testclient_serializes_owned_error_and_success(self):
-        with TestClient(analyze.app) as client:
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
             with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
                 missing_key = client.post("/api/analyze", json={"image": image_data_uri()})
             self.rate_limiter.try_acquire.return_value = False
@@ -649,7 +664,7 @@ class ApplicationContractTests(unittest.TestCase):
         provider_assessment = model_analysis().model_dump()
         provider_assessment["score"] = "82"
 
-        with TestClient(analyze.app) as client:
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
             for label, provider_payload in (
                 ("stringly typed facts", stringly_typed),
                 ("provider supplied score", provider_assessment),
@@ -697,7 +712,7 @@ class ApplicationContractTests(unittest.TestCase):
             ),
         )
 
-        with TestClient(analyze.app) as client:
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
             for label, request_kwargs in cases:
                 with self.subTest(label=label):
                     response = client.post("/api/analyze", **request_kwargs)
@@ -712,6 +727,115 @@ class ApplicationContractTests(unittest.TestCase):
                         self.assertNotIn(leaked_key, serialized)
 
         self.rate_limiter.try_acquire.assert_not_called()
+
+
+class AppCheckApplicationTests(unittest.TestCase):
+    def setUp(self):
+        self.verifier = MagicMock()
+        verifier_patch = patch.object(
+            analyze,
+            "APP_CHECK_VERIFIER",
+            self.verifier,
+            create=True,
+        )
+        verifier_patch.start()
+        self.addCleanup(verifier_patch.stop)
+
+        self.rate_limiter = MagicMock()
+        limiter_patch = patch.object(
+            analyze,
+            "ANALYSIS_RATE_LIMITER",
+            self.rate_limiter,
+        )
+        limiter_patch.start()
+        self.addCleanup(limiter_patch.stop)
+
+    def test_missing_or_empty_header_rejects_both_post_routes_before_body_parsing(self):
+        with TestClient(analyze.app) as client:
+            for path in ("/", "/api/analyze"):
+                for headers in ({}, {"X-Firebase-AppCheck": " \t "}):
+                    with self.subTest(path=path, headers=headers):
+                        response = client.post(
+                            path,
+                            content=b'{"image":',
+                            headers={"Content-Type": "application/json"} | headers,
+                        )
+
+                        self.assertEqual(401, response.status_code)
+                        self.assertEqual(
+                            {"detail": {"code": "APP_CHECK_FAILED"}},
+                            response.json(),
+                        )
+
+        self.verifier.verify.assert_not_called()
+        self.rate_limiter.try_acquire.assert_not_called()
+
+    def test_rejected_or_unavailable_verifier_maps_to_owned_safe_errors(self):
+        cases = (
+            (AppCheckRejected(), 401, "APP_CHECK_FAILED"),
+            (AppCheckUnavailable(), 503, "APP_CHECK_UNAVAILABLE"),
+        )
+
+        with TestClient(analyze.app) as client:
+            for error, status, code in cases:
+                with self.subTest(code=code):
+                    self.verifier.verify.side_effect = error
+                    response = client.post(
+                        "/api/analyze",
+                        content=b'{"image":',
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Firebase-AppCheck": "opaque-sensitive-token",
+                        },
+                    )
+
+                    self.assertEqual(status, response.status_code)
+                    self.assertEqual({"detail": {"code": code}}, response.json())
+                    self.assertNotIn("opaque-sensitive-token", response.text)
+
+        self.assertEqual(2, self.verifier.verify.call_count)
+        self.rate_limiter.try_acquire.assert_not_called()
+
+    def test_unexpected_verifier_failure_fails_closed_without_internal_details(self):
+        self.verifier.verify.side_effect = RuntimeError(
+            "credential or jwks internal sensitive details"
+        )
+
+        with TestClient(analyze.app) as client:
+            response = client.post(
+                "/api/analyze",
+                content=b'{"image":',
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Firebase-AppCheck": "opaque-sensitive-token",
+                },
+            )
+
+        self.assertEqual(503, response.status_code)
+        self.assertEqual(
+            {"detail": {"code": "APP_CHECK_UNAVAILABLE"}},
+            response.json(),
+        )
+        self.assertNotIn("sensitive", response.text)
+        self.rate_limiter.try_acquire.assert_not_called()
+
+    def test_valid_token_reaches_existing_contract_and_public_gets_skip_verification(self):
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
+            with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+                protected = client.post(
+                    "/api/analyze",
+                    json={"image": image_data_uri()},
+                )
+            health = client.get("/health")
+            privacy_head = client.head("/privacy/")
+            support_get = client.get("/support/")
+
+        self.assertEqual(503, protected.status_code)
+        self.assertEqual("SERVICE_NOT_CONFIGURED", protected.json()["detail"]["code"])
+        self.assertEqual(200, health.status_code)
+        self.assertEqual(200, privacy_head.status_code)
+        self.assertEqual(200, support_get.status_code)
+        self.verifier.verify.assert_called_once_with("valid-test-token")
 
 
 if __name__ == "__main__":

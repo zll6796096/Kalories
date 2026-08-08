@@ -21,6 +21,7 @@ from google.genai import types
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from lib.app_check import AppCheckASGIMiddleware, FirebaseAppCheckVerifier
 from lib.nutrition import assess_nutrition
 from lib.rate_limit import TokenBucket
 
@@ -29,7 +30,12 @@ env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
+APP_CHECK_VERIFIER = FirebaseAppCheckVerifier()
 app = FastAPI()
+app.add_middleware(
+    AppCheckASGIMiddleware,
+    verifier_getter=lambda: APP_CHECK_VERIFIER,
+)
 DIST_DIR = Path(__file__).resolve().parents[1] / "dist"
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 
