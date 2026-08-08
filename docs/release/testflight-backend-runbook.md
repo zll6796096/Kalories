@@ -24,8 +24,8 @@ requires separate approval of its exact resource identity and effect.
 | Firebase iOS app ID | `1:788259830737:ios:a4459f14b5e8046297bef0`; pass this exact value as `KALORIES_EXPECTED_FIREBASE_IOS_APP_ID` |
 | App Check mode | `APP_CHECK_ENFORCEMENT=required`; App Attest only for TestFlight/Release |
 | Model | `gemini-3.6-flash` |
-| Replacement API key ID | `kalories-gemini-testflight` |
-| Secret Manager secret | `kalories-gemini-api-key` |
+| Replacement API key ID | `kalories-gemini-testflight-v2`; explicitly approved after `kalories-gemini-testflight` was soft-deleted and forbidden from restoration |
+| Secret Manager secret | `kalories-gemini-api-key`; version `2` is enabled, version `1` is disabled, and the runtime accessor is exact |
 | Preferred Gemini limit | RPD `200`, only after the exact enforceable quota ID and dimensions are verified |
 | Controlled audience | Invited testers who are 18 or older |
 
@@ -104,6 +104,8 @@ not trust the mutable service template or `latestReadyRevisionName`.
 | App Check implementation | PASS, local only | Backend/iOS tests and release scans; no external registration implied |
 | Firebase iOS registration / App Attest config | PASS | Exact project/app/bundle/team read-back, App Attest TTL `3600s`, validated real configuration file |
 | Apple Developer signing assets | PASS | Explicit App ID with App Attest, one matching unexpired App Store profile, and signed Release gate; see `apple-signing-evidence.md` |
+| Required Cloud B1 APIs | PASS | `cloudquotas`, `cloudbilling`, and `billingbudgets` enabled and read back |
+| Restricted credential foundation | PASS | v2 active with exactly one Gemini API target; Secret version `2` enabled and privately matched; exact runtime accessor read back |
 | Cloud mutation authorization | BLOCKED | Fresh approval of every mutation listed below |
 | Provider privacy | UNVERIFIED | Paid tier, developer logging disabled, dataset sharing disabled, official terms evidence |
 | Enforceable provider quota | UNVERIFIED | Exact quota ID/dimensions and settled granted/preferred RPD `200` |
@@ -173,16 +175,19 @@ only in the app target. Do not repeat the registration. Apple Developer signing
 assets are verified separately in `apple-signing-evidence.md`; every later
 mutation remains separately gated.
 
-Before any external action, stop and ask the user to confirm each mutation
+Before any remaining external action, stop and ask the user to confirm each mutation
 explicitly:
 
 1. completed/no-op: Firebase was already active on project `zhang23-23`;
 2. completed, Firebase only: registered bundle `com.ryuaistudio.kalories` and
    configured App Attest for Team ID `YMUG864233`;
-3. enable only the individually listed missing APIs;
-4. create/restrict API key `kalories-gemini-testflight` if absent;
-5. create secret `kalories-gemini-api-key` if absent and add one pinned version;
-6. add exactly one runtime service account `secretAccessor` binding;
+3. completed: enabled and read back only the three approved missing APIs;
+4. completed: created and restricted API key
+   `kalories-gemini-testflight-v2`;
+5. completed: added and privately verified pinned Secret version `2`, while
+   version `1` remains disabled;
+6. completed: added and read back exactly one runtime service account
+   `secretAccessor` binding;
 7. update only the named Gemini and Firebase/App Check environment entries,
    plus max instances, concurrency, and timeout, in a zero-traffic candidate;
 8. create exact verified quota preference RPD `200`;
@@ -233,15 +238,25 @@ placeholder command.
 
 ## 5. Restricted key, pinned secret version, and exact IAM
 
-These future Task 6 commands keep key material in mode-600 private files,
-remove any implicit newline, require a nonempty value without CR/LF, and read
-back a concrete enabled secret version. They never pipe a key through a shell
-without `pipefail` and never use `latest`.
+Execution evidence and the controlled rollback are recorded in
+[`cloud-b1-evidence.md`](cloud-b1-evidence.md). Do not restore or reuse
+`kalories-gemini-testflight`. The replacement ID
+`kalories-gemini-testflight-v2` was explicitly approved on `2026-08-08` and is
+the only key ID authorized by this block. The secret must receive a new version;
+disabled version `1` must never be re-enabled.
+
+This completed Cloud B1 creation block is retained as a sanitized operational
+record. It now fails closed when v2 already exists, so rerunning it cannot add
+another Secret version. During the approved first run it kept key material in
+mode-600 private files, removed any implicit newline, required a nonempty value
+without CR/LF, and read back a concrete enabled secret version. It never pipes a
+key through a shell without `pipefail` and never uses `latest`.
 
 ```bash
 set -euo pipefail
 umask 077
 secret_tmp="$(mktemp -d)"
+key_create_log="${secret_tmp}/key-create.log"
 key_metadata_json="${secret_tmp}/key-metadata.json"
 key_material_json="${secret_tmp}/key-material.json"
 key_material_file="${secret_tmp}/key-material"
@@ -250,6 +265,7 @@ secret_version_readback_json="${secret_tmp}/secret-version-readback.json"
 cleanup_secret_material() {
   local secret_file
   for secret_file in \
+    "${key_create_log}" \
     "${key_metadata_json}" \
     "${key_material_json}" \
     "${key_material_file}" \
@@ -261,15 +277,20 @@ cleanup_secret_material() {
 }
 trap cleanup_secret_material EXIT
 
-if ! gcloud services api-keys describe kalories-gemini-testflight \
+if gcloud services api-keys describe kalories-gemini-testflight-v2 \
   --project=zhang23-23 --format=json >"${key_metadata_json}" 2>/dev/null; then
-  gcloud services api-keys create \
-    --project=zhang23-23 \
-    --key-id=kalories-gemini-testflight \
-    --display-name='Kalories Gemini TestFlight' \
-    --api-target=service=generativelanguage.googleapis.com \
-    --format=json >"${key_metadata_json}"
+  printf '%s\n' \
+    'NO-GO: replacement key already exists; do not add another secret version'
+  exit 1
 fi
+gcloud services api-keys create \
+  --project=zhang23-23 \
+  --key-id=kalories-gemini-testflight-v2 \
+  --display-name='Kalories Gemini TestFlight v2' \
+  --api-target=service=generativelanguage.googleapis.com \
+  --format=json >"${key_create_log}" 2>&1
+gcloud services api-keys describe kalories-gemini-testflight-v2 \
+  --project=zhang23-23 --format=json >"${key_metadata_json}" 2>/dev/null
 if ! jq -e '
   (.restrictions.apiTargets // []) as $targets
   | (($targets | length) == 1
@@ -279,7 +300,7 @@ if ! jq -e '
   exit 1
 fi
 
-gcloud services api-keys get-key-string kalories-gemini-testflight \
+gcloud services api-keys get-key-string kalories-gemini-testflight-v2 \
   --project=zhang23-23 --format=json >"${key_material_json}" 2>/dev/null
 chmod 600 "${key_material_json}"
 if ! jq -je '.keyString | select(type == "string" and length > 0)' \
@@ -1193,7 +1214,7 @@ fi
 if ! KALORIES_PROJECT_NUMBER="$(gcloud projects describe zhang23-23 \
   --format='value(projectNumber)')" ||
   ! KALORIES_REPLACEMENT_KEY_RESOURCE="$(gcloud services api-keys describe \
-    kalories-gemini-testflight --project=zhang23-23 --location=global \
+    kalories-gemini-testflight-v2 --project=zhang23-23 --location=global \
     --format='value(name)')"; then
   printf '%s\n' 'NO-GO: legacy rollback key identity is unavailable'
   exit 1
@@ -1260,7 +1281,7 @@ trap - EXIT
 ```
 
 Old-key deletion is a separate, freshly confirmed mutation. Resolve by metadata
-identity, never by key value; exclude `kalories-gemini-testflight`. Run only
+identity, never by key value; exclude `kalories-gemini-testflight-v2`. Run only
 after successful promotion and replacement-key production checks, accepting
 that this permanently closes the legacy rollback window:
 
@@ -1275,7 +1296,7 @@ fi
 KALORIES_PROJECT_NUMBER="$(gcloud projects describe zhang23-23 \
   --format='value(projectNumber)')"
 KALORIES_REPLACEMENT_KEY_RESOURCE="$(gcloud services api-keys describe \
-  kalories-gemini-testflight --project=zhang23-23 --location=global \
+  kalories-gemini-testflight-v2 --project=zhang23-23 --location=global \
   --format='value(name)')"
 test -n "${KALORIES_REPLACEMENT_KEY_RESOURCE}"
 expected_old_key_prefix="projects/${KALORIES_PROJECT_NUMBER}/locations/global/keys/"
@@ -1288,7 +1309,7 @@ old_delete_time_before="$(gcloud services api-keys describe \
   "${KALORIES_OLD_KEY_RESOURCE}" --project=zhang23-23 --location=global \
   --format='value(deleteTime)')"
 replacement_delete_time_before="$(gcloud services api-keys describe \
-  kalories-gemini-testflight --project=zhang23-23 --location=global \
+  kalories-gemini-testflight-v2 --project=zhang23-23 --location=global \
   --format='value(deleteTime)')"
 if [[ -n "${old_delete_time_before}" || -n "${replacement_delete_time_before}" ]]; then
   printf '%s\n' 'NO-GO: old or replacement API key is not active'
@@ -1303,7 +1324,7 @@ old_delete_time_after="$(gcloud services api-keys describe \
   "${KALORIES_OLD_KEY_RESOURCE}" --project=zhang23-23 --location=global \
   --format='value(deleteTime)')"
 replacement_delete_time_after="$(gcloud services api-keys describe \
-  kalories-gemini-testflight --project=zhang23-23 --location=global \
+  kalories-gemini-testflight-v2 --project=zhang23-23 --location=global \
   --format='value(deleteTime)')"
 if [[ -z "${old_delete_time_after}" || -n "${replacement_delete_time_after}" ]]; then
   printf '%s\n' 'NO-GO: old API key revocation verification failed'

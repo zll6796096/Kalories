@@ -524,6 +524,51 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.assertIn("secrets versions describe", self.runbook)
         self.assertNotIn("kalories-gemini-api-key:latest", self.runbook)
 
+    def test_api_key_create_output_is_private_and_metadata_is_read_back(self) -> None:
+        key_section = self.runbook.split(
+            "## 5. Restricted key, pinned secret version, and exact IAM", 1
+        )[1].split("Resolve the actual runtime service account", 1)[0]
+        self.assertIn('key_create_log="${secret_tmp}/key-create.log"', key_section)
+        self.assertIn('>"${key_create_log}" 2>&1', key_section)
+        self.assertGreaterEqual(
+            key_section.count(
+                "gcloud services api-keys describe kalories-gemini-testflight-v2"
+            ),
+            2,
+        )
+
+    def test_approved_v2_key_id_is_used_by_every_executable_command(self) -> None:
+        self.assertIn(
+            "| Replacement API key ID | `kalories-gemini-testflight-v2`;",
+            self.runbook,
+        )
+        for command in (
+            "api-keys describe",
+            "api-keys get-key-string",
+        ):
+            self.assertNotIn(
+                f"{command} kalories-gemini-testflight \\",
+                self.runbook,
+            )
+        self.assertNotIn(
+            "--key-id=kalories-gemini-testflight \\",
+            self.runbook,
+        )
+
+    def test_completed_v2_creation_block_fails_closed_on_a_rerun(self) -> None:
+        key_section = self.runbook.split(
+            "## 5. Restricted key, pinned secret version, and exact IAM", 1
+        )[1].split("Resolve the actual runtime service account", 1)[0]
+        self.assertIn(
+            "NO-GO: replacement key already exists; do not add another secret version",
+            key_section,
+        )
+        self.assertNotIn(
+            "if ! gcloud services api-keys describe kalories-gemini-testflight-v2",
+            key_section,
+        )
+        self.assertIn("--display-name='Kalories Gemini TestFlight v2'", key_section)
+
     def test_deploy_updates_only_named_config_and_has_concurrency_preflight(self) -> None:
         self.assertNotIn("--set-secrets", self.runbook)
         self.assertNotIn("--set-env-vars", self.runbook)
@@ -771,6 +816,21 @@ fi
 set -euo pipefail
 printf '%s\\n' "$*" >>"${FAKE_CALLS}"
 case "$*" in
+  "services api-keys describe kalories-gemini-testflight-v2"*)
+    if [[ "$*" == *"--format=json"* ]]; then
+      key_state="${TMPDIR}/fake-key-created-${PPID}"
+      if [[ ! -f "${key_state}" ]]; then
+        exit 44
+      fi
+      command cat "${FAKE_FIXTURES}/key-metadata.json"
+    elif [[ "$*" == *"--format=value(name)"* ]]; then
+      printf '%s\n' 'projects/123456789/locations/global/keys/replacement-key'
+    fi ;;
+  "services api-keys create "*"--key-id=kalories-gemini-testflight-v2"*)
+    key_state="${TMPDIR}/fake-key-created-${PPID}"
+    : >"${key_state}"
+    printf '%s\n' "${FAKE_SENTINEL}"
+    printf '%s\n' "${FAKE_SENTINEL}" >&2 ;;
   "services api-keys describe kalories-gemini-testflight"*)
     if [[ "$*" == *"--format=value(name)"* ]]; then
       printf '%s\n' 'projects/123456789/locations/global/keys/replacement-key'
@@ -1044,6 +1104,7 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                 "FAKE_CALLS": str(self.calls),
                 "FAKE_FIXTURES": str(self.fixture_dir),
                 "FAKE_MKTEMP_PATHS": str(self.mktemp_paths),
+                "FAKE_SENTINEL": SENTINEL,
                 "TMPDIR": str(self.tmp_dir),
                 "KALORIES_APP_CHECK_TOKEN_FILE": str(self.app_check_token_file),
                 "KALORIES_FIREBASE_IOS_APP_ID": FIREBASE_IOS_APP_ID,
