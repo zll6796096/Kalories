@@ -155,12 +155,12 @@ immutable input differs.
 - [ ] **Step 2: Replace TestFlight-specific privacy assertions**
 
 In `test_privacy_page_states_the_complete_conservative_provider_contract`,
-remove `TestFlight` and `18歳以上` from `required_terms`, then add:
+remove only the obsolete TestFlight wording, then require the approved adult
+access and local-storage contract:
 
 ```python
 for forbidden_public_term in (
     "TestFlight",
-    "18歳以上",
     "一般公開のApp Store配布には別途審査と確認が必要",
     "まだ確認済みではありません",
 ):
@@ -168,7 +168,6 @@ for forbidden_public_term in (
 
 for required_public_term in (
     "カロスキャン",
-    "一般の利用者",
     "zll6796096@gmail.com",
     "Google Gemini",
     "Firebase App Check",
@@ -181,6 +180,14 @@ for required_public_term in (
 ):
     self.assertIn(required_public_term, text)
 
+for required_adult_access_term in (
+    "カロスキャンは18歳以上の方のみ利用できます。",
+    "初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。",
+    "生年月日、氏名、本人確認書類は収集しません。",
+    "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+):
+    self.assertIn(required_adult_access_term, text)
+
 self.assertRegex(text, r"写真.+この写真を分析.+送信")
 self.assertRegex(text, r"アカウント.+広告.+行動追跡.+ありません")
 ```
@@ -190,24 +197,28 @@ contrast, and approved-link assertions.
 
 - [ ] **Step 3: Replace TestFlight-specific support assertions**
 
-Remove `TestFlight` and `18歳以上` from the old support `required_terms`, then
-add:
+Remove only the obsolete TestFlight wording from the old support contract,
+then add:
 
 ```python
-for forbidden_public_term in ("TestFlight", "18歳以上", "invited testers"):
+for forbidden_public_term in ("TestFlight", "invited testers"):
     self.assertNotIn(forbidden_public_term, text)
 
 for required_public_term in (
     "App Store",
-    "一般の利用者",
     "zll6796096@gmail.com",
-    "一般用户",
-    "general users",
+    "18歳以上の方のみ利用できます",
+    "仅限18岁以上用户",
+    "only to users aged 18 or older",
     "医療診断",
     "medical diagnosis",
 ):
     self.assertIn(required_public_term, text)
+
 ```
+
+Keep the existing test that rejects the superseded general-audience phrases
+from every public page, without reintroducing those phrases as required copy.
 
 - [ ] **Step 4: Run the focused test and verify the old pages fail**
 
@@ -215,8 +226,9 @@ for required_public_term in (
 .venv/bin/python -m unittest tests.test_public_pages -v
 ```
 
-Expected: FAIL because the pages still contain controlled-TestFlight and
-adults-only wording and lack the mail contact.
+Expected: FAIL because the pages still contain controlled-TestFlight or
+general-user wording and lack the approved public contact or complete 18+
+local-confirmation disclosure.
 
 ## Task 3: Implement public privacy and support pages
 
@@ -225,7 +237,7 @@ adults-only wording and lack the mail contact.
 - Modify: `public/support/index.html`
 - Test: `tests/test_public_pages.py`
 
-- [ ] **Step 1: Replace the privacy title and header**
+- [ ] **Step 1: Replace the privacy title, header, and age disclosure**
 
 ```html
 <title>カロスキャン プライバシーポリシー</title>
@@ -236,11 +248,22 @@ adults-only wording and lack the mail contact.
   <h1>カロスキャン プライバシーポリシー</h1>
   <p class="updated">最終更新日：2026年8月11日</p>
   <p>
-    このポリシーは、日本のApp Storeで公開するカロスキャンを利用する
-    一般の利用者を対象とします。カロスキャンは子ども向けカテゴリの
-    アプリではありません。
+    このポリシーは、日本のApp Storeで公開するカロスキャンに適用されます。
+    カロスキャンは18歳以上の方のみ利用できます。
   </p>
 </header>
+
+<section>
+  <h2>年齢確認</h2>
+  <p>
+    初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。
+    この保存内容は、利用者の実年齢を証明するものではありません。
+  </p>
+  <p>
+    生年月日、氏名、本人確認書類は収集しません。
+    年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。
+  </p>
+</section>
 ```
 
 - [ ] **Step 2: Make provider operation public and fail-closed**
@@ -256,7 +279,7 @@ Replace the unverified/TestFlight paragraphs in the third-party section with:
 </p>
 <p>
   Googleは、不正使用の検出および防止のため、プロンプト、コンテキスト情報、
-  出力を最大55日間保持する場合があります。写真入力と分析出力がこの対象に
+  出力を55日間保持します。写真入力と分析出力がこの対象に
   含まれるため、カロスキャンはゼロデータ保持の適用を主張しません。
 </p>
 ```
@@ -301,12 +324,12 @@ Use this title/header:
 </header>
 ```
 
-Use these audience statements in the existing Japanese, Chinese, and English
+Use these adult-access statements in the existing Japanese, Chinese, and English
 sections:
 
 ```html
 <p>
-  カロスキャンは一般の利用者向けですが、子ども向けカテゴリのアプリではありません。
+  カロスキャンは18歳以上の方のみ利用できます。
   栄養結果は一食分の推定であり、医療診断または医療助言ではありません。
   臨床用途には使用しないでください。データの送信と保持については
   <a href="/privacy/">プライバシーポリシー</a>をご確認ください。
@@ -314,11 +337,11 @@ sections:
 ```
 
 ```html
-<li>本 App 面向一般用户，但不属于儿童专区；结果只是单餐估算，不是医疗诊断或建议。</li>
+<li>カロスキャン仅限18岁以上用户；结果只是单餐估算，不是医疗诊断或建议。</li>
 ```
 
 ```html
-<li>The App Store version is for general users but is not in the Kids category. Results are single-meal estimates, not medical diagnosis or advice.</li>
+<li>The App Store version is available only to users aged 18 or older. Results are single-meal estimates, not medical diagnosis or advice.</li>
 ```
 
 Use this contact section:
@@ -399,6 +422,13 @@ class AppStoreMetadataTests(unittest.TestCase):
     def test_localized_fields_fit_limits_and_match_product(self) -> None:
         self.assertEqual(self.document["locale"], "ja-JP")
         self.assertEqual(self.document["name"], "カロスキャン")
+        adult_access_prefix = (
+            "カロスキャンは18歳以上の方のみ利用できます。"
+            "初回起動時に「18歳以上です」を選択すると、"
+        )
+        self.assertTrue(self.document["promotional_text"].startswith(adult_access_prefix))
+        self.assertTrue(self.document["description"].startswith(adult_access_prefix))
+        self.assertTrue(self.document["review_notes"].startswith(adult_access_prefix))
         self.assertLessEqual(len(self.document["name"]), 30)
         self.assertLessEqual(len(self.document["subtitle"]), 30)
         self.assertLessEqual(len(self.document["promotional_text"]), 170)
@@ -459,8 +489,8 @@ Expected: ERROR with `FileNotFoundError` for
   "locale": "ja-JP",
   "name": "カロスキャン",
   "subtitle": "食事写真から栄養をかんたん推定",
-  "promotional_text": "食事の写真から、カロリーと栄養バランスの目安をすばやく確認。送信前に写真の取扱いを確認できます。",
-  "description": "カロスキャンは、食事の写真からカロリーと栄養バランスの目安を確認できるアプリです。\n\n主な機能\n・カメラで食事を撮影、または写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、信頼度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "promotional_text": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真からカロリーと栄養バランスの目安を確認できます。",
+  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・カメラで食事を撮影、または写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、信頼度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけを端末内に保存し、生年月日、氏名、本人確認書類は収集せず、その結果をKalories、Google、FirebaseまたはAppleへ送信しません。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
   "keywords": "カロリー,栄養,食事,写真,料理,食生活,フード,分析,推定",
   "support_url": "https://kalories-sxielk4wua-an.a.run.app/support/",
   "privacy_policy_url": "https://kalories-sxielk4wua-an.a.run.app/privacy/",
@@ -475,7 +505,7 @@ Expected: ERROR with `FileNotFoundError` for
   "subscriptions": false,
   "kids_category": false,
   "release_type": "AFTER_APPROVAL",
-  "review_notes": "カロスキャンはログイン不要のiPhone向け食事写真分析アプリです。\n\n確認手順:\n1. 「カメラで撮影」または「写真から選択」を選びます。\n2. 食事写真を確認します。\n3. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n4. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。",
+  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では選択済みの事実だけを端末内に保存し、生年月日、氏名、本人確認書類を収集せず、確認結果を外部へ送信しません。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラで撮影」または「写真から選択」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。",
   "privacy": {
     "tracking": false,
     "collected_data": [
@@ -1009,7 +1039,7 @@ Scope: local source, tests, metadata, public-page package, and screenshots only
 - Territory: Japan only
 - Price: Free
 - Release: Automatic after approval
-- Audience: General audience, not Kids category
+- Audience: Users aged 18 or older, not Kids category
 - Contact: zll6796096@gmail.com
 - Copyright: 2026 RYU AI Studio
 

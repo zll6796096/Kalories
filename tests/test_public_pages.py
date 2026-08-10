@@ -469,10 +469,6 @@ class PublicPageTests(unittest.TestCase):
 
         for forbidden_public_pattern in (
             r"testflight",
-            r"18\s*歳以上",
-            r"18\s*岁以上",
-            r"18\s*歲以上",
-            r"\baged\s+18\s+or\s+older\b",
             r"\binvited\s+testers?\b",
             r"一般公開のApp Store配布には別途審査と確認が必要",
             r"まだ確認済みではありません",
@@ -489,8 +485,6 @@ class PublicPageTests(unittest.TestCase):
         for required_public_term in (
             "カロスキャン",
             "日本のApp Storeで公開",
-            "一般の利用者",
-            "子ども向けカテゴリ",
             "zll6796096@gmail.com",
             "Google Gemini",
             "Firebase App Check",
@@ -646,10 +640,6 @@ class PublicPageTests(unittest.TestCase):
 
         for forbidden_public_pattern in (
             r"testflight",
-            r"18\s*歳以上",
-            r"18\s*岁以上",
-            r"18\s*歲以上",
-            r"\baged\s+18\s+or\s+older\b",
             r"\binvited\s+testers?\b",
         ):
             with self.subTest(
@@ -664,10 +654,7 @@ class PublicPageTests(unittest.TestCase):
         for required_public_term in (
             "App Store",
             "日本のApp Storeで公開するカロスキャンの利用案内です。",
-            "一般の利用者",
             "zll6796096@gmail.com",
-            "一般用户",
-            "general users",
             "医療診断",
             "medical diagnosis",
             "临床用途",
@@ -677,15 +664,6 @@ class PublicPageTests(unittest.TestCase):
                 contract="required public support wording", term=required_public_term
             ):
                 self.assertIn(required_public_term, text)
-
-        self.assertIn(
-            "本 App 面向一般用户，但不属于儿童专区；结果只是单餐估算，不是医疗诊断或建议。",
-            text,
-        )
-        self.assertIn(
-            "The App Store version is for general users but is not in the Kids category. Results are single-meal estimates, not medical diagnosis or advice.",
-            text,
-        )
 
         self.assertRegex(text, r"公開Issue.+個人的な食事写真.+認証情報.+APIキー.+秘密情報")
         self.assertRegex(text, r"公开 Issue.+个人餐食照片.+凭据.+API 密钥.+秘密信息")
@@ -699,6 +677,33 @@ class PublicPageTests(unittest.TestCase):
         self.assertIn("/privacy/", hrefs)
         self.assertIn("https://github.com/zll6796096/Kalories/issues/new", hrefs)
         self.assertIn("mailto:zll6796096@gmail.com", hrefs)
+
+    def test_public_pages_disclose_the_adult_only_local_confirmation_contract(
+        self,
+    ) -> None:
+        privacy_text = read_page("privacy")[1].text
+        for required in (
+            "カロスキャンは18歳以上の方のみ利用できます。",
+            "初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。",
+            "生年月日、氏名、本人確認書類は収集しません。",
+            "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+        ):
+            with self.subTest(page="privacy", required=required):
+                self.assertIn(required, privacy_text)
+
+        support_text = read_page("support")[1].text
+        for required in (
+            "18歳以上の方のみ利用できます",
+            "仅限18岁以上用户",
+            "only to users aged 18 or older",
+        ):
+            with self.subTest(page="support", required=required):
+                self.assertIn(required, support_text)
+
+        for forbidden in ("一般の利用者", "一般用户", "general users"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, privacy_text)
+                self.assertNotIn(forbidden, support_text)
 
 
 if os.environ.get("KALORIES_REQUIRE_DIST") == "1":

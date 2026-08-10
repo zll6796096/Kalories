@@ -30,7 +30,7 @@ Fixed delivery identity:
 | Territory/price | Japan only (`JPN`) / Free |
 | IAP/subscriptions | None |
 | Release option | Automatically release after approval |
-| Audience/category | General, not Kids / Food & Drink |
+| Audience/category | 18+, not Kids / Food & Drink |
 | Public contact | `zll6796096@gmail.com` |
 | Copyright | `2026 RYU AI Studio` |
 
@@ -442,7 +442,12 @@ secondary category empty.
 Copy name, subtitle, promotional text, description, keywords, support URL,
 privacy URL, review notes, and copyright verbatim from
 `docs/release/app-store/ja-JP.json`. Leave marketing URL empty because its value
-is `null`. Re-read saved fields after App Store Connect normalization. Any new
+is `null`. Confirm the promotional text and description start with the one-time
+local confirmation: users must select `18歳以上です`; only that Boolean fact is
+stored on device, with no birth date, name, identity document, or external
+transmission of the confirmation result. Confirm the review notes start with
+the same boundary and make confirmation Step 1 of the reviewer flow. Re-read
+saved fields after App Store Connect normalization. Any new
 medical, measurement-accuracy, weight-loss, or guaranteed-outcome claim is
 NO-GO.
 
@@ -536,11 +541,14 @@ not diagnose or guide treatment. Set every profanity, horror, alcohol/drug,
 mature, sexual, violence, contest, gambling, simulated-gambling, and loot-box
 descriptor to None/not present.
 
-For Age Categories and Override select Not Applicable; do not select Made for
-Kids; leave Age Suitability URL empty. Record the exact Japan result calculated
-by App Store Connect. Do not override it: Apple's current definitions place
-health/wellness topics, including calorie tracking, in the 9+ global category
-for iOS 26.
+Do not select Made for Kids. Under Age Categories and Override choose
+**Override to Higher Age Rating**, select `18+`, and leave the Age Suitability
+URL empty unless App Store Connect makes it mandatory. Read back the Japan
+rating as `18+` for iOS 26 or later; any different value is a NO-GO. In a
+separate evidence field, copy the exact legacy age-rating mapping that App Store
+Connect displays for earlier OS versions. Do not infer that legacy value, and
+do not use it to weaken the in-app 18+ restriction. Do not leave the override
+unset or accept a questionnaire-only lower rating as the release target.
 
 - [ ] **Step 3: Complete rights, medical, and export declarations**
 
@@ -555,14 +563,19 @@ require custom encryption documents unless Apple specifically asks.
 
 Use the private contact verified in Task 2 and email
 `zll6796096@gmail.com`. Keep sign-in information disabled. Copy review notes
-from the JSON; they must explain capture/select, explicit Gemini transfer,
-analysis result, uncertainty, no login, no payment, and no tracking.
+from the JSON. They must start with the one-time `18歳以上です` confirmation,
+state that only the confirmation Boolean is stored locally and that no birth
+date, name, identity document, or confirmation result is transmitted, and make
+that confirmation Step 1 before explaining capture/select, explicit Gemini
+transfer, analysis result, uncertainty, no login, no payment, and no tracking.
 
 - [ ] **Step 5: Read back and commit boolean evidence**
 
 Compare App Privacy with JSON and archive, and age answers with the product.
-Record only the calculated Japan age rating and boolean answers; do not commit
-private contact fields.
+Record the higher-age override selection, Japan `18+` readback for iOS 26 or
+later, App Store Connect's exact displayed legacy mapping for earlier OS
+versions, and the questionnaire's boolean answers; do not commit private
+contact fields.
 
 ```bash
 git add -- docs/release/app-store-delivery-evidence.md
@@ -592,8 +605,11 @@ KALORIES_EXPECTED_FIREBASE_IOS_APP_ID='1:788259830737:ios:a4459f14b5e8046297bef0
 
 Verify together: identity/build, Japanese metadata, five screenshots,
 support/privacy/contact, category, Free, Japan only, no monetization, privacy,
-age, rights, medical/export answers, automatic release, review contact/notes,
-and absence of warning, missing field, agreement block, or message.
+the one-time local adult confirmation in metadata and review flow, the
+higher-age override with Japan `18+` for iOS 26 or later plus the separately
+recorded legacy mapping, rights, medical/export answers, automatic release,
+review contact/notes, and absence of warning, missing field, agreement block,
+or message.
 
 - [ ] **Step 3: Reject unresolved pre-submit rows**
 
@@ -649,7 +665,7 @@ Answer Apple only from the shipped binary, policy, production evidence, and
 review notes. On rejection, record the exact guideline/message, separate
 metadata, privacy, functionality, and policy causes, and write a focused fix
 plan. Never remove consent, uncertainty, App Check, privacy, or cost controls
-to obtain approval.
+or the 18+ access boundary to obtain approval.
 
 - [ ] **Step 4: Record actual approval**
 
@@ -691,9 +707,11 @@ test -s "${storefront_tmp}/product-page.html"
 - [ ] **Step 3: Inspect the rendered Japan product page**
 
 Open `https://apps.apple.com/jp/app/id6799957568` in a browser. Verify rendered
-name, version, free price, Japanese description, five screenshots, age rating,
-privacy link, and support link. Follow both links and confirm HTTP 200 and
-approved content. HTTP/lookup success alone is not visual acceptance.
+name, version, free price, Japanese description, five screenshots, the expected
+18+ age presentation for iOS 26 or later, privacy link, and support link.
+Compare any earlier-OS legacy presentation with the exact mapping recorded from
+App Store Connect. Follow both links and confirm HTTP 200 and approved content.
+HTTP/lookup success alone is not visual acceptance.
 
 - [ ] **Step 4: Prove non-Japan exclusion**
 
@@ -711,7 +729,9 @@ curl --silent --show-error \
 
 With a Japan App Store account, download from the canonical page and launch.
 Prove this is the App Store build, not development or TestFlight. Verify
-Japanese capture UI, permissions, privacy/support links, and consent preview.
+the one-time `18歳以上です` gate appears before capture on a clean install,
+then verify Japanese capture UI, permissions, privacy/support links, and consent
+preview.
 
 - [ ] **Step 6: Prove production App Attest and one safe analysis**
 
@@ -739,7 +759,8 @@ find "${delivery_private_tmp}" -depth -type d -empty -delete
 - [ ] **Step 1: Record terminal gates independently**
 
 Record approval timestamp, automatic transition, Japan lookup/rendered page,
-Japan-only availability, clean install, and production App Attest/UI/log/cost
+iOS 26-or-later 18+ presentation and earlier-OS legacy mapping, Japan-only
+availability, clean-install adult gate, and production App Attest/UI/log/cost
 PASS separately. Never collapse these into one release PASS.
 
 - [ ] **Step 2: Add the canonical public link**
