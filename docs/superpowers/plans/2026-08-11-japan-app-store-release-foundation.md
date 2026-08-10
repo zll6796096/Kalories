@@ -79,28 +79,60 @@ Execution order:
 Run:
 
 ```bash
+set -euo pipefail
+
 git status --short --branch
 git log -3 --oneline --decorate
 git diff --check
+
+test "$(git branch --show-current)" = "codex/kalories-testflight-build1"
+test -z "$(git status --porcelain=v1)"
+git diff --quiet
+git diff --cached --quiet
+git merge-base --is-ancestor 0ab02b5 HEAD
+git merge-base --is-ancestor 9a30e07 HEAD
 ```
 
 Expected: branch `codex/kalories-testflight-build1`, approved design/decisions
-at HEAD, clean worktree, and exit 0.
+as ancestors of `HEAD`, clean worktree and index, and exit 0. The `test`,
+`diff --quiet`, and `merge-base --is-ancestor` assertions are mandatory: a
+wrong branch, untracked/staged/unstaged change, or missing approved commit must
+fail the step.
 
 - [ ] **Step 2: Verify immutable app identity inputs**
 
 Run:
 
 ```bash
+set -euo pipefail
+
 rg -n 'MARKETING_VERSION|CURRENT_PROJECT_VERSION|PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|PROVISIONING_PROFILE_SPECIFIER' ios/project.yml
 plutil -p ios/Kalories/Resources/PrivacyInfo.xcprivacy
 sips -g pixelWidth -g pixelHeight -g hasAlpha \
   ios/Kalories/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+
+rg -q '^    DEVELOPMENT_TEAM: YMUG864233$' ios/project.yml
+rg -q '^    MARKETING_VERSION: 1\.0\.0$' ios/project.yml
+rg -q '^    CURRENT_PROJECT_VERSION: 1$' ios/project.yml
+rg -q '^        PRODUCT_BUNDLE_IDENTIFIER: com\.ryuaistudio\.kalories$' \
+  ios/project.yml
+rg -q '^          PROVISIONING_PROFILE_SPECIFIER: Kalories App Store$' \
+  ios/project.yml
+test "$(plutil -extract NSPrivacyTracking raw -o - \
+  ios/Kalories/Resources/PrivacyInfo.xcprivacy)" = "false"
+icon_info="$(sips -g pixelWidth -g pixelHeight -g hasAlpha \
+  ios/Kalories/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png)"
+echo "$icon_info"
+echo "$icon_info" | rg -q 'pixelWidth: 1024$'
+echo "$icon_info" | rg -q 'pixelHeight: 1024$'
+echo "$icon_info" | rg -q 'hasAlpha: no$'
 ```
 
 Expected: version `1.0.0`, build `1`, bundle
 `com.ryuaistudio.kalories`, team `YMUG864233`, profile
-`Kalories App Store`, tracking `false`, and an opaque 1024 × 1024 icon.
+`Kalories App Store`, tracking `false`, and an opaque 1024 × 1024 icon. The
+`rg`, `test`, and icon assertions are mandatory and fail the step if any
+immutable input differs.
 
 ## Task 2: Replace TestFlight legal assertions with a failing public contract
 
