@@ -561,6 +561,8 @@ class PublicPageTests(unittest.TestCase):
             "general users",
             "医療診断",
             "medical diagnosis",
+            "临床用途",
+            "clinical purposes",
         ):
             with self.subTest(
                 contract="required public support wording", term=required_public_term
