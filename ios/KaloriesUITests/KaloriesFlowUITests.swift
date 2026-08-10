@@ -60,6 +60,7 @@ final class KaloriesFlowUITests: XCTestCase {
         app.launchArguments = [
             "--ui-testing",
             fixture,
+            "--adult-access-confirmed",
             "-AppleLanguages", "(ja)",
             "-AppleLocale", "ja_JP"
         ]

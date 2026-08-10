@@ -36,18 +36,59 @@ struct AdultAccessView: View {
                 .controlSize(.large)
                 .accessibilityIdentifier("adult-access.confirm")
 
-                HStack(spacing: 20) {
-                    Link(localizer.text("privacyPolicy"), destination: privacyURL)
-                        .accessibilityIdentifier("adult-access.privacy")
-                    Link(localizer.text("support"), destination: supportURL)
-                        .accessibilityIdentifier("adult-access.support")
-                }
-                .font(.footnote)
+                footer
             }
             .padding(24)
             .frame(maxWidth: 640, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
         .background(Color(uiColor: .systemGroupedBackground))
+    }
+
+    private var footer: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 20) {
+                footerLink(
+                    localizer.text("privacyPolicy"),
+                    destination: privacyURL,
+                    identifier: "adult-access.privacy"
+                )
+                .fixedSize(horizontal: true, vertical: false)
+                footerLink(
+                    localizer.text("support"),
+                    destination: supportURL,
+                    identifier: "adult-access.support"
+                )
+                .fixedSize(horizontal: true, vertical: false)
+            }
+
+            VStack(spacing: 0) {
+                footerLink(
+                    localizer.text("privacyPolicy"),
+                    destination: privacyURL,
+                    identifier: "adult-access.privacy"
+                )
+                footerLink(
+                    localizer.text("support"),
+                    destination: supportURL,
+                    identifier: "adult-access.support"
+                )
+            }
+        }
+        .font(.footnote)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func footerLink(
+        _ title: String,
+        destination: URL,
+        identifier: String
+    ) -> some View {
+        Link(destination: destination) {
+            Text(title)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityIdentifier(identifier)
     }
 }

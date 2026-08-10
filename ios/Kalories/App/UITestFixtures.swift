@@ -17,8 +17,17 @@ enum UITestFixtures {
     static func environmentIfRequested(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) throws -> AppEnvironment? {
+        let adultAccessArguments = arguments.filter {
+            $0 == "--adult-access-confirmed"
+        }
         guard arguments.contains("--ui-testing") else {
+            guard adultAccessArguments.isEmpty else {
+                throw AppFailure.invalidConfiguration
+            }
             return nil
+        }
+        guard adultAccessArguments.count <= 1 else {
+            throw AppFailure.invalidConfiguration
         }
         guard let mode = fixtureMode(in: arguments) else {
             throw AppFailure.invalidConfiguration
@@ -34,10 +43,14 @@ enum UITestFixtures {
             result: canonicalResult,
             failsOnceWithTimeout: mode == .timeout
         )
+        let adultAccessPreference = AdultAccessPreference(defaults: .standard)
+        if adultAccessArguments.count == 1 {
+            adultAccessPreference.confirm()
+        }
         return AppEnvironment(
             flow: AppFlowModel(service: service, processor: ImageProcessor()),
             adultAccess: AdultAccessModel(
-                preference: AdultAccessPreference(defaults: .standard)
+                preference: adultAccessPreference
             ),
             localizer: AppLocalizer(locale: .ja),
             cameraPresentation: CameraPresentationController(
