@@ -62,6 +62,10 @@ status, or display a product page. The terminal state is:
 | Primary language | Japanese |
 | Primary category | Food & Drink |
 | Secondary category | None for version 1.0.0 |
+| Public audience | General audience; not submitted to the Kids category |
+| Public support/privacy email | `zll6796096@gmail.com` |
+| Copyright | `2026 RYU AI Studio` |
+| Monthly Google Cloud budget alert | JPY 3,000; monitoring only, not a hard cap |
 | App preview video | None for version 1.0.0 |
 | Screenshot direction | `A · 機能を先に` |
 | Pre-order | None |
@@ -142,8 +146,9 @@ a new product design. It is outside this release.
   meal analysis, latency, logs, and cost boundaries before traffic promotion.
 - Update the privacy and support pages from controlled TestFlight language to
   truthful public Japan App Store language.
-- Add a private owner-approved support contact method; a public GitHub issue is
-  not the sole channel for privacy or sensitive support requests.
+- Add `zll6796096@gmail.com` as the private support and privacy contact method;
+  a public GitHub issue is not the sole channel for privacy or sensitive
+  support requests.
 - Create Japanese App Store metadata and five portrait screenshots from the
   real app UI.
 - Verify the app-owned and third-party privacy manifests in the final archive.
@@ -263,7 +268,7 @@ to the legacy plaintext-secret or unauthenticated revision.
   history, accounts, ads, analytics, and tracking;
 - explain withdrawal before future sends and the actual deletion boundary;
 - retain the photo-estimate and non-medical limitation;
-- provide a private, owner-approved privacy contact method.
+- provide `zll6796096@gmail.com` as the private privacy contact method.
 
 Apple's privacy metadata and the public policy must agree with the final binary
 and every third-party partner. The App Store form is not derived only from the
@@ -279,7 +284,7 @@ provider behavior are included in the evidence review.
   recovery;
 - link to the privacy policy;
 - state that results are estimates and are not medical diagnosis or advice;
-- provide actual private contact information approved by the owner;
+- provide `zll6796096@gmail.com` as the approved private contact information;
 - warn users not to send personal meal photos, secrets, or credentials through
   public issue trackers.
 
@@ -337,10 +342,12 @@ demonstrated in the final build.
 
 ### 10.2 Copyright and seller information
 
-The copyright owner, support email, legal contact name, and any App Store
-account compliance fields are not inferred from the bundle identifier or a
-domain. The exact owner-approved values must be read from the App Store Connect
-account or supplied by the owner before submission.
+- Copyright: `2026 RYU AI Studio`
+- Public support/privacy email: `zll6796096@gmail.com`
+
+The legal contact name and any App Store account compliance fields are not
+inferred from the bundle identifier or a domain. They must be read from the
+App Store Connect account before submission.
 
 ### 10.3 Pricing and availability
 
@@ -418,14 +425,11 @@ authoritative for final verification.
 App Store Connect's current age-rating questionnaire is required. Answers must
 describe the shipped app rather than target a desired marketing badge.
 
-The repository's current public documents still impose an adults-only
-TestFlight boundary. Whether the public app remains adults-only or changes to a
-general-audience policy is an unresolved owner decision. Until resolved, the
-workflow is fail-closed and does not submit. If an adults-only policy is kept,
-the public policy, support page, metadata, review notes, and any available
-higher-age override must agree.
-
-The app is not submitted to the Kids category.
+The public app is approved for a general audience and is not submitted to the
+Kids category. The current adults-only TestFlight wording must be removed from
+the public privacy and support pages. The questionnaire is still answered from
+the shipped content; the workflow does not select a higher or lower rating to
+obtain a marketing result.
 
 ### 12.3 Content rights and medical boundary
 
@@ -482,7 +486,9 @@ review device, submission stops.
 ### Phase 2: production service readiness
 
 - run the read-only Cloud/Firebase/provider/account audit;
-- complete unresolved provider, quota, budget, and owner-contact evidence;
+- complete unresolved provider and quota evidence, create and read back the
+  approved JPY 3,000 monthly budget alert, and verify the approved public
+  contact;
 - deploy the exact source as a zero-traffic immutable candidate;
 - test public pages, no-token rejection, valid-token flow, real synthetic image,
   schema, latency, cost, and safe logs;
@@ -700,7 +706,7 @@ acceptance.
 - The exact immutable production revision passes all public, protected,
   real-analysis, latency, log, and cost checks.
 - Privacy and support pages return HTTP 200 and match the public app.
-- A private owner-approved support contact exists.
+- `zll6796096@gmail.com` is published as the private support/privacy contact.
 - Five real Japanese 6.9-inch screenshots pass full-resolution inspection.
 - Japanese metadata contains no unsupported or medical claim.
 - The signed archive is valid, contains the correct icon, privacy manifests,
@@ -710,7 +716,8 @@ acceptance.
 - App Privacy, age rating, content rights, export compliance, copyright,
   review information, free price, Japan-only availability, and automatic
   release are complete and mutually consistent.
-- The unresolved age-audience and private-contact decisions are closed.
+- The general-audience, non-Kids decision and approved public contact are
+  reflected consistently.
 
 ### 18.2 Publicly released
 
@@ -732,19 +739,20 @@ acceptance.
 - Git diff and status are reviewed, remaining risks are recorded, and the next
   operational action is explicit.
 
-## 19. Remaining Owner Decisions
+## 19. Resolved Owner Decisions
 
-These are intentionally unresolved and must be asked one at a time after this
-written design is approved:
+The owner confirmed these values one at a time after approving the written
+design:
 
-1. Public audience policy: adults-only or general audience, followed by the
-   truthful App Store age questionnaire and any higher-age override.
-2. Private support/privacy contact to publish.
-3. Exact copyright owner string from the App Store Connect legal account.
-4. Monthly billing-alert amount; the alert is monitoring, not a hard cap.
+1. Public audience: general audience, not the Kids category.
+2. Public support/privacy contact: `zll6796096@gmail.com`.
+3. Copyright: `2026 RYU AI Studio`.
+4. Monthly Google Cloud budget alert: JPY 3,000; this is monitoring and not a
+   hard spending cap.
 
-No unresolved owner decision may be guessed from a repository name, domain,
-bundle identifier, or personal account detail.
+No other owner identity, legal field, account answer, or compliance status may
+be guessed from a repository name, domain, bundle identifier, or personal
+account detail.
 
 ## 20. Official References
 
