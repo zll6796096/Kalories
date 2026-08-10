@@ -8,9 +8,9 @@ Source revision: `6bfbeaed23c7732460bbf1e22736d4d01132f813`
 | --- | --- |
 | Local source | PASS |
 | Fresh production preflight | NO-GO |
-| Provider paid-service terms | UNVERIFIED |
-| Developer logging disabled | UNVERIFIED |
-| Dataset sharing disabled | UNVERIFIED |
+| Provider paid-service terms | PASS |
+| Developer logging disabled | PASS |
+| Dataset sharing disabled | PASS |
 | Daily model quota 200 | NOT CONFIGURED |
 | Monthly 3000JPY budget alert | NOT CONFIGURED |
 | Zero-traffic candidate | NOT DEPLOYED |
@@ -37,6 +37,32 @@ The intended branch was clean before these documents were created, and
 
 These results prove the local source only. They do not prove provider, quota,
 budget, deployment, traffic, Firebase, App Attest, or production behavior.
+
+## Provider privacy and paid-service evidence
+
+Verified read-only on 2026-08-11 in the authenticated Google AI Studio controls
+for the exact project:
+
+- The project is on Gemini API `Tier 1` with the prepaid billing plan, so API
+  access through that billing-enabled project is governed as a Paid Service.
+- GenerateContent API request storage is disabled. Kalories uses
+  GenerateContent, not the separately configured Interactions API.
+- The project has no developer logs or datasets, so no dataset-sharing opt-in
+  is active.
+- Google's current official terms still state that Paid Service prompts and
+  responses are not used to improve Google products. The current abuse
+  monitoring policy still states a 55-day retention period, and the ZDR guide
+  still requires a separately approved project configuration. The public
+  privacy policy's conservative 55-day maximum and no-ZDR claim remain
+  accurate.
+
+Official sources checked on 2026-08-11:
+
+- https://ai.google.dev/gemini-api/terms
+- https://ai.google.dev/gemini-api/docs/billing
+- https://ai.google.dev/gemini-api/docs/logs-policy
+- https://ai.google.dev/gemini-api/docs/usage-policies
+- https://ai.google.dev/gemini-api/docs/zdr
 
 ## Fresh read-only production preflight
 
