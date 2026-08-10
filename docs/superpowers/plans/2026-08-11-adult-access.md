@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restrict the native カロスキャン analysis flow to users who have confirmed they are at least 18, store only that Boolean locally, and make the public pages and App Store release instructions consistent with the shipped boundary.
+**Goal:** Restrict the native カロスキャン analysis flow to users who have confirmed they are at least 18, store only that Boolean in the app's on-device preferences, and make the public pages and App Store release instructions consistent with the shipped request-exclusion and Apple/device-controlled backup boundary.
 
-**Architecture:** A focused observable `AdultAccessModel` reads and writes one versioned `UserDefaults` Boolean. `RootView` renders a localized `AdultAccessView` above every capture/analysis state until confirmation; test fixtures inject only explicit DEBUG state. Static public pages and release plans repeat the same 18+ and data-minimization facts, while App Store delivery uses Apple's higher-age-rating override.
+**Architecture:** A focused observable `AdultAccessModel` reads and writes one versioned `UserDefaults` Boolean. `RootView` renders a localized `AdultAccessView` above every capture/analysis state until confirmation; test fixtures inject only explicit DEBUG state. Static public pages and release plans state that Kalories does not attach or send the Boolean to its backend, Google, or Firebase and that Apple/device-controlled backup or restore may involve Apple processing, while App Store delivery uses Apple's higher-age-rating override.
 
 **Tech Stack:** Swift 6, SwiftUI, Observation, Foundation `UserDefaults`, XCTest/XCUITest, Python 3.12 `unittest`, static HTML, XcodeGen, Xcode 27.0 beta with the iOS 26.5 simulator.
 
@@ -53,7 +53,8 @@ verified simulator disappears, and its exact replacement must be recorded.
   `ios/KaloriesUITests/AppLaunchTests.swift` — make existing tests explicit
   about confirmed versus unconfirmed state.
 - `tests/test_public_pages.py`, `public/privacy/index.html`, and
-  `public/support/index.html` — 18+ disclosure and local-only Boolean boundary.
+  `public/support/index.html` — 18+ disclosure, on-device app-preference
+  Boolean, request-exclusion, and backup/restore boundaries.
 - `docs/superpowers/plans/2026-08-11-japan-app-store-release-foundation.md` and
   `docs/superpowers/plans/2026-08-11-japan-app-store-delivery.md` — remove the
   obsolete general-audience/9+ instructions.
@@ -511,6 +512,8 @@ Expected: every Kalories unit and UI test PASS.
 - Modify: `public/support/index.html`
 - Modify: `docs/superpowers/plans/2026-08-11-japan-app-store-release-foundation.md`
 - Modify: `docs/superpowers/plans/2026-08-11-japan-app-store-delivery.md`
+- Modify: `docs/superpowers/specs/2026-08-11-adult-access-design.md`
+- Modify: `docs/superpowers/plans/2026-08-11-adult-access.md`
 
 - [ ] **Step 1: Add failing public-page assertions**
 
@@ -522,19 +525,46 @@ tests:
 privacy_text = read_page("privacy")[1].text
 for required in (
     "カロスキャンは18歳以上の方のみ利用できます。",
-    "初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。",
+    "初回起動時に「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存します。",
+    "この確認は利用者の実年齢を証明するものではありません。",
     "生年月日、氏名、本人確認書類は収集しません。",
-    "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+    "カロスキャンは、年齢確認の結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+    "端末またはシステムのバックアップと復元は、Appleおよび端末の設定に従います。",
 ):
     self.assertIn(required, privacy_text)
 
-support_text = read_page("support")[1].text
-for required in (
-    "18歳以上の方のみ利用できます",
-    "仅限18岁以上用户",
-    "only to users aged 18 or older",
-):
-    self.assertIn(required, support_text)
+support_raw, support_page = read_page("support")
+support_text = support_page.text
+localized_requirements = {
+    "ja": (
+        "18歳以上の方のみ利用できます",
+        "初回起動時に一度だけ「18歳以上です」の確認を求めます。",
+        "「18歳以上です」を選択した事実を示す真偽値（Boolean）だけをアプリの設定として端末内に保存します。",
+        "生年月日、氏名、本人確認書類は収集しません。",
+        "カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+        "端末またはシステムのバックアップと復元はAppleおよび端末の設定に従い、その処理にAppleが関与する場合があります。",
+    ),
+    "zh-CN": (
+        "仅限18岁以上用户",
+        "首次启动时只需确认一次“我已满18岁”。",
+        "App 仅将该选择结果作为布尔值保存在设备上的 App 设置中。",
+        "不收集出生日期、姓名或身份证明文件。",
+        "カロスキャン不会将确认结果附加到分析请求，也不会由カロスキャン发送至其后端、Google 或 Firebase。",
+        "设备或系统的备份与恢复由 Apple 和设备设置控制，其处理可能涉及 Apple。",
+    ),
+    "en": (
+        "may be used only by users aged 18 or older",
+        "On first launch, the app asks once for confirmation that you are 18 or older.",
+        "Only that Boolean choice is stored in the app's preferences on the device.",
+        "The app does not collect a date of birth, name, or identity document.",
+        "カロスキャン does not attach the confirmation result to analysis requests or send it to its backend, Google, or Firebase.",
+        "Device or system backup and restore are controlled by Apple and device settings and may involve Apple processing.",
+    ),
+}
+for lang, required_terms in localized_requirements.items():
+    section_text = localized_section_text(support_raw, lang)
+    for required in required_terms:
+        self.assertIn(required, section_text)
 
 for forbidden in ("一般の利用者", "一般用户", "general users"):
     self.assertNotIn(forbidden, privacy_text)
@@ -545,15 +575,19 @@ The privacy page must contain these exact Japanese statements:
 
 ```text
 カロスキャンは18歳以上の方のみ利用できます。
-初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。
+初回起動時に「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存します。
+この確認は利用者の実年齢を証明するものではありません。
 生年月日、氏名、本人確認書類は収集しません。
-年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。
+カロスキャンは、年齢確認の結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。
+端末またはシステムのバックアップと復元は、Appleおよび端末の設定に従います。
 ```
 
-The support page must contain the 18+ restriction in Japanese, Simplified
-Chinese, and English. Keep the existing exact provider-retention, logging,
-dataset-sharing, non-medical, email, URL allowlist, static-page, and contrast
-assertions.
+Each Japanese, Simplified Chinese, and English support section must contain its
+own complete 18+ confirmation, Boolean-minimization, no birth/name/ID,
+request-exclusion, backend/Google/Firebase send, and Apple/device backup/restore
+contract. Keep the existing exact provider-retention, GenerateContent-scoped
+logging, dataset-sharing, non-medical, email, URL allowlist, static-page, and
+contrast assertions.
 
 - [ ] **Step 2: Run focused tests and verify they fail**
 
@@ -562,15 +596,18 @@ assertions.
 ```
 
 Expected: FAIL because the current pages still say general users and do not
-disclose local-only adult confirmation.
+disclose the complete on-device preference, request-exclusion, and
+backup/restore-aware adult-confirmation contract.
 
 - [ ] **Step 3: Update the privacy and support pages**
 
-Replace general-audience wording with 18+-only wording. Add the four privacy
-facts from Step 1 without claiming that the Boolean proves actual age. Retain
+Replace general-audience wording with 18+-only wording. Add the six privacy
+facts from Step 1 without claiming that the Boolean proves actual age. Repeat
+the complete contract in each support language section. Retain
 the existing no-account, no-ads, no-tracking, explicit-photo-consent,
-55-day-abuse-retention, developer-logging-disabled, dataset-sharing-off,
-non-clinical, and contact disclosures.
+55-day-abuse-retention, GenerateContent-scoped developer-logging-disabled,
+Interactions-API-unused, dataset-sharing-off, non-clinical, and contact
+disclosures.
 
 - [ ] **Step 4: Correct future release-plan instructions**
 
@@ -581,15 +618,16 @@ Change evidence text to “Users aged 18 or older, not Kids category.”
 In the delivery plan:
 
 - change Audience/category to `18+, not Kids / Food & Drink`;
-- require metadata and review notes to start with the one-time local
-  confirmation;
-- answer the questionnaire truthfully;
+- require metadata and review notes to start with the one-time on-device
+  confirmation, request-exclusion statement, and backup/restore boundary;
+- answer the questionnaire truthfully, treating the mandatory self-attestation
+  as Age Assurance present/used and recording the exact saved field/value;
 - choose **Override to Higher Age Rating**, select 18+, and read back Japan as
   18+ for iOS 26 or later;
 - record Apple's displayed legacy mapping for earlier OS versions without
   weakening the in-app 18+ restriction;
-- never use the obsolete `Not Applicable` override or 9+ result as the release
-  target.
+- never leave the higher-age override unset or accept a lower
+  questionnaire-only result as the release target.
 
 - [ ] **Step 5: Test and commit**
 

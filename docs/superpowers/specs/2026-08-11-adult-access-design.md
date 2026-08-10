@@ -32,7 +32,7 @@ can bypass without seeing.
 
 ## 3. Approaches Considered
 
-### 3.1 Selected: store-level 18+ plus one-time local confirmation
+### 3.1 Selected: store-level 18+ plus one-time on-device confirmation
 
 - Complete Apple's questionnaire truthfully, do not choose Kids, then use
   **Override to Higher Age Rating** so the Japan product page displays 18+.
@@ -41,9 +41,13 @@ can bypass without seeing.
   older.
 - Continue only after the user taps an explicit localized “I am 18 or older”
   action.
-- Persist only a Boolean confirmation in `UserDefaults` on that device.
+- Persist only a Boolean confirmation in the app's `UserDefaults` preferences
+  on the device.
 - Do not request or store birth date, legal name, identity document, account,
   or age-verification evidence.
+- Kalories does not attach the confirmation to analysis requests or send it to
+  the Kalories backend, Google, or Firebase. Device or system backup and restore
+  are controlled by Apple and device settings and may involve Apple processing.
 - A user who has not confirmed cannot select a photo, open the camera, or call
   the analysis service.
 
@@ -93,12 +97,15 @@ Japanese.
 Confirmation writes only `true` under the versioned key
 `kalories.adult-access.confirmed.v1`. No `false` record is necessary. Once the
 write succeeds in the process, the root replaces the gate with the normal
-capture flow. Subsequent launches on the same installation read the Boolean
-and do not ask again.
+capture flow. Subsequent launches read the Boolean when that app preference is
+present and do not ask again.
 
 Uninstalling the app or clearing its local data may remove the confirmation,
-in which case the next launch asks again. Confirmation is not synced, uploaded,
-logged, attached to analysis requests, or treated as an account attribute.
+in which case the next launch asks again unless the preference is restored by a
+device or system backup. Kalories does not log the confirmation, treat it as an
+account attribute, attach it to analysis requests, or send it to the Kalories
+backend, Google, or Firebase. Apple and device settings control system backup
+and restore, so those operations may involve Apple processing of the preference.
 
 ### 4.3 Fail-closed boundary
 
@@ -128,7 +135,7 @@ attestation, it must use a new versioned key and ask again.
   pre-confirmation capture controls, confirmation transition, and subsequent-
   launch behavior.
 - public privacy/support pages disclose the 18+ requirement and the exact
-  local Boolean boundary.
+  on-device Boolean, request-exclusion, and backup/restore boundaries.
 - App Store metadata and review notes state 18+ and begin the reviewer steps
   with the confirmation action.
 
@@ -140,7 +147,9 @@ per-photo transfer authorization. One does not replace the other.
 
 App Store Connect must:
 
-1. answer the content questionnaire from shipped behavior;
+1. answer the content questionnaire from shipped behavior, treating the
+   mandatory self-attestation as Age Assurance present/used and recording the
+   exact saved App Store Connect field label and value;
 2. keep Made for Kids off;
 3. select **Override to Higher Age Rating** and choose 18+;
 4. read back the Japan rating as 18+ for iOS 26 or later before submission,
@@ -153,9 +162,12 @@ rating. The public privacy policy and support page must state that:
 
 - the app is only for users aged 18 or older;
 - the app asks once on-device for confirmation;
-- only a Boolean is stored locally;
-- no date of birth or identity document is collected; and
-- the confirmation is not sent to Kalories, Google, Firebase, or Apple.
+- only a Boolean is stored in the app's on-device preferences;
+- no date of birth, name, or identity document is collected;
+- Kalories does not attach the confirmation to analysis requests or send it to
+  the Kalories backend, Google, or Firebase; and
+- device or system backup and restore are controlled by Apple and device
+  settings and may involve Apple processing.
 
 ## 7. Scope Boundaries
 
@@ -190,8 +202,10 @@ rating. The public privacy policy and support page must state that:
   identity data is requested or stored.
 - A subsequent launch on the same installation skips the gate.
 - Japanese, Simplified Chinese, and English copy is complete and tested.
-- Privacy and support pages state 18+, local-only Boolean persistence, no birth
-  date/ID collection, and no transmission of the confirmation.
+- Privacy and support pages state 18+, the on-device app-preference Boolean, no
+  birth date/name/ID collection, no attachment to analysis requests or Kalories
+  send to its backend/Google/Firebase, and the Apple/device-controlled backup
+  and restore boundary.
 - Metadata and review notes match the shipped behavior.
 - App Store Connect shows 18+ for Japan on iOS 26 or later through the higher-
   rating override before submission. Any Apple legacy display mapping for

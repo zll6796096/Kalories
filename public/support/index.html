@@ -80,6 +80,11 @@
         <h3>利用範囲</h3>
         <p>
           カロスキャンは18歳以上の方のみ利用できます。
+          初回起動時に一度だけ「18歳以上です」の確認を求めます。
+          「18歳以上です」を選択した事実を示す真偽値（Boolean）だけをアプリの設定として端末内に保存します。
+          生年月日、氏名、本人確認書類は収集しません。
+          カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。
+          端末またはシステムのバックアップと復元はAppleおよび端末の設定に従い、その処理にAppleが関与する場合があります。
           栄養結果は一食分の参考推定であり、正確な測定値、医療診断または医療助言ではありません。
           治療計画や栄養指導を目的とせず、臨床用途には使用しないでください。
           データの送信と保持については
@@ -102,6 +107,11 @@
           <li>仅选择照片不会发送；点击“分析这张照片”后才会发送。</li>
           <li>遇到网络错误、超时或 RATE_LIMITED 时，请稍后手动重试。仅当服务器在读取图片前返回准确的 APP_CHECK_FAILED 时，App 才会更新完整性令牌并自动重发同一相片请求一次；其他错误不会自动重试。</li>
           <li>カロスキャン仅限18岁以上用户；结果只是单餐估算，不是医疗诊断或建议。请勿用于临床用途。</li>
+          <li>首次启动时只需确认一次“我已满18岁”。</li>
+          <li>App 仅将该选择结果作为布尔值保存在设备上的 App 设置中。</li>
+          <li>不收集出生日期、姓名或身份证明文件。</li>
+          <li>カロスキャン不会将确认结果附加到分析请求，也不会由カロスキャン发送至其后端、Google 或 Firebase。</li>
+          <li>设备或系统的备份与恢复由 Apple 和设备设置控制，其处理可能涉及 Apple。</li>
           <li>数据发送和保存说明请查看<a href="/privacy/">隐私政策</a>。</li>
         </ul>
         <aside class="warning" aria-label="公开 Issue 注意事项">
@@ -119,6 +129,11 @@
           <li>Selecting a photo alone does not send it; it is sent only after you tap “Analyze this photo”.</li>
           <li>For a network error, timeout, or RATE_LIMITED response, wait and retry manually. Only when the server returns the exact APP_CHECK_FAILED response before decoding the image does the app refresh its integrity token and resend the same request once; it does not automatically retry other errors.</li>
           <li>The App Store version may be used only by users aged 18 or older. Results are single-meal estimates, not medical diagnosis or advice. Do not use the results for clinical purposes.</li>
+          <li>On first launch, the app asks once for confirmation that you are 18 or older.</li>
+          <li>Only that Boolean choice is stored in the app's preferences on the device.</li>
+          <li>The app does not collect a date of birth, name, or identity document.</li>
+          <li>カロスキャン does not attach the confirmation result to analysis requests or send it to its backend, Google, or Firebase.</li>
+          <li>Device or system backup and restore are controlled by Apple and device settings and may involve Apple processing.</li>
           <li>Read the <a href="/privacy/">privacy policy</a> for transfer and retention details.</li>
         </ul>
         <aside class="warning" aria-label="Public issue warning">

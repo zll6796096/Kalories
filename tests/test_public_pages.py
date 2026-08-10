@@ -678,7 +678,7 @@ class PublicPageTests(unittest.TestCase):
         self.assertIn("https://github.com/zll6796096/Kalories/issues/new", hrefs)
         self.assertIn("mailto:zll6796096@gmail.com", hrefs)
 
-    def test_public_pages_disclose_the_adult_only_local_confirmation_contract(
+    def test_public_pages_disclose_the_adult_only_on_device_confirmation_contract(
         self,
     ) -> None:
         privacy_text = read_page("privacy")[1].text
@@ -704,13 +704,36 @@ class PublicPageTests(unittest.TestCase):
         support_raw, support_page = read_page("support")
         support_text = support_page.text
         localized_requirements = {
-            "ja": "18歳以上の方のみ利用できます",
-            "zh-CN": "仅限18岁以上用户",
-            "en": "may be used only by users aged 18 or older",
+            "ja": (
+                "18歳以上の方のみ利用できます",
+                "初回起動時に一度だけ「18歳以上です」の確認を求めます。",
+                "「18歳以上です」を選択した事実を示す真偽値（Boolean）だけをアプリの設定として端末内に保存します。",
+                "生年月日、氏名、本人確認書類は収集しません。",
+                "カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+                "端末またはシステムのバックアップと復元はAppleおよび端末の設定に従い、その処理にAppleが関与する場合があります。",
+            ),
+            "zh-CN": (
+                "仅限18岁以上用户",
+                "首次启动时只需确认一次“我已满18岁”。",
+                "App 仅将该选择结果作为布尔值保存在设备上的 App 设置中。",
+                "不收集出生日期、姓名或身份证明文件。",
+                "カロスキャン不会将确认结果附加到分析请求，也不会由カロスキャン发送至其后端、Google 或 Firebase。",
+                "设备或系统的备份与恢复由 Apple 和设备设置控制，其处理可能涉及 Apple。",
+            ),
+            "en": (
+                "may be used only by users aged 18 or older",
+                "On first launch, the app asks once for confirmation that you are 18 or older.",
+                "Only that Boolean choice is stored in the app's preferences on the device.",
+                "The app does not collect a date of birth, name, or identity document.",
+                "カロスキャン does not attach the confirmation result to analysis requests or send it to its backend, Google, or Firebase.",
+                "Device or system backup and restore are controlled by Apple and device settings and may involve Apple processing.",
+            ),
         }
-        for lang, required in localized_requirements.items():
-            with self.subTest(page="support", lang=lang, required=required):
-                self.assertIn(required, localized_section_text(support_raw, lang))
+        for lang, required_terms in localized_requirements.items():
+            section_text = localized_section_text(support_raw, lang)
+            for required in required_terms:
+                with self.subTest(page="support", lang=lang, required=required):
+                    self.assertIn(required, section_text)
 
         for forbidden in ("一般の利用者", "一般用户", "general users"):
             with self.subTest(forbidden=forbidden):
