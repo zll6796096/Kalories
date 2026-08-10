@@ -394,27 +394,100 @@ git commit -m "feat(release): publish App Store privacy and support pages"
 **Files:**
 - Create: `tests/test_app_store_metadata.py`
 - Create: `docs/release/app-store/ja-JP.json`
+- Read-only evidence: `ios/project.yml`
+- Read-only evidence: `ios/Kalories.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
+- Read-only evidence: `ios/Kalories/Resources/PrivacyInfo.xcprivacy`
+- Read-only evidence: `ios/Kalories/Features/AdultAccess/AdultAccessModel.swift`
 
-- [ ] **Step 1: Write the metadata test before the JSON exists**
+The metadata contract is local evidence, not App Store Connect or production
+evidence. Keep both Japan age-rating readbacks `null`, keep the support and
+privacy HTTP/content gates `PENDING_PRODUCTION`, and keep signed-archive
+privacy reconciliation pending until the later delivery gates produce those
+artifacts. Unit tests must remain offline.
 
-Create `tests/test_app_store_metadata.py`:
+- [ ] **Step 1: Write the complete metadata test before the JSON exists**
+
+Create `tests/test_app_store_metadata.py` exactly as follows:
 
 ```python
 from __future__ import annotations
 
 import json
+import plistlib
+import re
 import unittest
 from pathlib import Path
-from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = ROOT / "docs" / "release" / "app-store" / "ja-JP.json"
+PROJECT_YML_PATH = ROOT / "ios" / "project.yml"
+PACKAGE_RESOLVED_PATH = (
+    ROOT
+    / "ios"
+    / "Kalories.xcodeproj"
+    / "project.xcworkspace"
+    / "xcshareddata"
+    / "swiftpm"
+    / "Package.resolved"
+)
+PRIVACY_MANIFEST_PATH = ROOT / "ios" / "Kalories" / "Resources" / "PrivacyInfo.xcprivacy"
+ADULT_ACCESS_MODEL_PATH = (
+    ROOT / "ios" / "Kalories" / "Features" / "AdultAccess" / "AdultAccessModel.swift"
+)
+SUPPORT_URL = "https://kalories-sxielk4wua-an.a.run.app/support/"
+PRIVACY_POLICY_URL = "https://kalories-sxielk4wua-an.a.run.app/privacy/"
 
 
 class AppStoreMetadataTests(unittest.TestCase):
     def setUp(self) -> None:
         self.document = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+
+    def test_schema_is_exact(self) -> None:
+        self.assertEqual(
+            set(self.document),
+            {
+                "apple_app_id",
+                "bundle_id",
+                "version",
+                "build",
+                "locale",
+                "name",
+                "subtitle",
+                "promotional_text",
+                "description",
+                "keywords",
+                "support_url",
+                "privacy_policy_url",
+                "marketing_url",
+                "contact_email",
+                "copyright",
+                "primary_category",
+                "secondary_category",
+                "territories",
+                "price",
+                "in_app_purchases",
+                "subscriptions",
+                "kids_category",
+                "release_type",
+                "review_notes",
+                "adult_access",
+                "age_rating",
+                "health_disclaimer",
+                "release_gates",
+                "privacy",
+                "privacy_evidence",
+            },
+        )
+        self.assertEqual(
+            set(self.document["privacy"]),
+            {"tracking", "collected_data"},
+        )
+        for entry in self.document["privacy"]["collected_data"]:
+            self.assertEqual(
+                set(entry),
+                {"type", "purpose", "linked_to_user", "tracking"},
+            )
 
     def test_identity_distribution_and_release_are_exact(self) -> None:
         self.assertEqual(self.document["apple_app_id"], "6799957568")
@@ -428,6 +501,54 @@ class AppStoreMetadataTests(unittest.TestCase):
         self.assertFalse(self.document["subscriptions"])
         self.assertFalse(self.document["kids_category"])
         self.assertEqual(self.document["copyright"], "2026 RYU AI Studio")
+        self.assertEqual(self.document["primary_category"], "FOOD_AND_DRINK")
+        self.assertIsNone(self.document["secondary_category"])
+        self.assertIsNone(self.document["marketing_url"])
+
+    def test_adult_access_and_age_rating_are_explicit_and_pending_readback(self) -> None:
+        self.assertEqual(
+            self.document["adult_access"],
+            {
+                "minimum_age": 18,
+                "confirmation_required": True,
+                "storage_key": "kalories.adult-access.confirmed.v1",
+                "granting_value": True,
+                "confirmation_boolean_only": True,
+                "birth_date_collected": False,
+                "name_collected": False,
+                "identity_document_collected": False,
+                "confirmation_in_analysis_request": False,
+                "confirmation_sent_to_backend_google_or_firebase": False,
+                "backup_restore_follows_apple_and_device_settings": True,
+            },
+        )
+        self.assertEqual(
+            self.document["age_rating"],
+            {
+                "age_assurance": True,
+                "health_or_wellness_topics": True,
+                "higher_age_rating_override_target": "18+",
+                "japan_ios_26_or_later_readback": None,
+                "japan_earlier_os_readback": None,
+            },
+        )
+        self.assertEqual(
+            self.document["health_disclaimer"],
+            {
+                "medical_diagnosis": False,
+                "medical_advice": False,
+                "individual_treatment_or_nutrition_guidance": False,
+            },
+        )
+        adult_access_source = ADULT_ACCESS_MODEL_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            'static let storageKey = "kalories.adult-access.confirmed.v1"',
+            adult_access_source,
+        )
+        self.assertIn(
+            "defaults.set(true, forKey: Self.storageKey)",
+            adult_access_source,
+        )
 
     def test_localized_fields_fit_limits_and_match_product(self) -> None:
         self.assertEqual(self.document["locale"], "ja-JP")
@@ -442,19 +563,62 @@ class AppStoreMetadataTests(unittest.TestCase):
         self.assertLessEqual(len(self.document["name"]), 30)
         self.assertLessEqual(len(self.document["subtitle"]), 30)
         self.assertLessEqual(len(self.document["promotional_text"]), 170)
-        self.assertLessEqual(len(self.document["keywords"]), 100)
-        self.assertNotIn(" ", self.document["keywords"])
+        self.assertLessEqual(len(self.document["description"]), 4_000)
+        self.assertLessEqual(len(self.document["review_notes"].encode("utf-8")), 4_000)
+
+        expected_keywords = "カロリー,栄養管理,食事記録,食事写真,料理写真,栄養分析,健康管理"
+        self.assertEqual(self.document["keywords"], expected_keywords)
+        self.assertLessEqual(len(self.document["keywords"].encode("utf-8")), 100)
         keywords = self.document["keywords"].split(",")
         self.assertEqual(len(keywords), len(set(keywords)))
+        for keyword in keywords:
+            self.assertGreater(len(keyword), 2)
+
+        for field in ("description", "review_notes"):
+            text = self.document[field]
+            for required_statement in (
+                "「18歳以上です」を選択した事実だけ",
+                "生年月日、氏名、本人確認書類",
+                "確認結果を分析リクエストに添付せず",
+                "バックアップと復元はAppleおよび端末の設定に従います",
+                "医療診断",
+                "医療助言",
+                "個別の治療・栄養指導",
+            ):
+                with self.subTest(field=field, required_statement=required_statement):
+                    self.assertIn(required_statement, text)
+
+        for required_label in ("カメラを開く", "写真から選ぶ", "推定精度"):
+            self.assertIn(required_label, self.document["review_notes"])
+        for obsolete_label in ("カメラで撮影", "写真から選択", "信頼度"):
+            self.assertNotIn(obsolete_label, self.document["review_notes"])
         for forbidden_claim in ("正確に測定", "診断します", "必ず改善"):
             self.assertNotIn(forbidden_claim, self.document["description"])
 
-    def test_urls_contact_and_privacy_answers_are_exact(self) -> None:
-        for key in ("support_url", "privacy_policy_url"):
-            parsed = urlparse(self.document[key])
-            self.assertEqual(parsed.scheme, "https")
-            self.assertEqual(parsed.netloc, "kalories-sxielk4wua-an.a.run.app")
+    def test_urls_and_production_release_gates_are_exact(self) -> None:
+        self.assertEqual(self.document["support_url"], SUPPORT_URL)
+        self.assertEqual(self.document["privacy_policy_url"], PRIVACY_POLICY_URL)
         self.assertEqual(self.document["contact_email"], "zll6796096@gmail.com")
+        self.assertEqual(
+            self.document["release_gates"],
+            {
+                "support_url": {
+                    "http_200": None,
+                    "content_verified": None,
+                    "status": "PENDING_PRODUCTION",
+                },
+                "privacy_policy_url": {
+                    "http_200": None,
+                    "content_verified": None,
+                    "status": "PENDING_PRODUCTION",
+                },
+                "signed_archive_reconciliation_required": True,
+                "signed_archive_privacy_reconciliation_verified": None,
+                "signed_archive_status": "PENDING_SIGNED_ARCHIVE",
+            },
+        )
+
+    def test_privacy_answers_are_locked_to_current_local_evidence(self) -> None:
         self.assertFalse(self.document["privacy"]["tracking"])
         self.assertEqual(
             self.document["privacy"]["collected_data"],
@@ -474,21 +638,113 @@ class AppStoreMetadataTests(unittest.TestCase):
             ],
         )
 
+        evidence = self.document["privacy_evidence"]
+        self.assertEqual(
+            set(evidence),
+            {
+                "sources",
+                "firebase_ios_sdk",
+                "firebase_diagnostic_data_basis",
+                "app_privacy_manifest_photos_contract",
+            },
+        )
+        self.assertEqual(
+            evidence["sources"],
+            {
+                "project": "ios/project.yml",
+                "package_resolved": (
+                    "ios/Kalories.xcodeproj/project.xcworkspace/xcshareddata/"
+                    "swiftpm/Package.resolved"
+                ),
+                "app_privacy_manifest": "ios/Kalories/Resources/PrivacyInfo.xcprivacy",
+            },
+        )
+        self.assertEqual(
+            evidence["firebase_ios_sdk"],
+            {
+                "project_requirement": "12.17.0",
+                "resolved_version": "12.17.0",
+                "resolved_revision": "33a468adfdb75b53f05a37e7c886ca7c962b5c17",
+            },
+        )
+        self.assertEqual(
+            evidence["firebase_diagnostic_data_basis"],
+            "FIREBASE_INSTALLATIONS_PRIVACY_MANIFEST",
+        )
+
+        project_yml = PROJECT_YML_PATH.read_text(encoding="utf-8")
+        project_version_match = re.search(
+            r"(?m)^  Firebase:\n"
+            r"    url: https://github\.com/firebase/firebase-ios-sdk\.git\n"
+            r"    exactVersion: (?P<version>[^\s]+)$",
+            project_yml,
+        )
+        self.assertIsNotNone(project_version_match)
+        self.assertEqual(project_version_match.group("version"), "12.17.0")
+
+        package_resolved = json.loads(PACKAGE_RESOLVED_PATH.read_text(encoding="utf-8"))
+        firebase_pin = next(
+            pin for pin in package_resolved["pins"] if pin["identity"] == "firebase-ios-sdk"
+        )
+        self.assertEqual(firebase_pin["state"]["version"], "12.17.0")
+        self.assertEqual(
+            firebase_pin["state"]["revision"],
+            "33a468adfdb75b53f05a37e7c886ca7c962b5c17",
+        )
+
+        expected_photos_contract = {
+            "type": "NSPrivacyCollectedDataTypePhotosorVideos",
+            "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            "linked_to_user": False,
+            "tracking": False,
+        }
+        self.assertEqual(
+            evidence["app_privacy_manifest_photos_contract"],
+            expected_photos_contract,
+        )
+        with PRIVACY_MANIFEST_PATH.open("rb") as manifest_file:
+            manifest = plistlib.load(manifest_file)
+        self.assertFalse(manifest["NSPrivacyTracking"])
+        self.assertEqual(manifest["NSPrivacyTrackingDomains"], [])
+        self.assertEqual(
+            manifest["NSPrivacyCollectedDataTypes"],
+            [
+                {
+                    "NSPrivacyCollectedDataType": expected_photos_contract["type"],
+                    "NSPrivacyCollectedDataTypePurposes": [
+                        expected_photos_contract["purpose"]
+                    ],
+                    "NSPrivacyCollectedDataTypeLinked": False,
+                    "NSPrivacyCollectedDataTypeTracking": False,
+                }
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run the test and verify the JSON is absent**
+This contract deliberately reads the local adult-access implementation,
+XcodeGen requirement, SwiftPM resolution, and app privacy manifest. A storage
+key, granting value, SDK, or manifest change must fail until the metadata
+evidence is reviewed. The signed archive remains the final authority for
+packaged third-party privacy manifests.
+
+- [ ] **Step 2: Run the test and verify RED**
 
 ```bash
 .venv/bin/python -m unittest tests.test_app_store_metadata -v
 ```
 
-Expected: ERROR with `FileNotFoundError` for
-`docs/release/app-store/ja-JP.json`.
+Expected from a fresh implementation: ERROR with `FileNotFoundError` for
+`docs/release/app-store/ja-JP.json`. When hardening an older metadata file,
+the old file must fail for missing structured age, release-gate, privacy
+evidence, keyword-byte, or exact-copy requirements.
 
-- [ ] **Step 3: Create `docs/release/app-store/ja-JP.json`**
+- [ ] **Step 3: Create the exact Japanese metadata contract**
+
+Create `docs/release/app-store/ja-JP.json` exactly as follows:
 
 ```json
 {
@@ -500,8 +756,8 @@ Expected: ERROR with `FileNotFoundError` for
   "name": "カロスキャン",
   "subtitle": "食事写真から栄養をかんたん推定",
   "promotional_text": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真からカロリーと栄養バランスの目安を確認できます。",
-  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・カメラで食事を撮影、または写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、信頼度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類は収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
-  "keywords": "カロリー,栄養,食事,写真,料理,食生活,フード,分析,推定",
+  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・「カメラを開く」で食事を撮影、または「写真から選ぶ」で写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、推定精度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類は収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "keywords": "カロリー,栄養管理,食事記録,食事写真,料理写真,栄養分析,健康管理",
   "support_url": "https://kalories-sxielk4wua-an.a.run.app/support/",
   "privacy_policy_url": "https://kalories-sxielk4wua-an.a.run.app/privacy/",
   "marketing_url": null,
@@ -515,31 +771,97 @@ Expected: ERROR with `FileNotFoundError` for
   "subscriptions": false,
   "kids_category": false,
   "release_type": "AFTER_APPROVAL",
-  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では選択済みの事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類を収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラで撮影」または「写真から選択」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。",
+  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類を収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラを開く」または「写真から選ぶ」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、推定精度を確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。表示内容は写真に基づく推定値であり、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "adult_access": {
+    "minimum_age": 18,
+    "confirmation_required": true,
+    "storage_key": "kalories.adult-access.confirmed.v1",
+    "granting_value": true,
+    "confirmation_boolean_only": true,
+    "birth_date_collected": false,
+    "name_collected": false,
+    "identity_document_collected": false,
+    "confirmation_in_analysis_request": false,
+    "confirmation_sent_to_backend_google_or_firebase": false,
+    "backup_restore_follows_apple_and_device_settings": true
+  },
+  "age_rating": {
+    "age_assurance": true,
+    "health_or_wellness_topics": true,
+    "higher_age_rating_override_target": "18+",
+    "japan_ios_26_or_later_readback": null,
+    "japan_earlier_os_readback": null
+  },
+  "health_disclaimer": {
+    "medical_diagnosis": false,
+    "medical_advice": false,
+    "individual_treatment_or_nutrition_guidance": false
+  },
+  "release_gates": {
+    "support_url": {
+      "http_200": null,
+      "content_verified": null,
+      "status": "PENDING_PRODUCTION"
+    },
+    "privacy_policy_url": {
+      "http_200": null,
+      "content_verified": null,
+      "status": "PENDING_PRODUCTION"
+    },
+    "signed_archive_reconciliation_required": true,
+    "signed_archive_privacy_reconciliation_verified": null,
+    "signed_archive_status": "PENDING_SIGNED_ARCHIVE"
+  },
   "privacy": {
     "tracking": false,
     "collected_data": [
       {"type": "PHOTOS_OR_VIDEOS", "purpose": "APP_FUNCTIONALITY", "linked_to_user": false, "tracking": false},
       {"type": "OTHER_DIAGNOSTIC_DATA", "purpose": "ANALYTICS", "linked_to_user": false, "tracking": false}
     ]
+  },
+  "privacy_evidence": {
+    "sources": {
+      "project": "ios/project.yml",
+      "package_resolved": "ios/Kalories.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "app_privacy_manifest": "ios/Kalories/Resources/PrivacyInfo.xcprivacy"
+    },
+    "firebase_ios_sdk": {
+      "project_requirement": "12.17.0",
+      "resolved_version": "12.17.0",
+      "resolved_revision": "33a468adfdb75b53f05a37e7c886ca7c962b5c17"
+    },
+    "firebase_diagnostic_data_basis": "FIREBASE_INSTALLATIONS_PRIVACY_MANIFEST",
+    "app_privacy_manifest_photos_contract": {
+      "type": "NSPrivacyCollectedDataTypePhotosorVideos",
+      "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+      "linked_to_user": false,
+      "tracking": false
+    }
   }
 }
 ```
 
-The diagnostic-data entry comes from the resolved Firebase Installations
-privacy manifest. The signed-archive gate must stop if packaged manifests
-differ.
+Do not replace pending `null` values with a pass based on local files. The
+production plan must prove HTTP 200 and page content. The delivery plan must
+read back both Japan age-rating variants and reconcile the signed archive.
 
-- [ ] **Step 4: Run tests and commit the contract**
+- [ ] **Step 4: Run tests, parse JSON, and commit the contract**
 
 ```bash
+set -euo pipefail
+
 .venv/bin/python -m unittest tests.test_app_store_metadata -v
-git add -- tests/test_app_store_metadata.py docs/release/app-store/ja-JP.json
+.venv/bin/python -m json.tool docs/release/app-store/ja-JP.json >/dev/null
+git add -- \
+  tests/test_app_store_metadata.py \
+  docs/release/app-store/ja-JP.json \
+  docs/superpowers/plans/2026-08-11-japan-app-store-release-foundation.md
 git diff --cached --check
-git commit -m "feat(release): define Japanese App Store metadata"
+git commit -m "fix(release): harden App Store metadata contract"
 ```
 
-Expected: 3 tests pass and the scoped commit succeeds.
+Expected: 6 tests pass, JSON parsing succeeds, all external readbacks remain
+explicitly pending, and the scoped commit succeeds.
 
 ## Task 5: Declare and test standard-only encryption
 
