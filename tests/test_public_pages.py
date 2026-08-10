@@ -174,6 +174,35 @@ def focus_outline_color(raw: str) -> str:
     return outline.group(1).lower()
 
 
+def css_hex_declaration(raw: str, selector: str, property_name: str) -> str:
+    block = re.search(rf"{re.escape(selector)}\s*\{{([^}}]*)\}}", raw)
+    if block is None:
+        raise AssertionError(f"CSS selector is required: {selector}")
+    declaration = re.search(
+        rf"(?:^|;)\s*{re.escape(property_name)}\s*:\s*(#[0-9a-fA-F]{{6}})\s*;",
+        block.group(1),
+    )
+    if declaration is None:
+        raise AssertionError(
+            f"{selector} must declare {property_name} as a six-digit hex color"
+        )
+    return declaration.group(1).lower()
+
+
+def localized_section_text(raw: str, lang: str) -> str:
+    match = re.search(
+        rf'<section\b[^>]*\blang="{re.escape(lang)}"[^>]*>(.*?)</section>',
+        raw,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(f"localized section is required: {lang}")
+    section = DocumentProbe()
+    section.feed(match.group(0))
+    section.close()
+    return section.text
+
+
 class PublicPageTests(unittest.TestCase):
     def test_pages_have_static_japanese_first_document_structure(self) -> None:
         expected_titles = {
@@ -316,6 +345,69 @@ class PublicPageTests(unittest.TestCase):
                             contrast_ratio(focus_color, background), 3.0
                         )
 
+    def test_declared_text_colors_meet_wcag_aa_on_actual_backgrounds(self) -> None:
+        expected = {
+            "privacy": {
+                "root_text": (":root", "color", "#18201d"),
+                "page": (":root", "background", "#f5f7f5"),
+                "card": ("header, section, aside", "background", "#ffffff"),
+                "notice": (".notice", "background", "#f1f6f3"),
+                "warning": (".warning", "background", "#fff8ec"),
+                "heading": ("h1, h2", "color", "#16251f"),
+                "secondary": (".updated", "color", "#59645f"),
+                "link": ("a", "color", "#265f49"),
+            },
+            "support": {
+                "root_text": (":root", "color", "#18201d"),
+                "page": (":root", "background", "#f5f7f5"),
+                "card": ("header, section, aside", "background", "#ffffff"),
+                "warning": (".warning", "background", "#fff8ec"),
+                "heading": ("h1, h2, h3", "color", "#16251f"),
+                "secondary": (".lede", "color", "#4f5c56"),
+                "link": ("a", "color", "#265f49"),
+                "warning_strong": (".warning strong", "color", "#6d4310"),
+            },
+        }
+        combinations = {
+            "privacy": (
+                ("root_text", "page"),
+                ("root_text", "card"),
+                ("root_text", "notice"),
+                ("root_text", "warning"),
+                ("heading", "card"),
+                ("heading", "notice"),
+                ("heading", "warning"),
+                ("secondary", "card"),
+                ("link", "card"),
+            ),
+            "support": (
+                ("root_text", "page"),
+                ("root_text", "card"),
+                ("root_text", "warning"),
+                ("heading", "card"),
+                ("heading", "warning"),
+                ("secondary", "card"),
+                ("link", "card"),
+                ("warning_strong", "warning"),
+            ),
+        }
+
+        for page_name, declarations in expected.items():
+            raw, _page = read_page(page_name)
+            colors: dict[str, str] = {}
+            for name, (selector, property_name, expected_color) in declarations.items():
+                with self.subTest(page=page_name, declaration=name):
+                    color = css_hex_declaration(raw, selector, property_name)
+                    self.assertEqual(color, expected_color)
+                    colors[name] = color
+            for foreground, background in combinations[page_name]:
+                with self.subTest(
+                    page=page_name, foreground=foreground, background=background
+                ):
+                    self.assertGreaterEqual(
+                        contrast_ratio(colors[foreground], colors[background]), 4.5
+                    )
+
     def test_privacy_page_states_the_complete_conservative_provider_contract(self) -> None:
         raw, page = read_page("privacy")
         text = page.text
@@ -423,8 +515,11 @@ class PublicPageTests(unittest.TestCase):
         self.assertRegex(text, r"有料サービス条件.+前提")
         self.assertRegex(
             text,
-            r"Google.+不正使用の検出および防止.+プロンプト.+コンテキスト情報.+出力.+最大55日間保持する場合があります",
+            r"Google.+不正使用の検出および防止.+プロンプト.+コンテキスト情報.+出力を55日間保持します",
         )
+        self.assertEqual(text.count("出力を55日間保持します"), 1)
+        self.assertNotIn("最大55日間保持する場合があります", text)
+        self.assertRegex(text, r"前記「保存期間」.+55日間の保持")
         self.assertRegex(text, r"55日間.+写真入力.+分析出力")
         self.assertIn("ゼロデータ保持の適用を主張しません", text)
         self.assertRegex(
@@ -446,6 +541,7 @@ class PublicPageTests(unittest.TestCase):
         retention_page = DocumentProbe()
         retention_page.feed(raw[retention_start:retention_end])
         retention_page.close()
+        self.assertEqual(retention_page.text.count("出力を55日間保持します"), 1)
         self.assertNotRegex(
             retention_page.text,
             r"(?:自動(?:的)?に|55日(?:間)?後に|保持期間後に).{0,80}(?:期限切れ|削除|消去)",
@@ -479,7 +575,7 @@ class PublicPageTests(unittest.TestCase):
         )
 
     def test_support_page_is_japanese_first_and_covers_safe_manual_help(self) -> None:
-        _raw, page = read_page("support")
+        raw, page = read_page("support")
         text = page.text
         localized_sections = [
             attrs
@@ -495,6 +591,19 @@ class PublicPageTests(unittest.TestCase):
             [attrs.get("aria-labelledby") for attrs in localized_sections],
             expected_heading_ids,
         )
+
+        localized_terms = {
+            "ja": ("カロスキャン", "この写真を分析"),
+            "zh-CN": ("カロスキャン", "分析这张照片"),
+            "en": ("カロスキャン", "Analyze this photo"),
+        }
+        for lang, terms in localized_terms.items():
+            section_text = localized_section_text(raw, lang)
+            for term in terms:
+                with self.subTest(lang=lang, term=term):
+                    self.assertIn(term, section_text)
+            with self.subTest(lang=lang, term="legacy display name"):
+                self.assertNotIn("Kalories", section_text)
         self.assertEqual(
             [
                 attrs["id"]

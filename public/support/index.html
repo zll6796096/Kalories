@@ -59,21 +59,21 @@
 
         <h3>カメラを使えない場合</h3>
         <ol>
-          <li>iOSの「設定」からKaloriesを開き、カメラを許可してください。</li>
+          <li>iOSの「設定」からカロスキャンを開き、カメラを許可してください。</li>
           <li>アプリへ戻って、もう一度カメラ画面を開いてください。</li>
         </ol>
 
         <h3>食べ物が写っていないと表示された場合</h3>
         <p>
           料理全体が明るく写るように位置を調整し、再撮影してください。
-          写真の選択だけでは外部へ送信されず、「分析する」をタップした後に送信されます。
+          写真の選択だけでは外部へ送信されず、「この写真を分析」をタップした後に送信されます。
         </p>
 
         <h3>ネットワーク、タイムアウト、RATE_LIMITED</h3>
         <p>
           接続を確認し、少し時間を置いてから手動で再試行してください。
           ただし、サーバーが画像を読み取る前に正確なAPP_CHECK_FAILEDを返した場合だけ、
-          Kaloriesは整合性トークンを更新し、同じリクエストを1回だけ再送信します。
+          カロスキャンは整合性トークンを更新し、同じリクエストを1回だけ再送信します。
           それ以外のエラーでは自動再試行しません。何度も連続して送信しないでください。
         </p>
 
@@ -97,8 +97,9 @@
       <section lang="zh-CN" aria-labelledby="support-zh">
         <h2 id="support-zh">中文</h2>
         <ul>
-          <li>无法使用相机时，请在 iOS“设置”中允许 Kalories 访问相机。</li>
+          <li>无法使用相机时，请在 iOS“设置”中允许カロスキャン访问相机。</li>
           <li>提示没有拍到食物时，请让整餐清晰入镜后重新拍摄。</li>
+          <li>仅选择照片不会发送；点击“分析这张照片”后才会发送。</li>
           <li>遇到网络错误、超时或 RATE_LIMITED 时，请稍后手动重试。仅当服务器在读取图片前返回准确的 APP_CHECK_FAILED 时，App 才会更新完整性令牌并自动重发同一相片请求一次；其他错误不会自动重试。</li>
           <li>本 App 面向一般用户，但不属于儿童专区；结果只是单餐估算，不是医疗诊断或建议。请勿用于临床用途。</li>
           <li>数据发送和保存说明请查看<a href="/privacy/">隐私政策</a>。</li>
@@ -113,8 +114,9 @@
       <section lang="en" aria-labelledby="support-en">
         <h2 id="support-en">English</h2>
         <ul>
-          <li>If the camera is unavailable, allow camera access for Kalories in iOS Settings.</li>
+          <li>If the camera is unavailable, allow camera access for カロスキャン in iOS Settings.</li>
           <li>If no food is detected, place the full meal in clear view and retake the photo.</li>
+          <li>Selecting a photo alone does not send it; it is sent only after you tap “Analyze this photo”.</li>
           <li>For a network error, timeout, or RATE_LIMITED response, wait and retry manually. Only when the server returns the exact APP_CHECK_FAILED response before decoding the image does the app refresh its integrity token and resend the same request once; it does not automatically retry other errors.</li>
           <li>The App Store version is for general users but is not in the Kids category. Results are single-meal estimates, not medical diagnosis or advice. Do not use the results for clinical purposes.</li>
           <li>Read the <a href="/privacy/">privacy policy</a> for transfer and retention details.</li>
