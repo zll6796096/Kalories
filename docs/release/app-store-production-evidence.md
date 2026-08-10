@@ -13,7 +13,7 @@ Source revision: `6bfbeaed23c7732460bbf1e22736d4d01132f813`
 | Dataset sharing disabled | PASS |
 | Daily model quota 200 | PASS |
 | Monthly 3000JPY budget alert | PASS |
-| Zero-traffic candidate | NOT DEPLOYED |
+| Zero-traffic candidate | PASS |
 | Candidate real analysis | NOT RUN |
 | Candidate safe-log scan | NOT RUN |
 | Production promotion | NOT RUN |
@@ -92,6 +92,33 @@ Configured and read back on 2026-08-11:
 
 This budget is an alert, not a hard spending cap. The daily model quota and
 application rate limiter remain the controls that restrict request volume.
+
+## Zero-traffic immutable candidate evidence
+
+Deployed and read back on 2026-08-11:
+
+- Source commit: `22d99e1d970913494ed8e11b63fe1cef41188328`
+- Immutable revision: `kalories-00004-nan`
+- Candidate tag: `app-store-candidate`
+- Aggregate production traffic: 0%
+
+The fresh pre-audit verified all required APIs, the replacement key's single
+Gemini API restriction, Secret version 2 as the only enabled version, disabled
+version 1, the exact unconditional secret-level runtime accessor, and no
+project/ancestor Secret access for the runtime identity. The live service
+resource version was read back again immediately before deployment.
+
+The immutable revision read-back passed every required configuration check:
+pinned Secret version 2, `gemini-3.6-flash`, App Check required, the exact
+Firebase project and iOS app, unchanged runtime identity, maxScale 1,
+concurrency 4, timeout 30 seconds, and a digest-pinned image. Cloud Run omitted
+the candidate tag's zero-valued `percent` field; its official API defines an
+unspecified traffic percentage as zero, and the candidate revision's aggregate
+traffic was verified as 0%.
+
+Official traffic-default semantics checked on 2026-08-11:
+
+- https://docs.cloud.google.com/run/docs/reference/rest/v2/projects.locations.services
 
 ## Fresh read-only production preflight
 
