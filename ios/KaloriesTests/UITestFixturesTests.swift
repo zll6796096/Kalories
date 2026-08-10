@@ -98,6 +98,7 @@ final class UITestFixturesTests: XCTestCase {
 
     func testEnvironmentRejectsAdultAccessArgumentsOutsideUITesting() {
         assertInvalidConfigurations([
+            ["Kalories", "--adult-access"],
             ["Kalories", "--adult-access-confirmed"],
             ["Kalories", "--reset-adult-access"],
             ["Kalories", "--fixture-success", "--adult-access-confirmed"],
@@ -109,7 +110,15 @@ final class UITestFixturesTests: XCTestCase {
         assertInvalidConfigurations([
             [
                 "Kalories", "--ui-testing", "--fixture-success",
+                "--adult-access",
+            ],
+            [
+                "Kalories", "--ui-testing", "--fixture-success",
                 "--adult-access-unknown",
+            ],
+            [
+                "Kalories", "--ui-testing", "--fixture-success",
+                "--adult-access=confirmed",
             ],
         ])
     }

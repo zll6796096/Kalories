@@ -18,7 +18,7 @@ enum UITestFixtures {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) throws -> AppEnvironment? {
         let adultAccessArguments = arguments.filter {
-            $0.hasPrefix("--adult-access-") ||
+            $0.hasPrefix("--adult-access") ||
                 $0.hasPrefix("--reset-adult-access")
         }
         guard arguments.contains("--ui-testing") else {
