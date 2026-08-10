@@ -173,8 +173,8 @@ for required_public_term in (
     "Firebase App Check",
     "Apple App Attest",
     "55日間",
-    "開発者ログを無効",
-    "データセット共有を利用しません",
+    "カロスキャンが利用するGenerateContent API経路では、Google AI Studioの開発者ログを無効にし、データセット共有を利用しません。",
+    "Interactions APIのログ設定はこの説明の対象ではなく、カロスキャンはInteractions API経路を使用していません。",
     "医療診断",
     "医療助言",
 ):
@@ -182,9 +182,11 @@ for required_public_term in (
 
 for required_adult_access_term in (
     "カロスキャンは18歳以上の方のみ利用できます。",
-    "初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。",
+    "初回起動時に「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存します。",
+    "この確認は利用者の実年齢を証明するものではありません。",
     "生年月日、氏名、本人確認書類は収集しません。",
-    "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+    "カロスキャンは、年齢確認の結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+    "端末またはシステムのバックアップと復元は、Appleおよび端末の設定に従います。",
 ):
     self.assertIn(required_adult_access_term, text)
 
@@ -207,13 +209,18 @@ for forbidden_public_term in ("TestFlight", "invited testers"):
 for required_public_term in (
     "App Store",
     "zll6796096@gmail.com",
-    "18歳以上の方のみ利用できます",
-    "仅限18岁以上用户",
-    "only to users aged 18 or older",
     "医療診断",
     "medical diagnosis",
 ):
     self.assertIn(required_public_term, text)
+
+localized_adult_access = {
+    "ja": "18歳以上の方のみ利用できます",
+    "zh-CN": "仅限18岁以上用户",
+    "en": "may be used only by users aged 18 or older",
+}
+for lang, required_term in localized_adult_access.items():
+    self.assertIn(required_term, localized_section_text(raw, lang))
 
 ```
 
@@ -256,12 +263,13 @@ local-confirmation disclosure.
 <section>
   <h2>年齢確認</h2>
   <p>
-    初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。
-    この保存内容は、利用者の実年齢を証明するものではありません。
+    初回起動時に「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存します。
+    この確認は利用者の実年齢を証明するものではありません。
   </p>
   <p>
     生年月日、氏名、本人確認書類は収集しません。
-    年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。
+    カロスキャンは、年齢確認の結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。
+    端末またはシステムのバックアップと復元は、Appleおよび端末の設定に従います。
   </p>
 </section>
 ```
@@ -273,7 +281,9 @@ Replace the unverified/TestFlight paragraphs in the third-party section with:
 ```html
 <p>
   カロスキャンは、Google Geminiの有料サービス条件を前提として運用し、
-  Google AI Studioの開発者ログを無効にし、データセット共有を利用しません。
+  カロスキャンが利用するGenerateContent API経路では、Google AI Studioの開発者ログを
+  無効にし、データセット共有を利用しません。Interactions APIのログ設定はこの説明の
+  対象ではなく、カロスキャンはInteractions API経路を使用していません。
   有料サービス条件、開発者ログ、データセット共有または保持条件に変更が
   確認された場合は、内容を再確認し、必要に応じて分析機能を停止して本ポリシーを更新します。
 </p>
@@ -341,7 +351,7 @@ sections:
 ```
 
 ```html
-<li>The App Store version is available only to users aged 18 or older. Results are single-meal estimates, not medical diagnosis or advice.</li>
+<li>The App Store version may be used only by users aged 18 or older. Results are single-meal estimates, not medical diagnosis or advice.</li>
 ```
 
 Use this contact section:
@@ -490,7 +500,7 @@ Expected: ERROR with `FileNotFoundError` for
   "name": "カロスキャン",
   "subtitle": "食事写真から栄養をかんたん推定",
   "promotional_text": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真からカロリーと栄養バランスの目安を確認できます。",
-  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・カメラで食事を撮影、または写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、信頼度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけを端末内に保存し、生年月日、氏名、本人確認書類は収集せず、その結果をKalories、Google、FirebaseまたはAppleへ送信しません。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・カメラで食事を撮影、または写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、信頼度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類は収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
   "keywords": "カロリー,栄養,食事,写真,料理,食生活,フード,分析,推定",
   "support_url": "https://kalories-sxielk4wua-an.a.run.app/support/",
   "privacy_policy_url": "https://kalories-sxielk4wua-an.a.run.app/privacy/",
@@ -505,7 +515,7 @@ Expected: ERROR with `FileNotFoundError` for
   "subscriptions": false,
   "kids_category": false,
   "release_type": "AFTER_APPROVAL",
-  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では選択済みの事実だけを端末内に保存し、生年月日、氏名、本人確認書類を収集せず、確認結果を外部へ送信しません。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラで撮影」または「写真から選択」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。",
+  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では選択済みの事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類を収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラで撮影」または「写真から選択」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。",
   "privacy": {
     "tracking": false,
     "collected_data": [

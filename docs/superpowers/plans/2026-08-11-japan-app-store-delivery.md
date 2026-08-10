@@ -444,9 +444,12 @@ privacy URL, review notes, and copyright verbatim from
 `docs/release/app-store/ja-JP.json`. Leave marketing URL empty because its value
 is `null`. Confirm the promotional text and description start with the one-time
 local confirmation: users must select `18歳以上です`; only that Boolean fact is
-stored on device, with no birth date, name, identity document, or external
-transmission of the confirmation result. Confirm the review notes start with
-the same boundary and make confirmation Step 1 of the reviewer flow. Re-read
+stored in the app's on-device preferences, with no birth date, name, or identity
+document. Confirm the result is not attached to analysis requests or sent by
+Kalories to its backend, Google, or Firebase. State separately that device or
+system backup and restore are controlled by Apple and device settings and may
+therefore involve Apple processing. Confirm the review notes start with the
+same boundary and make confirmation Step 1 of the reviewer flow. Re-read
 saved fields after App Store Connect normalization. Any new
 medical, measurement-accuracy, weight-loss, or guaranteed-outcome claim is
 NO-GO.
@@ -527,19 +530,29 @@ Set Tracking to No and declare:
 
 Use `https://kalories-sxielk4wua-an.a.run.app/privacy/`. Verify the page returns
 HTTP 200 and discloses explicit Gemini transfer, provider retention, App Check,
-no account, no ads, no tracking, and deletion/withdrawal boundaries. If the
-final archive or Apple's definitions imply a different answer, stop and
-reconcile binary, policy, JSON, and questionnaire.
+no account, no ads, no tracking, and deletion/withdrawal boundaries. Verify
+developer logging is described only for the Kalories-used GenerateContent API
+path, with Interactions API explicitly outside that statement and unused by the
+app. Verify the local confirmation is excluded from analysis requests and from
+Kalories backend/Google/Firebase sends, while Apple/device-controlled backup and
+restore remain disclosed. If the final archive or Apple's definitions imply a
+different answer, stop and reconcile binary, policy, JSON, and questionnaire.
 
 - [ ] **Step 2: Answer the current age questionnaire truthfully**
 
-Set parental controls and age assurance absent. Set unrestricted web access,
-UGC distribution, social media, messaging/chat, and advertising absent. Mark
-Health or Wellness Topics present because the app estimates calories and
-nutrition. Set Medical or Treatment Information to None because the app does
-not diagnose or guide treatment. Set every profanity, horror, alcohol/drug,
-mature, sexual, violence, contest, gambling, simulated-gambling, and loot-box
-descriptor to None/not present.
+Set parental controls absent. Treat the Age Assurance field as present/used
+because the shipped mandatory `I am 18 or older` self-attestation is a mechanism
+used to confirm the age requirement. In the current App Store Connect
+questionnaire, select the option that truthfully reports that mechanism, then
+read back and record the exact saved field label and value. If the available
+options do not permit that truthful answer, stop before saving and record the
+interface as a blocker. Set unrestricted web access, UGC distribution, social
+media, messaging/chat, and advertising absent. Mark Health or Wellness Topics
+present because the app estimates calories and nutrition. Set Medical or
+Treatment Information to None because the app does not diagnose or guide
+treatment. Set every profanity, horror, alcohol/drug, mature, sexual, violence,
+contest, gambling, simulated-gambling, and loot-box descriptor to None/not
+present.
 
 Do not select Made for Kids. Under Age Categories and Override choose
 **Override to Higher Age Rating**, select `18+`, and leave the Age Suitability
@@ -565,17 +578,20 @@ Use the private contact verified in Task 2 and email
 `zll6796096@gmail.com`. Keep sign-in information disabled. Copy review notes
 from the JSON. They must start with the one-time `18歳以上です` confirmation,
 state that only the confirmation Boolean is stored locally and that no birth
-date, name, identity document, or confirmation result is transmitted, and make
-that confirmation Step 1 before explaining capture/select, explicit Gemini
-transfer, analysis result, uncertainty, no login, no payment, and no tracking.
+date, name, or identity document is collected. They must say the result is not
+attached to analysis requests or sent by Kalories to its backend, Google, or
+Firebase, while device/system backup and restore follow Apple and device
+settings. Make that confirmation Step 1 before explaining capture/select,
+explicit Gemini transfer, analysis result, uncertainty, no login, no payment,
+and no tracking.
 
 - [ ] **Step 5: Read back and commit boolean evidence**
 
 Compare App Privacy with JSON and archive, and age answers with the product.
 Record the higher-age override selection, Japan `18+` readback for iOS 26 or
 later, App Store Connect's exact displayed legacy mapping for earlier OS
-versions, and the questionnaire's boolean answers; do not commit private
-contact fields.
+versions, the exact saved Age Assurance field label/value, and the
+questionnaire's other answers; do not commit private contact fields.
 
 ```bash
 git add -- docs/release/app-store-delivery-evidence.md
@@ -607,9 +623,9 @@ Verify together: identity/build, Japanese metadata, five screenshots,
 support/privacy/contact, category, Free, Japan only, no monetization, privacy,
 the one-time local adult confirmation in metadata and review flow, the
 higher-age override with Japan `18+` for iOS 26 or later plus the separately
-recorded legacy mapping, rights, medical/export answers, automatic release,
-review contact/notes, and absence of warning, missing field, agreement block,
-or message.
+recorded legacy mapping, the exact Age Assurance self-attestation answer,
+rights, medical/export answers, automatic release, review contact/notes, and
+absence of warning, missing field, agreement block, or message.
 
 - [ ] **Step 3: Reject unresolved pre-submit rows**
 

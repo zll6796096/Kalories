@@ -490,8 +490,8 @@ class PublicPageTests(unittest.TestCase):
             "Firebase App Check",
             "Apple App Attest",
             "55日間",
-            "開発者ログを無効",
-            "データセット共有を利用しません",
+            "カロスキャンが利用するGenerateContent API経路では、Google AI Studioの開発者ログを無効にし、データセット共有を利用しません。",
+            "Interactions APIのログ設定はこの説明の対象ではなく、カロスキャンはInteractions API経路を使用していません。",
             "医療診断",
             "医療助言",
         ):
@@ -684,21 +684,33 @@ class PublicPageTests(unittest.TestCase):
         privacy_text = read_page("privacy")[1].text
         for required in (
             "カロスキャンは18歳以上の方のみ利用できます。",
-            "初回起動時に「18歳以上です」を選択した事実だけを端末内に保存します。",
+            "初回起動時に「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存します。",
+            "この確認は利用者の実年齢を証明するものではありません。",
             "生年月日、氏名、本人確認書類は収集しません。",
-            "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+            "カロスキャンは、年齢確認の結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+            "端末またはシステムのバックアップと復元は、Appleおよび端末の設定に従います。",
         ):
             with self.subTest(page="privacy", required=required):
                 self.assertIn(required, privacy_text)
-
-        support_text = read_page("support")[1].text
-        for required in (
-            "18歳以上の方のみ利用できます",
-            "仅限18岁以上用户",
-            "only to users aged 18 or older",
+        for forbidden_absolute_claim in (
+            "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+            "確認結果を外部へ送信しません",
         ):
-            with self.subTest(page="support", required=required):
-                self.assertIn(required, support_text)
+            with self.subTest(
+                page="privacy", forbidden_absolute_claim=forbidden_absolute_claim
+            ):
+                self.assertNotIn(forbidden_absolute_claim, privacy_text)
+
+        support_raw, support_page = read_page("support")
+        support_text = support_page.text
+        localized_requirements = {
+            "ja": "18歳以上の方のみ利用できます",
+            "zh-CN": "仅限18岁以上用户",
+            "en": "may be used only by users aged 18 or older",
+        }
+        for lang, required in localized_requirements.items():
+            with self.subTest(page="support", lang=lang, required=required):
+                self.assertIn(required, localized_section_text(support_raw, lang))
 
         for forbidden in ("一般の利用者", "一般用户", "general users"):
             with self.subTest(forbidden=forbidden):
