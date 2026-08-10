@@ -62,7 +62,7 @@ status, or display a product page. The terminal state is:
 | Primary language | Japanese |
 | Primary category | Food & Drink |
 | Secondary category | None for version 1.0.0 |
-| Public audience | General audience; not submitted to the Kids category |
+| Public audience | Users aged 18 or older; not submitted to the Kids category |
 | Public support/privacy email | `zll6796096@gmail.com` |
 | Copyright | `2026 RYU AI Studio` |
 | Monthly Google Cloud budget alert | JPY 3,000; monitoring only, not a hard cap |
@@ -146,6 +146,9 @@ a new product design. It is outside this release.
   meal analysis, latency, logs, and cost boundaries before traffic promotion.
 - Update the privacy and support pages from controlled TestFlight language to
   truthful public Japan App Store language.
+- Add the approved one-time local 18+ confirmation before any camera, photo
+  selection, or analysis access, as specified in
+  `2026-08-11-adult-access-design.md`.
 - Add `zll6796096@gmail.com` as the private support and privacy contact method;
   a public GitHub issue is not the sole channel for privacy or sensitive
   support requests.
@@ -174,6 +177,8 @@ a new product design. It is outside this release.
 - App preview video, pre-order, custom product pages, in-app events, or paid
   marketing campaigns.
 - Replacing Gemini or rewriting the nutrition-scoring contract.
+- Birth-date, identity-document, account, or remote age-verification
+  collection.
 - Unrelated frontend, backend, infrastructure, or iOS refactoring.
 
 ## 7. Release Architecture and Gate Model
@@ -425,11 +430,11 @@ authoritative for final verification.
 App Store Connect's current age-rating questionnaire is required. Answers must
 describe the shipped app rather than target a desired marketing badge.
 
-The public app is approved for a general audience and is not submitted to the
-Kids category. The current adults-only TestFlight wording must be removed from
-the public privacy and support pages. The questionnaire is still answered from
-the shipped content; the workflow does not select a higher or lower rating to
-obtain a marketing result.
+The public app is restricted to users aged 18 or older and is not submitted to
+the Kids category. The questionnaire is answered from shipped content, then
+**Override to Higher Age Rating** is selected as 18+ because the app's Gemini
+service terms impose a minimum age that exceeds the likely calculated content
+rating. The public pages and in-app one-time local confirmation must match.
 
 ### 12.3 Content rights and medical boundary
 
@@ -457,12 +462,15 @@ Proposed review notes:
 
 ```text
 カロスキャンはログイン不要のiPhone向け食事写真分析アプリです。
+本アプリは18歳以上の方のみ利用できます。初回起動時に、端末内だけに保存される
+年齢確認で「18歳以上です」を選択します。生年月日や本人確認書類は収集しません。
 
 確認手順:
-1. 「カメラで撮影」または「写真から選択」を選びます。
-2. 食事写真を確認します。
-3. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。
-4. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。
+1. 初回の年齢確認で「18歳以上です」を選択します。
+2. 「カメラで撮影」または「写真から選択」を選びます。
+3. 食事写真を確認します。
+4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。
+5. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。
 
 アカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。
 写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。
@@ -716,8 +724,8 @@ acceptance.
 - App Privacy, age rating, content rights, export compliance, copyright,
   review information, free price, Japan-only availability, and automatic
   release are complete and mutually consistent.
-- The general-audience, non-Kids decision and approved public contact are
-  reflected consistently.
+- The 18+-only, non-Kids decision, local-only confirmation, and approved public
+  contact are reflected consistently.
 
 ### 18.2 Publicly released
 
@@ -744,7 +752,8 @@ acceptance.
 The owner confirmed these values one at a time after approving the written
 design:
 
-1. Public audience: general audience, not the Kids category.
+1. Public audience: users aged 18 or older, not the Kids category; one-time
+   local confirmation and App Store 18+ override approved on 2026-08-11.
 2. Public support/privacy contact: `zll6796096@gmail.com`.
 3. Copyright: `2026 RYU AI Studio`.
 4. Monthly Google Cloud budget alert: JPY 3,000; this is monitoring and not a
