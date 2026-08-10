@@ -566,7 +566,7 @@ class AppStoreMetadataTests(unittest.TestCase):
         self.assertLessEqual(len(self.document["description"]), 4_000)
         self.assertLessEqual(len(self.document["review_notes"].encode("utf-8")), 4_000)
 
-        expected_keywords = "カロリー,栄養管理,食事記録,食事写真,料理写真,栄養分析,健康管理"
+        expected_keywords = "カロリー,栄養管理,食事分析,食事写真,料理写真,栄養分析,健康管理"
         self.assertEqual(self.document["keywords"], expected_keywords)
         self.assertLessEqual(len(self.document["keywords"].encode("utf-8")), 100)
         keywords = self.document["keywords"].split(",")
@@ -757,7 +757,7 @@ Create `docs/release/app-store/ja-JP.json` exactly as follows:
   "subtitle": "食事写真から栄養をかんたん推定",
   "promotional_text": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真からカロリーと栄養バランスの目安を確認できます。",
   "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・「カメラを開く」で食事を撮影、または「写真から選ぶ」で写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、推定精度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類は収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
-  "keywords": "カロリー,栄養管理,食事記録,食事写真,料理写真,栄養分析,健康管理",
+  "keywords": "カロリー,栄養管理,食事分析,食事写真,料理写真,栄養分析,健康管理",
   "support_url": "https://kalories-sxielk4wua-an.a.run.app/support/",
   "privacy_policy_url": "https://kalories-sxielk4wua-an.a.run.app/privacy/",
   "marketing_url": null,

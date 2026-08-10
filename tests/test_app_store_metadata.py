@@ -154,7 +154,7 @@ class AppStoreMetadataTests(unittest.TestCase):
         self.assertLessEqual(len(self.document["description"]), 4_000)
         self.assertLessEqual(len(self.document["review_notes"].encode("utf-8")), 4_000)
 
-        expected_keywords = "カロリー,栄養管理,食事記録,食事写真,料理写真,栄養分析,健康管理"
+        expected_keywords = "カロリー,栄養管理,食事分析,食事写真,料理写真,栄養分析,健康管理"
         self.assertEqual(self.document["keywords"], expected_keywords)
         self.assertLessEqual(len(self.document["keywords"].encode("utf-8")), 100)
         keywords = self.document["keywords"].split(",")
