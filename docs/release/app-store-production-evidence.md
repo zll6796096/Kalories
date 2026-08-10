@@ -12,7 +12,7 @@ Source revision: `6bfbeaed23c7732460bbf1e22736d4d01132f813`
 | Developer logging disabled | PASS |
 | Dataset sharing disabled | PASS |
 | Daily model quota 200 | PASS |
-| Monthly 3000JPY budget alert | NOT CONFIGURED |
+| Monthly 3000JPY budget alert | PASS |
 | Zero-traffic candidate | NOT DEPLOYED |
 | Candidate real analysis | NOT RUN |
 | Candidate safe-log scan | NOT RUN |
@@ -79,6 +79,19 @@ Configured and read back on 2026-08-11:
 Official reconciliation semantics checked on 2026-08-11:
 
 - https://docs.cloud.google.com/docs/quotas/implement-common-use-cases
+
+## Monthly budget alert evidence
+
+Configured and read back on 2026-08-11:
+
+- Display name: `Kalories App Store monthly alert`
+- Project filter: Kalories project only
+- Calendar period: month
+- Amount: JPY 3,000
+- Alert thresholds: 50%, 80%, and 100% of current spend
+
+This budget is an alert, not a hard spending cap. The daily model quota and
+application rate limiter remain the controls that restrict request volume.
 
 ## Fresh read-only production preflight
 
