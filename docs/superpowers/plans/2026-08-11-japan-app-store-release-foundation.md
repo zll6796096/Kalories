@@ -106,7 +106,7 @@ Run:
 ```bash
 set -euo pipefail
 
-rg -n 'MARKETING_VERSION|CURRENT_PROJECT_VERSION|PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|PROVISIONING_PROFILE_SPECIFIER' ios/project.yml
+rg -n 'MARKETING_VERSION|CURRENT_PROJECT_VERSION|PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE_SPECIFIER' ios/project.yml
 plutil -p ios/Kalories/Resources/PrivacyInfo.xcprivacy
 sips -g pixelWidth -g pixelHeight -g hasAlpha \
   ios/Kalories/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
@@ -116,9 +116,14 @@ rg -q '^    MARKETING_VERSION: 1\.0\.0$' ios/project.yml
 rg -q '^    CURRENT_PROJECT_VERSION: 1$' ios/project.yml
 rg -q '^        PRODUCT_BUNDLE_IDENTIFIER: com\.ryuaistudio\.kalories$' \
   ios/project.yml
+rg -q '^          CODE_SIGN_STYLE: Manual$' ios/project.yml
 rg -q '^          PROVISIONING_PROFILE_SPECIFIER: Kalories App Store$' \
   ios/project.yml
 test "$(plutil -extract NSPrivacyTracking raw -o - \
+  ios/Kalories/Resources/PrivacyInfo.xcprivacy)" = "false"
+test "$(plutil -extract NSPrivacyCollectedDataTypes.0.NSPrivacyCollectedDataType raw -o - \
+  ios/Kalories/Resources/PrivacyInfo.xcprivacy)" = "NSPrivacyCollectedDataTypePhotosorVideos"
+test "$(plutil -extract NSPrivacyCollectedDataTypes.0.NSPrivacyCollectedDataTypeTracking raw -o - \
   ios/Kalories/Resources/PrivacyInfo.xcprivacy)" = "false"
 icon_info="$(sips -g pixelWidth -g pixelHeight -g hasAlpha \
   ios/Kalories/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png)"
@@ -129,8 +134,9 @@ echo "$icon_info" | rg -q 'hasAlpha: no$'
 ```
 
 Expected: version `1.0.0`, build `1`, bundle
-`com.ryuaistudio.kalories`, team `YMUG864233`, profile
-`Kalories App Store`, tracking `false`, and an opaque 1024 × 1024 icon. The
+`com.ryuaistudio.kalories`, team `YMUG864233`, Release manual signing and
+profile `Kalories App Store`, top-level and Photos/Videos collected-data
+tracking `false`, and an opaque 1024 × 1024 icon. The
 `rg`, `test`, and icon assertions are mandatory and fail the step if any
 immutable input differs.
 
