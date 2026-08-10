@@ -4,19 +4,41 @@ import UIKit
 
 @MainActor
 enum UITestFixtures {
+    enum ResultScreenshotFrame: Equatable {
+        case summary
+        case nutrition
+        case uncertainty
+    }
+
     private enum Mode: Equatable {
         case success
         case timeout
         case screenshotCapture
         case screenshotPreview
-        case screenshotResult
+        case screenshotSummary
+        case screenshotNutrition
+        case screenshotUncertainty
 
         var isScreenshot: Bool {
             switch self {
-            case .screenshotCapture, .screenshotPreview, .screenshotResult:
+            case .screenshotCapture, .screenshotPreview, .screenshotSummary,
+                 .screenshotNutrition, .screenshotUncertainty:
                 true
             case .success, .timeout:
                 false
+            }
+        }
+
+        var resultScreenshotFrame: ResultScreenshotFrame? {
+            switch self {
+            case .screenshotSummary:
+                .summary
+            case .screenshotNutrition:
+                .nutrition
+            case .screenshotUncertainty:
+                .uncertainty
+            case .success, .timeout, .screenshotCapture, .screenshotPreview:
+                nil
             }
         }
     }
@@ -30,6 +52,12 @@ enum UITestFixtures {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
         fixtureMode(in: arguments)?.isScreenshot == true
+    }
+
+    static func resultScreenshotFrame(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> ResultScreenshotFrame? {
+        fixtureMode(in: arguments)?.resultScreenshotFrame
     }
 
     static func environmentIfRequested(
@@ -81,7 +109,7 @@ enum UITestFixtures {
         switch mode {
         case .screenshotPreview:
             selectImage(into: flow)
-        case .screenshotResult:
+        case .screenshotSummary, .screenshotNutrition, .screenshotUncertainty:
             selectImage(into: flow)
             flow.analyze()
         case .success, .timeout, .screenshotCapture:
@@ -216,8 +244,12 @@ enum UITestFixtures {
             return .screenshotCapture
         case "--fixture-screenshot-preview":
             return .screenshotPreview
-        case "--fixture-screenshot-result":
-            return .screenshotResult
+        case "--fixture-screenshot-summary":
+            return .screenshotSummary
+        case "--fixture-screenshot-nutrition":
+            return .screenshotNutrition
+        case "--fixture-screenshot-uncertainty":
+            return .screenshotUncertainty
         default:
             return nil
         }

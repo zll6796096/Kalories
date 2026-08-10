@@ -36,7 +36,9 @@ final class UITestFixturesTests: XCTestCase {
         let modes = [
             "--fixture-screenshot-capture",
             "--fixture-screenshot-preview",
-            "--fixture-screenshot-result",
+            "--fixture-screenshot-summary",
+            "--fixture-screenshot-nutrition",
+            "--fixture-screenshot-uncertainty",
         ]
 
         for mode in modes {
@@ -97,9 +99,55 @@ final class UITestFixturesTests: XCTestCase {
         XCTAssertFalse(
             UITestFixtures.isScreenshotMode(arguments: ["--fixture-screenshot-unknown"])
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             UITestFixtures.isScreenshotMode(arguments: ["--fixture-screenshot-result"])
         )
+        for mode in [
+            "--fixture-screenshot-capture",
+            "--fixture-screenshot-preview",
+            "--fixture-screenshot-summary",
+            "--fixture-screenshot-nutrition",
+            "--fixture-screenshot-uncertainty",
+        ] {
+            XCTAssertTrue(UITestFixtures.isScreenshotMode(arguments: [mode]), mode)
+        }
+    }
+
+    func testResultScreenshotFrameRecognitionIsExactAndFailClosed() {
+        XCTAssertEqual(
+            UITestFixtures.resultScreenshotFrame(
+                arguments: ["--fixture-screenshot-summary"]
+            ),
+            .summary
+        )
+        XCTAssertEqual(
+            UITestFixtures.resultScreenshotFrame(
+                arguments: ["--fixture-screenshot-nutrition"]
+            ),
+            .nutrition
+        )
+        XCTAssertEqual(
+            UITestFixtures.resultScreenshotFrame(
+                arguments: ["--fixture-screenshot-uncertainty"]
+            ),
+            .uncertainty
+        )
+
+        let rejectedArgumentSets = [
+            [String](),
+            ["--fixture-screenshot-result"],
+            ["--fixture-screenshot-unknown"],
+            ["--fixture-screenshot-summary", "--fixture-screenshot-summary"],
+            ["--fixture-screenshot-summary", "--fixture-screenshot-nutrition"],
+            ["--fixture-screenshot-nutrition", "--fixture-screenshot-uncertainty"],
+            ["--fixture-screenshot-summary", "--fixture-success"],
+        ]
+        for arguments in rejectedArgumentSets {
+            XCTAssertNil(
+                UITestFixtures.resultScreenshotFrame(arguments: arguments),
+                "Unexpected screenshot frame for \(arguments)"
+            )
+        }
     }
 
     func testScreenshotPreviewUsesLandscapeSyntheticMealImage() throws {
@@ -166,7 +214,15 @@ final class UITestFixturesTests: XCTestCase {
             ],
             [
                 "Kalories", "--ui-testing",
-                "--fixture-screenshot-preview", "--fixture-screenshot-result",
+                "--fixture-screenshot-preview", "--fixture-screenshot-summary",
+            ],
+            [
+                "Kalories", "--ui-testing",
+                "--fixture-screenshot-summary", "--fixture-screenshot-nutrition",
+            ],
+            [
+                "Kalories", "--ui-testing",
+                "--fixture-screenshot-nutrition", "--fixture-screenshot-uncertainty",
             ],
         ]
 
