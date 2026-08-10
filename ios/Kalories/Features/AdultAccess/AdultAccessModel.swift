@@ -6,13 +6,21 @@ struct AdultAccessPreference {
     static let storageKey = "kalories.adult-access.confirmed.v1"
 
     private let defaults: UserDefaults
+    private let persistentDomainName: String?
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        persistentDomainName: String? = Bundle.main.bundleIdentifier
+    ) {
         self.defaults = defaults
+        self.persistentDomainName = persistentDomainName
     }
 
     func load() -> Bool {
-        guard let value = defaults.object(forKey: Self.storageKey) else {
+        guard
+            let persistentDomainName,
+            let value = defaults.persistentDomain(forName: persistentDomainName)?[Self.storageKey]
+        else {
             return false
         }
         guard CFGetTypeID(value as CFTypeRef) == CFBooleanGetTypeID() else {
@@ -41,6 +49,6 @@ final class AdultAccessModel {
 
     func confirm() {
         preference.confirm()
-        isConfirmed = true
+        isConfirmed = preference.load()
     }
 }
