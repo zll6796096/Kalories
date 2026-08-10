@@ -65,6 +65,16 @@ struct ResultView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color(uiColor: .systemGroupedBackground))
+        .overlay {
+            GeometryReader { proxy in
+                Color(uiColor: .systemGroupedBackground)
+                    .frame(height: proxy.safeAreaInsets.top)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .offset(y: -proxy.safeAreaInsets.top)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
         .accessibilityIdentifier("result.page")
     }
 

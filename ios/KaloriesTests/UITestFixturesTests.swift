@@ -102,6 +102,24 @@ final class UITestFixturesTests: XCTestCase {
         )
     }
 
+    func testScreenshotPreviewUsesLandscapeSyntheticMealImage() throws {
+        let environment = try XCTUnwrap(
+            UITestFixtures.environmentIfRequested(
+                arguments: [
+                    "Kalories",
+                    "--ui-testing",
+                    "--fixture-screenshot-preview",
+                ]
+            )
+        )
+        let image = try XCTUnwrap(environment.flow.selectedImage)
+
+        XCTAssertEqual(image.size, CGSize(width: 960, height: 360))
+        XCTAssertGreaterThan(image.size.width, image.size.height * 2)
+        XCTAssertEqual(image.scale, 1)
+        XCTAssertEqual(image.cgImage?.alphaInfo, .noneSkipLast)
+    }
+
     func testEnvironmentIsInactiveWithoutUITesting() throws {
         let argumentSets = [
             ["Kalories"],
