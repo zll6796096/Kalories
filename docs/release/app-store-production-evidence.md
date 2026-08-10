@@ -11,7 +11,7 @@ Source revision: `6bfbeaed23c7732460bbf1e22736d4d01132f813`
 | Provider paid-service terms | PASS |
 | Developer logging disabled | PASS |
 | Dataset sharing disabled | PASS |
-| Daily model quota 200 | NOT CONFIGURED |
+| Daily model quota 200 | PASS |
 | Monthly 3000JPY budget alert | NOT CONFIGURED |
 | Zero-traffic candidate | NOT DEPLOYED |
 | Candidate real analysis | NOT RUN |
@@ -63,6 +63,22 @@ Official sources checked on 2026-08-11:
 - https://ai.google.dev/gemini-api/docs/logs-policy
 - https://ai.google.dev/gemini-api/docs/usage-policies
 - https://ai.google.dev/gemini-api/docs/zdr
+
+## Daily Gemini model quota evidence
+
+Configured and read back on 2026-08-11:
+
+- Quota ID: `GenerateRequestsPerDayPerProjectPerModel`
+- Dimension: `model=gemini-3.6-flash`
+- Preferred value: 200 requests per day
+- Granted value: 200 requests per day
+- Reconciliation: settled. The API omitted the false-valued `reconciling`
+  field, which Google's Cloud Quotas documentation defines as a final granted
+  value; the reconciling-only preference list contained no matching resource.
+
+Official reconciliation semantics checked on 2026-08-11:
+
+- https://docs.cloud.google.com/docs/quotas/implement-common-use-cases
 
 ## Fresh read-only production preflight
 
