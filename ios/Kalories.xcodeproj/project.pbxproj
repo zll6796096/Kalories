@@ -39,6 +39,7 @@
 		7D9353369CE08D47FE94F44A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 71A42B96B01DB23F6A556CCF /* InfoPlist.strings */; };
 		91DC01CD82DC3BDE6BDE4ADF /* AppIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3341A57486FA371C62F536 /* AppIdentityTests.swift */; };
 		98E562F91F9554D2A5E700E8 /* AppCheckTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B180F0EA72EF8427F6B97D76 /* AppCheckTokenProvider.swift */; };
+		A5D79473ABFD8599599B1D8A /* AppStoreScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CAF84579273E2454929302 /* AppStoreScreenshotTests.swift */; };
 		A8158CE9CFD0C56B90C494B9 /* AnalysisAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FBEB98A1B3EF091704D340 /* AnalysisAPIClientTests.swift */; };
 		AB17204A67869964DB9BDEE8 /* FirebaseAppCheck in Frameworks */ = {isa = PBXBuildFile; productRef = C4BA85F7D70AA6DF93E9DA0C /* FirebaseAppCheck */; };
 		B4F9B9108DC194EBD7593BCC /* AppLocalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24C5C816C46CBFC8A3DB060F /* AppLocalizerTests.swift */; };
@@ -111,6 +112,7 @@
 		A584BA7AA6F27C245B49543E /* Kalories.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Kalories.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5A615D3424247D075A7BB10 /* KaloriesTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KaloriesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B180F0EA72EF8427F6B97D76 /* AppCheckTokenProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCheckTokenProvider.swift; sourceTree = "<group>"; };
+		B3CAF84579273E2454929302 /* AppStoreScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshotTests.swift; sourceTree = "<group>"; };
 		B5D1010FE9C58A4607BE39BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B6616704ADFFFBE9FD7A4BB0 /* ScoreCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreCard.swift; sourceTree = "<group>"; };
 		BA881E9221A75DE06A6DEAFA /* UITestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestFixtures.swift; sourceTree = "<group>"; };
@@ -313,6 +315,7 @@
 			children = (
 				E34D44B2197E14C52B5D3B10 /* AdultAccessUITests.swift */,
 				1E73ABC9C469984EDB6513C2 /* AppLaunchTests.swift */,
+				B3CAF84579273E2454929302 /* AppStoreScreenshotTests.swift */,
 				36A91330097DA904A8680CF9 /* KaloriesFlowUITests.swift */,
 			);
 			path = KaloriesUITests;
@@ -504,6 +507,7 @@
 			files = (
 				C735BE289564AF157AFB78B6 /* AdultAccessUITests.swift in Sources */,
 				28540AB098FDD7A95786C581 /* AppLaunchTests.swift in Sources */,
+				A5D79473ABFD8599599B1D8A /* AppStoreScreenshotTests.swift in Sources */,
 				7773EB9E56278F48457EE725 /* KaloriesFlowUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

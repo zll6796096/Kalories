@@ -96,7 +96,7 @@ struct CaptureView: View {
 
             VStack(spacing: 12) {
 #if DEBUG
-                if UITestFixtures.isActive {
+                if UITestFixtures.isActive && !UITestFixtures.isScreenshotMode() {
                     Button {
                         UITestFixtures.selectImage(into: flow)
                     } label: {

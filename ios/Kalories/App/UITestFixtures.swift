@@ -4,14 +4,32 @@ import UIKit
 
 @MainActor
 enum UITestFixtures {
-    private enum Mode {
+    private enum Mode: Equatable {
         case success
         case timeout
+        case screenshotCapture
+        case screenshotPreview
+        case screenshotResult
+
+        var isScreenshot: Bool {
+            switch self {
+            case .screenshotCapture, .screenshotPreview, .screenshotResult:
+                true
+            case .success, .timeout:
+                false
+            }
+        }
     }
 
     static var isActive: Bool {
         let arguments = ProcessInfo.processInfo.arguments
         return arguments.contains("--ui-testing") && fixtureMode(in: arguments) != nil
+    }
+
+    static func isScreenshotMode(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        fixtureMode(in: arguments)?.isScreenshot == true
     }
 
     static func environmentIfRequested(
@@ -59,8 +77,19 @@ enum UITestFixtures {
         if adultAccessArguments.contains("--adult-access-confirmed") {
             adultAccessPreference.confirm()
         }
+        let flow = AppFlowModel(service: service, processor: ImageProcessor())
+        switch mode {
+        case .screenshotPreview:
+            selectImage(into: flow)
+        case .screenshotResult:
+            selectImage(into: flow)
+            flow.analyze()
+        case .success, .timeout, .screenshotCapture:
+            break
+        }
+
         return AppEnvironment(
-            flow: AppFlowModel(service: service, processor: ImageProcessor()),
+            flow: flow,
             adultAccess: AdultAccessModel(
                 preference: adultAccessPreference
             ),
@@ -100,6 +129,12 @@ enum UITestFixtures {
             return .success
         case "--fixture-timeout":
             return .timeout
+        case "--fixture-screenshot-capture":
+            return .screenshotCapture
+        case "--fixture-screenshot-preview":
+            return .screenshotPreview
+        case "--fixture-screenshot-result":
+            return .screenshotResult
         default:
             return nil
         }
