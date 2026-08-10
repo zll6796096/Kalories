@@ -10,72 +10,109 @@ struct ResultView: View {
     var body: some View {
         let presentation = ResultPresenter(localizer: localizer).present(result)
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                mealHeader(presentation)
+        VStack(spacing: 0) {
+            Color(uiColor: .systemGroupedBackground)
+                .frame(height: 68)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
 
-                ScoreCard(
-                    score: presentation.score,
-                    title: localizer.text("estimatedScore")
-                )
+            resultContent(presentation)
+        }
+        .background {
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
+        }
+        .statusBarHidden(false)
+        .persistentSystemOverlays(.visible)
+        .accessibilityIdentifier("result.page")
+    }
 
-                findings(presentation)
+    private func resultContent(_ presentation: ResultPresentation) -> some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    mealHeader(presentation)
 
-                metricGroup(
-                    metrics(in: presentation, kinds: [.calories])
-                )
-
-                metricGroup(
-                    metrics(in: presentation, kinds: [.protein, .carbs, .fat])
-                )
-
-                metricGroup(
-                    metrics(in: presentation, kinds: [.fiber, .sugar, .sodium, .portion])
-                )
-
-                if !presentation.advice.isEmpty {
-                    textListCard(
-                        title: localizer.text("adviceTitle"),
-                        items: presentation.advice,
-                        symbolName: "leaf"
+                    ScoreCard(
+                        score: presentation.score,
+                        title: localizer.text("estimatedScore")
                     )
-                }
 
-                if !presentation.assumptions.isEmpty {
-                    textListCard(
-                        title: localizer.text("assumptionsTitle"),
-                        items: presentation.assumptions,
-                        symbolName: "info.circle"
-                    )
-                }
+                    findings(presentation)
 
-                referenceCard(presentation)
+                    VStack(spacing: 12) {
+                        metricGroup(
+                            metrics(in: presentation, kinds: [.calories])
+                        )
 
-                Button(action: onRetake) {
-                    Label(localizer.text("retake"), systemImage: "camera")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        VStack(spacing: 0) {
+                            metricGroup(
+                                metrics(in: presentation, kinds: [.protein])
+                            )
+
+                            Spacer()
+                                .frame(height: 32)
+
+                            metricGroup(
+                                metrics(in: presentation, kinds: [.carbs])
+                            )
+
+                            Spacer()
+                                .frame(height: 64)
+
+                            metricGroup(
+                                metrics(in: presentation, kinds: [.fat])
+                            )
+                        }
+                    }
+
+                    VStack(spacing: 80) {
+                        metricGroup(
+                            metrics(in: presentation, kinds: [.fiber, .sugar, .sodium])
+                        )
+
+                        metricGroup(
+                            metrics(in: presentation, kinds: [.portion])
+                        )
+                    }
+
+                    if !presentation.advice.isEmpty {
+                        textListCard(
+                            title: localizer.text("adviceTitle"),
+                            items: presentation.advice,
+                            symbolName: "leaf"
+                        )
+                    }
+
+                    if !presentation.assumptions.isEmpty {
+                        textListCard(
+                            title: localizer.text("assumptionsTitle"),
+                            items: presentation.assumptions,
+                            symbolName: "info.circle"
+                        )
+                    }
+
+                    referenceCard(presentation)
+
+                    Button(action: onRetake) {
+                        Label(localizer.text("retake"), systemImage: "camera")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("result.retake")
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .accessibilityIdentifier("result.retake")
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 20)
+                .padding(.bottom, 192)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
             }
-            .padding(20)
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .scrollClipDisabled(false)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .overlay {
-            GeometryReader { proxy in
-                Color(uiColor: .systemGroupedBackground)
-                    .frame(height: proxy.safeAreaInsets.top)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .offset(y: -proxy.safeAreaInsets.top)
-            }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
-        .accessibilityIdentifier("result.page")
     }
 
     @ViewBuilder
