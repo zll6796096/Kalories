@@ -957,7 +957,12 @@ func testScreenshotModesReturnBeforeFirebaseBootstrap() throws {
         var bootstrapCalls = 0
         let environment = try AppEnvironment.live(
             bundle: Bundle(for: Self.self),
-            arguments: ["Kalories", "--ui-testing", mode],
+            arguments: [
+                "Kalories",
+                "--ui-testing",
+                "--adult-access-confirmed",
+                mode,
+            ],
             appCheckBootstrap: {
                 bootstrapCalls += 1
                 throw AppFailure.appCheckUnavailable
@@ -965,6 +970,7 @@ func testScreenshotModesReturnBeforeFirebaseBootstrap() throws {
         )
 
         XCTAssertEqual(bootstrapCalls, 0, mode)
+        XCTAssertTrue(environment.adultAccess.isConfirmed, mode)
         XCTAssertTrue(UITestFixtures.isScreenshotMode(arguments: [mode]), mode)
         XCTAssertEqual(environment.privacyURL.host, "kalories.invalid", mode)
     }
@@ -1148,6 +1154,7 @@ final class AppStoreScreenshotTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
+            "--adult-access-confirmed",
             mode,
             "-AppleLanguages", "(ja)",
             "-AppleLocale", "ja_JP",
@@ -1198,7 +1205,9 @@ xcodebuild -project ios/Kalories.xcodeproj \
 ```
 
 Expected: both commands pass and the result bundle exists. Keep `release_tmp`
-for Task 8.
+for Task 8. Every attachment must show the intended capture/preview/result
+state rather than the adult-access screen. The confirmation argument remains
+DEBUG-only and the Release binary scan must continue to prove it is absent.
 
 - [ ] **Step 6: Commit deterministic screenshot states**
 
