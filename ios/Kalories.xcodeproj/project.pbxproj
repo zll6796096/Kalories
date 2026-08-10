@@ -12,6 +12,7 @@
 		0BF9F5E44B39B1C0CAE20D60 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9677C0AF43B232BBCB664927 /* FirebaseCore */; };
 		0EB81A96E7ACCF9656EE3B03 /* AppLocalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C911829E999FA726AE34CA /* AppLocalizer.swift */; };
 		11B29C1B860576BA49173131 /* URLProtocolStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81B6393D94662D1B52074CD /* URLProtocolStub.swift */; };
+		179BC21A18558F42A6174434 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33E4F1A31A44AFAA1B950667 /* Assets.xcassets */; };
 		1C0C7408C1C3BD9BC40AA8DD /* ImageProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420AB1475C741D034F377ED5 /* ImageProcessor.swift */; };
 		281DF95923950D438919E540 /* ImageProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4112E4199DDA145C4259F58 /* ImageProcessorTests.swift */; };
 		2849850C310657DF48A2549D /* AppFlowModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6400857BE29E701ECD28AD45 /* AppFlowModelTests.swift */; };
@@ -79,6 +80,7 @@
 		278EDD2A0190F0C2534E18D7 /* AnalysisModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisModels.swift; sourceTree = "<group>"; };
 		2844322ECCCE2856D1FF6FAC /* KaloriesUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KaloriesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3024116CAFFEAD712B3F6867 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		33E4F1A31A44AFAA1B950667 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		36A91330097DA904A8680CF9 /* KaloriesFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaloriesFlowUITests.swift; sourceTree = "<group>"; };
 		38FF1C75CADEAC16B644F78A /* AnalysisAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisAPIClient.swift; sourceTree = "<group>"; };
 		420AB1475C741D034F377ED5 /* ImageProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessor.swift; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 		0A2F9010F0064C320F092E50 /* Kalories */ = {
 			isa = PBXGroup;
 			children = (
+				33E4F1A31A44AFAA1B950667 /* Assets.xcassets */,
 				E856F16D122322BF8BF523AA /* Kalories.entitlements */,
 				751AA50237FC4C2C0B14C8CC /* App */,
 				3D8D17E8C89CB4F1A440BF6E /* Features */,
@@ -408,6 +411,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				179BC21A18558F42A6174434 /* Assets.xcassets in Resources */,
 				3064588FDADABB949012BEC9 /* GoogleService-Info.plist in Resources */,
 				7D9353369CE08D47FE94F44A /* InfoPlist.strings in Resources */,
 				65C77351DCD383214DC271AE /* Localizable.strings in Resources */,
