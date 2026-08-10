@@ -1,0 +1,33 @@
+{
+  "apple_app_id": "6799957568",
+  "bundle_id": "com.ryuaistudio.kalories",
+  "version": "1.0.0",
+  "build": "1",
+  "locale": "ja-JP",
+  "name": "カロスキャン",
+  "subtitle": "食事写真から栄養をかんたん推定",
+  "promotional_text": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真からカロリーと栄養バランスの目安を確認できます。",
+  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・カメラで食事を撮影、または写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、信頼度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類は収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "keywords": "カロリー,栄養,食事,写真,料理,食生活,フード,分析,推定",
+  "support_url": "https://kalories-sxielk4wua-an.a.run.app/support/",
+  "privacy_policy_url": "https://kalories-sxielk4wua-an.a.run.app/privacy/",
+  "marketing_url": null,
+  "contact_email": "zll6796096@gmail.com",
+  "copyright": "2026 RYU AI Studio",
+  "primary_category": "FOOD_AND_DRINK",
+  "secondary_category": null,
+  "territories": ["JPN"],
+  "price": "FREE",
+  "in_app_purchases": false,
+  "subscriptions": false,
+  "kids_category": false,
+  "release_type": "AFTER_APPROVAL",
+  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では選択済みの事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類を収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラで撮影」または「写真から選択」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、信頼度、非医療用途の注意書きを確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。",
+  "privacy": {
+    "tracking": false,
+    "collected_data": [
+      {"type": "PHOTOS_OR_VIDEOS", "purpose": "APP_FUNCTIONALITY", "linked_to_user": false, "tracking": false},
+      {"type": "OTHER_DIAGNOSTIC_DATA", "purpose": "ANALYTICS", "linked_to_user": false, "tracking": false}
+    ]
+  }
+}
