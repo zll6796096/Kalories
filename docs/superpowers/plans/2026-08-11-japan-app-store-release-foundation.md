@@ -55,7 +55,7 @@ Execution order:
 - `ios/KaloriesUITests/AppStoreScreenshotTests.swift` — five named real UI
   screenshot attachments.
 - `scripts/export-app-store-screenshots.sh` — export and validate screenshots.
-- `docs/release/app-store-assets/ja-JP/6.9-inch/*.png` — five opaque 1260 × 2736
+- `docs/release/app-store-assets/ja-JP/6.9-inch/*.png` — five opaque 1320 × 2868
   assets.
 - `docs/release/app-store-foundation-evidence.md` — sanitized local gate ledger.
 
@@ -1267,7 +1267,11 @@ names=(
 
 for name in "${names[@]}"; do
   exported_name="$(jq -er --arg name "${name}" '
-    [.[].attachments[] | select(.suggestedHumanReadableName == $name)]
+    [.[].attachments[]
+      | select(
+          (.suggestedHumanReadableName == $name)
+          or (.suggestedHumanReadableName | startswith($name + "_"))
+        )]
     | if length == 1 then .[0].exportedFileName else empty end
   ' "${export_tmp}/manifest.json")"
   source_path="${export_tmp}/${exported_name}"
@@ -1278,8 +1282,8 @@ for name in "${names[@]}"; do
   width="$(sips -g pixelWidth "${destination_path}" | awk '/pixelWidth/ {print $2}')"
   height="$(sips -g pixelHeight "${destination_path}" | awk '/pixelHeight/ {print $2}')"
   alpha="$(sips -g hasAlpha "${destination_path}" | awk '/hasAlpha/ {print $2}')"
-  if [[ "${width}" != 1260 || "${height}" != 2736 || "${alpha}" != no ]]; then
-    printf 'NO-GO: %s is not an opaque 1260x2736 screenshot\n' "${name}"
+  if [[ "${width}" != 1320 || "${height}" != 2868 || "${alpha}" != no ]]; then
+    printf 'NO-GO: %s is not an opaque 1320x2868 screenshot\n' "${name}"
     exit 1
   fi
 done
@@ -1394,7 +1398,7 @@ Scope: local source, tests, metadata, public-page package, and screenshots only
 - Local App Check release scan: PASS
 - Public privacy/support package: PASS
 - Japanese metadata contract: PASS
-- Five opaque 1260 x 2736 real-UI screenshots: PASS
+- Five opaque 1320 x 2868 real-UI screenshots: PASS
 - Git diff check: PASS
 
 ## Boundaries
