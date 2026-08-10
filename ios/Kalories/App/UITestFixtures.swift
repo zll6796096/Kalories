@@ -18,7 +18,8 @@ enum UITestFixtures {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) throws -> AppEnvironment? {
         let adultAccessArguments = arguments.filter {
-            $0 == "--adult-access-confirmed"
+            $0.hasPrefix("--adult-access-") ||
+                $0.hasPrefix("--reset-adult-access")
         }
         guard arguments.contains("--ui-testing") else {
             guard adultAccessArguments.isEmpty else {
@@ -26,7 +27,14 @@ enum UITestFixtures {
             }
             return nil
         }
-        guard adultAccessArguments.count <= 1 else {
+        let allowedAdultAccessArguments = [
+            "--adult-access-confirmed",
+            "--reset-adult-access",
+        ]
+        guard
+            adultAccessArguments.count <= 1,
+            adultAccessArguments.allSatisfy(allowedAdultAccessArguments.contains)
+        else {
             throw AppFailure.invalidConfiguration
         }
         guard let mode = fixtureMode(in: arguments) else {
@@ -43,8 +51,12 @@ enum UITestFixtures {
             result: canonicalResult,
             failsOnceWithTimeout: mode == .timeout
         )
-        let adultAccessPreference = AdultAccessPreference(defaults: .standard)
-        if adultAccessArguments.count == 1 {
+        let defaults = UserDefaults.standard
+        if adultAccessArguments.contains("--reset-adult-access") {
+            defaults.removeObject(forKey: AdultAccessPreference.storageKey)
+        }
+        let adultAccessPreference = AdultAccessPreference(defaults: defaults)
+        if adultAccessArguments.contains("--adult-access-confirmed") {
             adultAccessPreference.confirm()
         }
         return AppEnvironment(

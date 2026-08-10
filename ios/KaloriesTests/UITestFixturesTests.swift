@@ -71,5 +71,69 @@ final class UITestFixturesTests: XCTestCase {
             }
         }
     }
+
+    func testEnvironmentRejectsDuplicateAdultAccessArguments() {
+        let argumentSets = [
+            [
+                "Kalories", "--ui-testing", "--fixture-success",
+                "--adult-access-confirmed", "--adult-access-confirmed",
+            ],
+            [
+                "Kalories", "--ui-testing", "--fixture-success",
+                "--reset-adult-access", "--reset-adult-access",
+            ],
+        ]
+
+        assertInvalidConfigurations(argumentSets)
+    }
+
+    func testEnvironmentRejectsContradictoryAdultAccessArguments() {
+        assertInvalidConfigurations([
+            [
+                "Kalories", "--ui-testing", "--fixture-success",
+                "--adult-access-confirmed", "--reset-adult-access",
+            ],
+        ])
+    }
+
+    func testEnvironmentRejectsAdultAccessArgumentsOutsideUITesting() {
+        assertInvalidConfigurations([
+            ["Kalories", "--adult-access-confirmed"],
+            ["Kalories", "--reset-adult-access"],
+            ["Kalories", "--fixture-success", "--adult-access-confirmed"],
+            ["Kalories", "--fixture-success", "--reset-adult-access"],
+        ])
+    }
+
+    func testEnvironmentRejectsUnknownAdultAccessArgument() {
+        assertInvalidConfigurations([
+            [
+                "Kalories", "--ui-testing", "--fixture-success",
+                "--adult-access-unknown",
+            ],
+        ])
+    }
+
+    private func assertInvalidConfigurations(
+        _ argumentSets: [[String]],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for arguments in argumentSets {
+            XCTAssertThrowsError(
+                try UITestFixtures.environmentIfRequested(arguments: arguments),
+                "Expected invalid configuration for \(arguments)",
+                file: file,
+                line: line
+            ) { error in
+                XCTAssertEqual(
+                    error as? AppFailure,
+                    .invalidConfiguration,
+                    file: file,
+                    line: line
+                )
+            }
+        }
+    }
 }
 #endif
