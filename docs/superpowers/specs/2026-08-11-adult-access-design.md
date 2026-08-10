@@ -143,7 +143,8 @@ App Store Connect must:
 1. answer the content questionnaire from shipped behavior;
 2. keep Made for Kids off;
 3. select **Override to Higher Age Rating** and choose 18+;
-4. read back the Japan rating as 18+ before submission; and
+4. read back the Japan rating as 18+ for iOS 26 or later before submission,
+   and record Apple's legacy rating mapping for earlier OS versions; and
 5. retain the 18+ override consistently for this Gemini-backed release.
 
 Apple documents that a developer may override a calculated rating upward and
@@ -192,8 +193,9 @@ rating. The public privacy policy and support page must state that:
 - Privacy and support pages state 18+, local-only Boolean persistence, no birth
   date/ID collection, and no transmission of the confirmation.
 - Metadata and review notes match the shipped behavior.
-- App Store Connect shows 18+ for Japan through the higher-rating override
-  before submission.
+- App Store Connect shows 18+ for Japan on iOS 26 or later through the higher-
+  rating override before submission. Any Apple legacy display mapping for
+  earlier OS versions is recorded and does not weaken the in-app 18+ boundary.
 - Existing native flow, public-page, web, backend, privacy-manifest, build, and
   release checks still pass.
 - Git diff is reviewed and the worktree status is reported.
