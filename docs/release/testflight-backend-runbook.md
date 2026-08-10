@@ -429,11 +429,15 @@ inherited_role_index=0
 inherited_policy_index=0
 audit_inherited_policy() {
   local policy_file="$1"
+  local runtime_member="$2"
   local role_name
   local role_json
   local role_id
   local role_names_file
   local role_scope
+  if [[ "${runtime_member}" != serviceAccount:* ]]; then
+    return 2
+  fi
   if ! jq -e '
     type == "object"
     and ((.bindings // []) | type == "array")
@@ -442,9 +446,13 @@ audit_inherited_policy() {
   ' "${policy_file}" >/dev/null; then
     return 2
   fi
-  if jq -e '[.bindings[]?
+  if jq -e --arg runtime_member "${runtime_member}" '[.bindings[]?
+    | select(any(.members[]?;
+        . == $runtime_member
+        or . == "allUsers"
+        or . == "allAuthenticatedUsers"))
     | select(.role == "roles/secretmanager.secretAccessor")
-    | select((.members | length) > 0)] | length > 0' \
+  ] | length > 0' \
     "${policy_file}" >/dev/null; then
     return 10
   fi
@@ -453,8 +461,11 @@ audit_inherited_policy() {
   inherited_policy_index=$((inherited_policy_index + 1))
   : >"${role_names_file}"
   chmod 600 "${role_names_file}"
-  if ! jq -r '[.bindings[]?
-    | select((.members | length) > 0)
+  if ! jq -r --arg runtime_member "${runtime_member}" '[.bindings[]?
+    | select(any(.members[]?;
+        . == $runtime_member
+        or . == "allUsers"
+        or . == "allAuthenticatedUsers"))
     | .role] | unique[]' "${policy_file}" >"${role_names_file}"; then
     return 2
   fi
@@ -512,7 +523,8 @@ if ! gcloud projects get-iam-policy zhang23-23 \
   printf '%s\n' 'NO-GO: inherited accessor audit unavailable'
   exit 1
 fi
-if audit_inherited_policy "${project_iam_json}"; then
+runtime_member="serviceAccount:${KALORIES_RUNTIME_SA}"
+if audit_inherited_policy "${project_iam_json}" "${runtime_member}"; then
   :
 else
   inherited_audit_status=$?
@@ -556,7 +568,7 @@ while IFS=$'\t' read -r ancestor_type ancestor_id; do
       exit 1
       ;;
   esac
-  if audit_inherited_policy "${ancestor_policy_json}"; then
+  if audit_inherited_policy "${ancestor_policy_json}" "${runtime_member}"; then
     :
   else
     inherited_audit_status=$?
@@ -759,6 +771,7 @@ pinned to the verified numeric version.
 set -euo pipefail
 : "${KALORIES_SECRET_VERSION:?Use the verified numeric secret version}"
 : "${KALORIES_SERVICE_RESOURCE_VERSION:?Run the IAM/concurrency pre-audit first}"
+: "${KALORIES_RUNTIME_SA:?Run the IAM/concurrency pre-audit first}"
 : "${KALORIES_FIREBASE_IOS_APP_ID:?Use the exact approved Firebase iOS app ID}"
 if [[ ! "${KALORIES_SECRET_VERSION}" =~ ^[1-9][0-9]*$ ]]; then
   printf '%s\n' 'NO-GO: secret version is not pinned'
@@ -847,11 +860,11 @@ if ! candidate_traffic_total="$(jq -er \
     [.status.traffic[]? | select(.revisionName == $revision)] as $entries
     | select(($entries | length) > 0)
     | select(all($entries[];
-        has("percent")
-        and (.percent | type == "number")
-        and .percent >= 0
-        and .percent <= 100))
-    | ($entries | map(.percent) | add)
+        (has("percent") | not)
+        or ((.percent | type == "number")
+            and .percent >= 0
+            and .percent <= 100)))
+    | ($entries | map(.percent // 0) | add)
   ' "${candidate_service_json}")"; then
   printf '%s\n' 'NO-GO: candidate traffic schema is invalid'
   exit 1
@@ -867,7 +880,8 @@ gcloud run revisions describe "${KALORIES_CANDIDATE_REVISION}" \
 if ! jq -e \
   --arg revision "${KALORIES_CANDIDATE_REVISION}" \
   --arg secret_version "${KALORIES_SECRET_VERSION}" \
-  --arg firebase_app_id "${KALORIES_FIREBASE_IOS_APP_ID}" '
+  --arg firebase_app_id "${KALORIES_FIREBASE_IOS_APP_ID}" \
+  --arg runtime_sa "${KALORIES_RUNTIME_SA}" '
   def all_env: [.spec.containers[]?.env[]?, .containers[]?.env[]?];
   ([
     .metadata.annotations["autoscaling.knative.dev/maxScale"]?,
@@ -883,6 +897,9 @@ if ! jq -e \
   | ([.spec.containers[]?.image?, .containers[]?.image?]
      | map(select(type == "string"))) as $images
   | .metadata.name == $revision
+  and .spec.serviceAccountName == $runtime_sa
+  and .spec.containerConcurrency == 4
+  and .spec.timeoutSeconds == 30
   and (($max_values | length) == 1 and $max_values[0] == "1")
   and (($keys | length) == 1)
   and ($keys[0] | has("value") | not)
