@@ -21,6 +21,18 @@ final class UITestFixturesTests: XCTestCase {
     }
 
     func testScreenshotModesReturnBeforeFirebaseBootstrap() throws {
+        let defaults = UserDefaults.standard
+        let persistentDomainName = try XCTUnwrap(Bundle.main.bundleIdentifier)
+        let storageKey = AdultAccessPreference.storageKey
+        let originalPersistentValue = defaults
+            .persistentDomain(forName: persistentDomainName)?[storageKey]
+        defer {
+            defaults.removeObject(forKey: storageKey)
+            if let originalPersistentValue {
+                defaults.set(originalPersistentValue, forKey: storageKey)
+            }
+        }
+
         let modes = [
             "--fixture-screenshot-capture",
             "--fixture-screenshot-preview",
@@ -28,8 +40,37 @@ final class UITestFixturesTests: XCTestCase {
         ]
 
         for mode in modes {
-            var bootstrapCalls = 0
-            let environment = try AppEnvironment.live(
+            defaults.removeObject(forKey: storageKey)
+            XCTAssertNil(
+                defaults.persistentDomain(forName: persistentDomainName)?[storageKey],
+                mode
+            )
+
+            var unconfirmedBootstrapCalls = 0
+            let unconfirmedEnvironment = try AppEnvironment.live(
+                bundle: Bundle(for: Self.self),
+                arguments: [
+                    "Kalories",
+                    "--ui-testing",
+                    mode,
+                ],
+                appCheckBootstrap: {
+                    unconfirmedBootstrapCalls += 1
+                    throw AppFailure.appCheckUnavailable
+                }
+            )
+
+            XCTAssertEqual(unconfirmedBootstrapCalls, 0, mode)
+            XCTAssertFalse(unconfirmedEnvironment.adultAccess.isConfirmed, mode)
+
+            defaults.removeObject(forKey: storageKey)
+            XCTAssertNil(
+                defaults.persistentDomain(forName: persistentDomainName)?[storageKey],
+                mode
+            )
+
+            var confirmedBootstrapCalls = 0
+            let confirmedEnvironment = try AppEnvironment.live(
                 bundle: Bundle(for: Self.self),
                 arguments: [
                     "Kalories",
@@ -38,15 +79,15 @@ final class UITestFixturesTests: XCTestCase {
                     mode,
                 ],
                 appCheckBootstrap: {
-                    bootstrapCalls += 1
+                    confirmedBootstrapCalls += 1
                     throw AppFailure.appCheckUnavailable
                 }
             )
 
-            XCTAssertEqual(bootstrapCalls, 0, mode)
-            XCTAssertTrue(environment.adultAccess.isConfirmed, mode)
+            XCTAssertEqual(confirmedBootstrapCalls, 0, mode)
+            XCTAssertTrue(confirmedEnvironment.adultAccess.isConfirmed, mode)
             XCTAssertTrue(UITestFixtures.isScreenshotMode(arguments: [mode]), mode)
-            XCTAssertEqual(environment.privacyURL.host, "kalories.invalid", mode)
+            XCTAssertEqual(confirmedEnvironment.privacyURL.host, "kalories.invalid", mode)
         }
     }
 
