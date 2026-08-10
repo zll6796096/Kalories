@@ -1,4 +1,8 @@
 "adviceTitle" = "Make it more balanced";
+"adultAccessBody" = "Kalories AI meal analysis is available only to users aged 18 or older. A meal photo is sent to the analysis service only after you separately review and consent to that transfer.";
+"adultAccessConfirm" = "I am 18 or older";
+"adultAccessTitle" = "For users aged 18 or older";
+"adultAccessUnderage" = "People under 18 cannot use this app.";
 "analyzePhoto" = "Analyze this photo";
 "analyzingBody" = "Checking portion size and nutritional balance.";
 "analyzingEyebrow" = "Estimating nutrition";

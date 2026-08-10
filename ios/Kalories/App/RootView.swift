@@ -22,26 +22,35 @@ struct RootView: View {
 
     @ViewBuilder
     var body: some View {
-        switch flow.screen {
-        case .capture, .preview:
-            CaptureView(
-                flow: flow,
+        if environment.adultAccess.isConfirmed == false {
+            AdultAccessView(
+                model: environment.adultAccess,
                 localizer: localizer,
-                cameraPresentation: environment.cameraPresentation,
                 privacyURL: environment.privacyURL,
                 supportURL: environment.supportURL
             )
-        case .analyzing:
-            AnalyzingView(flow: flow, localizer: localizer)
-        case let .result(result):
-            ResultView(
-                result: result,
-                image: flow.selectedImage,
-                localizer: localizer,
-                onRetake: flow.retake
-            )
-        case let .failure(failure):
-            FailureView(failure: failure, flow: flow, localizer: localizer)
+        } else {
+            switch flow.screen {
+            case .capture, .preview:
+                CaptureView(
+                    flow: flow,
+                    localizer: localizer,
+                    cameraPresentation: environment.cameraPresentation,
+                    privacyURL: environment.privacyURL,
+                    supportURL: environment.supportURL
+                )
+            case .analyzing:
+                AnalyzingView(flow: flow, localizer: localizer)
+            case let .result(result):
+                ResultView(
+                    result: result,
+                    image: flow.selectedImage,
+                    localizer: localizer,
+                    onRetake: flow.retake
+                )
+            case let .failure(failure):
+                FailureView(failure: failure, flow: flow, localizer: localizer)
+            }
         }
     }
 }

@@ -8,6 +8,7 @@ struct AppEnvironment {
     }
 
     let flow: AppFlowModel
+    let adultAccess: AdultAccessModel
     let localizer: AppLocalizer
     let cameraPresentation: CameraPresentationController
     let privacyURL: URL
@@ -44,12 +45,16 @@ struct AppEnvironment {
         )
         let processor = ImageProcessor()
         let flow = AppFlowModel(service: service, processor: processor)
+        let adultAccess = AdultAccessModel(
+            preference: AdultAccessPreference(defaults: .standard)
+        )
         let cameraPresentation = CameraPresentationController(
             authorization: CameraAuthorizationService()
         )
 
         return AppEnvironment(
             flow: flow,
+            adultAccess: adultAccess,
             localizer: AppLocalizer(locale: locale),
             cameraPresentation: cameraPresentation,
             privacyURL: links.privacy,

@@ -36,6 +36,9 @@ enum UITestFixtures {
         )
         return AppEnvironment(
             flow: AppFlowModel(service: service, processor: ImageProcessor()),
+            adultAccess: AdultAccessModel(
+                preference: AdultAccessPreference(defaults: .standard)
+            ),
             localizer: AppLocalizer(locale: .ja),
             cameraPresentation: CameraPresentationController(
                 authorization: CameraAuthorizationService()
