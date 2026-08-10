@@ -56,6 +56,7 @@ targets:
         CFBundleDisplayName: カロスキャン
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
         NSCameraUsageDescription: 食事を撮影し、カロリーと栄養を推定するためにカメラを使用します。
         KaloriesAPIScheme: $(KALORIES_API_SCHEME)

@@ -7,4 +7,11 @@ final class AppIdentityTests: XCTestCase {
         XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String, "カロスキャン")
         XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "KaloriesAPIHost") as? String, "kalories-sxielk4wua-an.a.run.app")
     }
+
+    func testAppUsesNoNonExemptEncryption() {
+        XCTAssertEqual(
+            Bundle.main.object(forInfoDictionaryKey: "ITSAppUsesNonExemptEncryption") as? Bool,
+            false
+        )
+    }
 }
