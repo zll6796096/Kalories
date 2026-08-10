@@ -20,6 +20,47 @@ final class UITestFixturesTests: XCTestCase {
         XCTAssertEqual(environment.privacyURL.host, "kalories.invalid")
     }
 
+    func testScreenshotModesReturnBeforeFirebaseBootstrap() throws {
+        let modes = [
+            "--fixture-screenshot-capture",
+            "--fixture-screenshot-preview",
+            "--fixture-screenshot-result",
+        ]
+
+        for mode in modes {
+            var bootstrapCalls = 0
+            let environment = try AppEnvironment.live(
+                bundle: Bundle(for: Self.self),
+                arguments: [
+                    "Kalories",
+                    "--ui-testing",
+                    "--adult-access-confirmed",
+                    mode,
+                ],
+                appCheckBootstrap: {
+                    bootstrapCalls += 1
+                    throw AppFailure.appCheckUnavailable
+                }
+            )
+
+            XCTAssertEqual(bootstrapCalls, 0, mode)
+            XCTAssertTrue(environment.adultAccess.isConfirmed, mode)
+            XCTAssertTrue(UITestFixtures.isScreenshotMode(arguments: [mode]), mode)
+            XCTAssertEqual(environment.privacyURL.host, "kalories.invalid", mode)
+        }
+    }
+
+    func testScreenshotModeRecognitionIsExact() {
+        XCTAssertFalse(UITestFixtures.isScreenshotMode(arguments: []))
+        XCTAssertFalse(UITestFixtures.isScreenshotMode(arguments: ["--fixture-success"]))
+        XCTAssertFalse(
+            UITestFixtures.isScreenshotMode(arguments: ["--fixture-screenshot-unknown"])
+        )
+        XCTAssertTrue(
+            UITestFixtures.isScreenshotMode(arguments: ["--fixture-screenshot-result"])
+        )
+    }
+
     func testEnvironmentIsInactiveWithoutUITesting() throws {
         let argumentSets = [
             ["Kalories"],
@@ -60,6 +101,14 @@ final class UITestFixturesTests: XCTestCase {
             ["Kalories", "--ui-testing", "--fixture-timeout", "--fixture-timeout"],
             ["Kalories", "--ui-testing", "--fixture-unknown"],
             ["Kalories", "--ui-testing", "--fixture-success", "--fixture-unknown"],
+            [
+                "Kalories", "--ui-testing",
+                "--fixture-screenshot-capture", "--fixture-success",
+            ],
+            [
+                "Kalories", "--ui-testing",
+                "--fixture-screenshot-preview", "--fixture-screenshot-result",
+            ],
         ]
 
         for arguments in argumentSets {
