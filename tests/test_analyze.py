@@ -21,6 +21,7 @@ with warnings.catch_warnings():
     from starlette.testclient import TestClient
 
 import api.analyze as analyze
+from lib.app_check import AppCheckRejected, AppCheckUnavailable
 
 
 def real_image_bytes(image_format: str) -> bytes:
@@ -37,6 +38,7 @@ IMAGE_BYTES_BY_MIME = {
     "image/png": PNG_BYTES,
     "image/webp": WEBP_BYTES,
 }
+VALID_APP_CHECK_HEADERS = {"X-Firebase-AppCheck": "valid-test-token"}
 
 
 def image_data_uri(payload=JPEG_BYTES, mime_type="image/jpeg"):
@@ -282,18 +284,79 @@ class ResponseCompositionTests(unittest.TestCase):
 
 
 class GeminiProviderTests(unittest.TestCase):
+    def test_default_gemini_model_is_stable(self):
+        self.assertEqual("gemini-3.6-flash", analyze.DEFAULT_GEMINI_MODEL)
+
+    def test_configured_gemini_model_uses_default_when_environment_is_absent(self):
+        with patch.dict(os.environ, {}, clear=True):
+            actual = analyze.configured_gemini_model()
+
+        self.assertEqual(analyze.DEFAULT_GEMINI_MODEL, actual)
+
+    def test_configured_gemini_model_uses_default_for_whitespace_override(self):
+        with patch.dict(os.environ, {"GEMINI_MODEL": " \t\n "}):
+            actual = analyze.configured_gemini_model()
+
+        self.assertEqual(analyze.DEFAULT_GEMINI_MODEL, actual)
+
+    def test_configured_gemini_model_trims_nonempty_override(self):
+        with patch.dict(
+            os.environ,
+            {"GEMINI_MODEL": "  gemini-controlled-stable  "},
+        ):
+            actual = analyze.configured_gemini_model()
+
+        self.assertEqual("gemini-controlled-stable", actual)
+
+    def test_call_gemini_uses_configured_model(self):
+        response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
+
+        with patch.dict(
+            os.environ,
+            {"GEMINI_MODEL": "  gemini-operator-selected  "},
+        ):
+            with patch.object(analyze.genai, "Client") as client_class:
+                client = client_class.return_value.__enter__.return_value
+                client.models.generate_content.return_value = response
+                analyze.call_gemini("configured-key", "image/jpeg", JPEG_BYTES)
+
+        call = client.models.generate_content.call_args
+        self.assertEqual("gemini-operator-selected", call.kwargs["model"])
+
+    def test_call_gemini_explicit_model_bypasses_environment(self):
+        response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
+
+        with patch.dict(os.environ, {"GEMINI_MODEL": "environment-model"}):
+            with patch.object(analyze.genai, "Client") as client_class:
+                client = client_class.return_value.__enter__.return_value
+                client.models.generate_content.return_value = response
+                analyze.call_gemini(
+                    "configured-key",
+                    "image/jpeg",
+                    JPEG_BYTES,
+                    model="explicit-controlled-model",
+                )
+
+        call = client.models.generate_content.call_args
+        self.assertEqual("explicit-controlled-model", call.kwargs["model"])
+
     def test_call_gemini_uses_bounded_context_managed_structured_request_and_safe_prompt(self):
         response = SimpleNamespace(parsed=model_analysis().model_dump(), text=None)
         image_part = object()
         file_bytes = JPEG_BYTES
 
-        with patch.object(analyze.genai, "Client") as client_class:
-            with patch.object(
-                analyze.types.Part, "from_bytes", return_value=image_part
-            ) as from_bytes:
-                client = client_class.return_value.__enter__.return_value
-                client.models.generate_content.return_value = response
-                actual = analyze.call_gemini("configured-key", "image/jpeg", file_bytes)
+        with patch.dict(os.environ, {"GEMINI_MODEL": ""}):
+            with patch.object(analyze.genai, "Client") as client_class:
+                with patch.object(
+                    analyze.types.Part, "from_bytes", return_value=image_part
+                ) as from_bytes:
+                    client = client_class.return_value.__enter__.return_value
+                    client.models.generate_content.return_value = response
+                    actual = analyze.call_gemini(
+                        "configured-key",
+                        "image/jpeg",
+                        file_bytes,
+                    )
 
         self.assertIsInstance(actual, analyze.ModelAnalysis)
         http_options = client_class.call_args.kwargs["http_options"]
@@ -303,16 +366,19 @@ class GeminiProviderTests(unittest.TestCase):
         client_class.return_value.__exit__.assert_called_once()
         from_bytes.assert_called_once_with(data=file_bytes, mime_type="image/jpeg")
         call = client.models.generate_content.call_args
-        self.assertEqual("gemini-3-flash-preview", call.kwargs["model"])
         self.assertEqual(image_part, call.kwargs["contents"][0])
         prompt = call.kwargs["contents"][1]
         config = call.kwargs["config"]
+        serialized_config = config.model_dump(exclude_none=True)
         self.assertEqual("application/json", config.response_mime_type)
         self.assertEqual(
             analyze._clean_json_schema(analyze.ModelAnalysis.model_json_schema()),
             config.response_schema,
         )
-        self.assertEqual(0.1, config.temperature)
+        for deprecated_parameter in ("temperature", "top_p", "top_k"):
+            with self.subTest(deprecated_parameter=deprecated_parameter):
+                self.assertNotIn(deprecated_parameter, serialized_config)
+        self.assertEqual("gemini-3.6-flash", call.kwargs["model"])
         for required_text in (
             "visible meal",
             "food_detected",
@@ -372,6 +438,17 @@ class GeminiProviderTests(unittest.TestCase):
 
 
 class AnalyzeEndpointTests(unittest.TestCase):
+    def setUp(self):
+        self.rate_limiter = MagicMock()
+        self.rate_limiter.try_acquire.return_value = True
+        limiter_patch = patch.object(
+            analyze,
+            "ANALYSIS_RATE_LIMITER",
+            self.rate_limiter,
+        )
+        limiter_patch.start()
+        self.addCleanup(limiter_patch.stop)
+
     def test_route_is_synchronous_and_request_rejects_empty_image(self):
         self.assertFalse(inspect.iscoroutinefunction(analyze.analyze_food))
         with self.assertRaises(ValidationError):
@@ -390,6 +467,7 @@ class AnalyzeEndpointTests(unittest.TestCase):
 
         self.assertEqual(400, context.exception.status_code)
         self.assertEqual({"code": "IMAGE_TOO_LARGE"}, context.exception.detail)
+        self.rate_limiter.try_acquire.assert_not_called()
         provider.assert_not_called()
 
     def test_missing_api_key_returns_configured_service_error_without_provider_call(self):
@@ -402,7 +480,46 @@ class AnalyzeEndpointTests(unittest.TestCase):
 
         self.assertEqual(503, context.exception.status_code)
         self.assertEqual({"code": "SERVICE_NOT_CONFIGURED"}, context.exception.detail)
+        self.rate_limiter.try_acquire.assert_not_called()
         provider.assert_not_called()
+
+    def test_valid_image_is_rate_limited_before_provider_call(self):
+        request = analyze.AnalyzeRequest(image=image_data_uri())
+        self.rate_limiter.try_acquire.return_value = False
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
+            with patch.object(analyze, "call_gemini") as provider:
+                with self.assertRaises(HTTPException) as context:
+                    analyze.analyze_food(request)
+
+        self.assertEqual(429, context.exception.status_code)
+        self.assertEqual({"code": "RATE_LIMITED"}, context.exception.detail)
+        self.rate_limiter.try_acquire.assert_called_once_with()
+        provider.assert_not_called()
+
+    def test_allowed_valid_image_acquires_once_immediately_before_provider(self):
+        request = analyze.AnalyzeRequest(image=image_data_uri())
+        call_order = []
+        self.rate_limiter.try_acquire.side_effect = (
+            lambda: call_order.append("limiter") or True
+        )
+
+        def provider_response(*_args):
+            call_order.append("provider")
+            return model_analysis()
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
+            with patch.object(
+                analyze,
+                "call_gemini",
+                side_effect=provider_response,
+            ) as provider:
+                response = analyze.analyze_food(request)
+
+        self.assertTrue(response.food_detected)
+        self.assertEqual(["limiter", "provider"], call_order)
+        self.rate_limiter.try_acquire.assert_called_once_with()
+        provider.assert_called_once_with("configured", "image/jpeg", JPEG_BYTES)
 
     def test_provider_failure_returns_stable_error_and_safe_exception_type_log(self):
         request = analyze.AnalyzeRequest(image=image_data_uri())
@@ -420,6 +537,7 @@ class AnalyzeEndpointTests(unittest.TestCase):
         self.assertEqual(502, context.exception.status_code)
         self.assertEqual({"code": "ANALYSIS_FAILED"}, context.exception.detail)
         self.assertNotIn("secret", str(context.exception.detail))
+        self.rate_limiter.try_acquire.assert_called_once_with()
         log_error.assert_called_once_with(
             "Nutrition analysis provider request failed",
             extra={"exception_type": "RuntimeError"},
@@ -440,6 +558,7 @@ class AnalyzeEndpointTests(unittest.TestCase):
                             analyze.analyze_food(request)
                 self.assertEqual(400, context.exception.status_code)
                 self.assertEqual({"code": expected_code}, context.exception.detail)
+                self.rate_limiter.try_acquire.assert_not_called()
                 provider.assert_not_called()
 
     def test_provider_http_exception_is_mapped_to_owned_error(self):
@@ -455,6 +574,7 @@ class AnalyzeEndpointTests(unittest.TestCase):
         self.assertEqual(502, context.exception.status_code)
         self.assertEqual({"code": "ANALYSIS_FAILED"}, context.exception.detail)
         self.assertNotIn("RATE_LIMITED", str(context.exception.detail))
+        self.rate_limiter.try_acquire.assert_called_once_with()
         log_error.assert_called_once_with(
             "Nutrition analysis provider request failed",
             extra={"exception_type": "HTTPException"},
@@ -470,13 +590,35 @@ class AnalyzeEndpointTests(unittest.TestCase):
                 response = analyze.analyze_food(request)
 
         self.assertFalse(response.food_detected)
+        self.rate_limiter.try_acquire.assert_called_once_with()
         self.assertTrue(all(value is None for value in response.nutrients.model_dump().values()))
         self.assertIsNone(response.assessment.score)
         self.assertTrue(response.assessment.insufficient_data)
 
 
 class ApplicationContractTests(unittest.TestCase):
-    def test_post_routes_and_no_cors_middleware(self):
+    def setUp(self):
+        self.rate_limiter = MagicMock()
+        self.rate_limiter.try_acquire.return_value = True
+        limiter_patch = patch.object(
+            analyze,
+            "ANALYSIS_RATE_LIMITER",
+            self.rate_limiter,
+        )
+        limiter_patch.start()
+        self.addCleanup(limiter_patch.stop)
+
+        self.app_check_verifier = MagicMock()
+        verifier_patch = patch.object(
+            analyze,
+            "APP_CHECK_VERIFIER",
+            self.app_check_verifier,
+            create=True,
+        )
+        verifier_patch.start()
+        self.addCleanup(verifier_patch.stop)
+
+    def test_post_routes_have_only_the_app_check_middleware_and_no_cors(self):
         post_paths = {
             route.path
             for route in analyze.app.routes
@@ -484,21 +626,34 @@ class ApplicationContractTests(unittest.TestCase):
         }
 
         self.assertTrue({"/", "/api/analyze"}.issubset(post_paths))
-        self.assertEqual([], analyze.app.user_middleware)
+        self.assertEqual(
+            ["AppCheckASGIMiddleware"],
+            [middleware.cls.__name__ for middleware in analyze.app.user_middleware],
+        )
 
     def test_testclient_serializes_owned_error_and_success(self):
-        with TestClient(analyze.app) as client:
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
             with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
                 missing_key = client.post("/api/analyze", json={"image": image_data_uri()})
+            self.rate_limiter.try_acquire.return_value = False
+            with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
+                rate_limited = client.post(
+                    "/api/analyze",
+                    json={"image": image_data_uri()},
+                )
+            self.rate_limiter.try_acquire.return_value = True
             with patch.dict(os.environ, {"GEMINI_API_KEY": "configured"}):
                 with patch.object(analyze, "call_gemini", return_value=model_analysis()):
                     success = client.post("/api/analyze", json={"image": image_data_uri()})
 
         self.assertEqual(503, missing_key.status_code)
         self.assertEqual({"code": "SERVICE_NOT_CONFIGURED"}, missing_key.json()["detail"])
+        self.assertEqual(429, rate_limited.status_code)
+        self.assertEqual({"code": "RATE_LIMITED"}, rate_limited.json()["detail"])
         self.assertEqual(200, success.status_code)
         self.assertEqual("chicken rice", success.json()["food_names"]["en"])
         self.assertIn("assessment", success.json())
+        self.assertEqual(2, self.rate_limiter.try_acquire.call_count)
 
     def test_stringly_typed_or_assessment_provider_json_maps_to_owned_error(self):
         stringly_typed = model_analysis().model_dump()
@@ -509,7 +664,7 @@ class ApplicationContractTests(unittest.TestCase):
         provider_assessment = model_analysis().model_dump()
         provider_assessment["score"] = "82"
 
-        with TestClient(analyze.app) as client:
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
             for label, provider_payload in (
                 ("stringly typed facts", stringly_typed),
                 ("provider supplied score", provider_assessment),
@@ -537,6 +692,8 @@ class ApplicationContractTests(unittest.TestCase):
                         response.json(),
                     )
 
+        self.assertEqual(2, self.rate_limiter.try_acquire.call_count)
+
     def test_malformed_requests_return_only_the_owned_invalid_image_error(self):
         cases = (
             ("missing image", {"json": {}}),
@@ -555,7 +712,7 @@ class ApplicationContractTests(unittest.TestCase):
             ),
         )
 
-        with TestClient(analyze.app) as client:
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
             for label, request_kwargs in cases:
                 with self.subTest(label=label):
                     response = client.post("/api/analyze", **request_kwargs)
@@ -568,6 +725,117 @@ class ApplicationContractTests(unittest.TestCase):
                     serialized = response.text
                     for leaked_key in ('"loc"', '"msg"', '"input"'):
                         self.assertNotIn(leaked_key, serialized)
+
+        self.rate_limiter.try_acquire.assert_not_called()
+
+
+class AppCheckApplicationTests(unittest.TestCase):
+    def setUp(self):
+        self.verifier = MagicMock()
+        verifier_patch = patch.object(
+            analyze,
+            "APP_CHECK_VERIFIER",
+            self.verifier,
+            create=True,
+        )
+        verifier_patch.start()
+        self.addCleanup(verifier_patch.stop)
+
+        self.rate_limiter = MagicMock()
+        limiter_patch = patch.object(
+            analyze,
+            "ANALYSIS_RATE_LIMITER",
+            self.rate_limiter,
+        )
+        limiter_patch.start()
+        self.addCleanup(limiter_patch.stop)
+
+    def test_missing_or_empty_header_rejects_both_post_routes_before_body_parsing(self):
+        with TestClient(analyze.app) as client:
+            for path in ("/", "/api/analyze"):
+                for headers in ({}, {"X-Firebase-AppCheck": " \t "}):
+                    with self.subTest(path=path, headers=headers):
+                        response = client.post(
+                            path,
+                            content=b'{"image":',
+                            headers={"Content-Type": "application/json"} | headers,
+                        )
+
+                        self.assertEqual(401, response.status_code)
+                        self.assertEqual(
+                            {"detail": {"code": "APP_CHECK_FAILED"}},
+                            response.json(),
+                        )
+
+        self.verifier.verify.assert_not_called()
+        self.rate_limiter.try_acquire.assert_not_called()
+
+    def test_rejected_or_unavailable_verifier_maps_to_owned_safe_errors(self):
+        cases = (
+            (AppCheckRejected(), 401, "APP_CHECK_FAILED"),
+            (AppCheckUnavailable(), 503, "APP_CHECK_UNAVAILABLE"),
+        )
+
+        with TestClient(analyze.app) as client:
+            for error, status, code in cases:
+                with self.subTest(code=code):
+                    self.verifier.verify.side_effect = error
+                    response = client.post(
+                        "/api/analyze",
+                        content=b'{"image":',
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Firebase-AppCheck": "opaque-sensitive-token",
+                        },
+                    )
+
+                    self.assertEqual(status, response.status_code)
+                    self.assertEqual({"detail": {"code": code}}, response.json())
+                    self.assertNotIn("opaque-sensitive-token", response.text)
+
+        self.assertEqual(2, self.verifier.verify.call_count)
+        self.rate_limiter.try_acquire.assert_not_called()
+
+    def test_unexpected_verifier_failure_fails_closed_without_internal_details(self):
+        self.verifier.verify.side_effect = RuntimeError(
+            "credential or jwks internal sensitive details"
+        )
+
+        with TestClient(analyze.app) as client:
+            response = client.post(
+                "/api/analyze",
+                content=b'{"image":',
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Firebase-AppCheck": "opaque-sensitive-token",
+                },
+            )
+
+        self.assertEqual(503, response.status_code)
+        self.assertEqual(
+            {"detail": {"code": "APP_CHECK_UNAVAILABLE"}},
+            response.json(),
+        )
+        self.assertNotIn("sensitive", response.text)
+        self.rate_limiter.try_acquire.assert_not_called()
+
+    def test_valid_token_reaches_existing_contract_and_public_gets_skip_verification(self):
+        with TestClient(analyze.app, headers=VALID_APP_CHECK_HEADERS) as client:
+            with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+                protected = client.post(
+                    "/api/analyze",
+                    json={"image": image_data_uri()},
+                )
+            health = client.get("/health")
+            privacy_head = client.head("/privacy/")
+            support_get = client.get("/support/")
+
+        self.assertEqual(503, protected.status_code)
+        self.assertEqual("SERVICE_NOT_CONFIGURED", protected.json()["detail"]["code"])
+        self.assertEqual(200, health.status_code)
+        self.assertEqual(200, privacy_head.status_code)
+        self.assertEqual(200, support_get.status_code)
+        self.verifier.verify.assert_called_once_with("valid-test-token")
 
 
 if __name__ == "__main__":

@@ -79,8 +79,10 @@ is not treated as available until the app record accepts it.
   precise nutrition measurement.
 - Replacing Gemini, rewriting the nutrition heuristic, or porting the scoring
   algorithm to Swift.
-- App Attest as a first-TestFlight dependency. It remains a separate public
-  App Store release gate.
+- Direct, custom App Attest verification remains out of scope. The later
+  approved Firebase App Check plus App Attest design supersedes the original
+  first-TestFlight exclusion; see
+  `2026-08-08-firebase-app-check-design.md`.
 - Unrelated frontend, API, infrastructure, or repository refactoring.
 
 ## 5. Architecture
@@ -238,10 +240,10 @@ also requires a successful real analysis response and safe log inspection.
 
 The token bucket resets on process restart, so the hard provider quota is the
 authoritative TestFlight cost ceiling. This is intentionally a controlled-beta
-control, not a public-release rate limiter. The current public web client also
-prevents the API from being restricted to attested iOS clients. Before App Store
-Review, adopt App Attest or route the service through externally backed abuse
-protection such as Cloud Armor, then re-run privacy and end-to-end review.
+control, not a public-release rate limiter. The subsequently approved Firebase
+App Check plus App Attest design makes attested iOS access a first-TestFlight
+gate and removes browser analysis; see
+`2026-08-08-firebase-app-check-design.md`.
 
 ## 9. Error Handling
 
@@ -253,6 +255,7 @@ The client maps errors into stable, localized categories:
 - no food detected;
 - offline or lost connection;
 - request timeout;
+- application verification failed or unavailable;
 - service not configured;
 - provider analysis failure;
 - malformed or contract-incoherent response;
@@ -383,8 +386,8 @@ Reference:
 - **Plaintext or leaked credential:** rotate it; do not reuse or print it in
   reports, commands, screenshots, or logs.
 - **Public API abuse:** the first-TestFlight global limiter plus hard provider
-  quota is not public-release protection; App Store Review remains NO-GO until
-  externally backed or attested abuse protection is verified.
+  quota is not access control. TestFlight remains NO-GO until the approved
+  Firebase App Check plus App Attest protection is verified.
 - **Misleading health claim:** use estimate and uncertainty language; do not
   call photo output a precise measurement or diagnosis.
 - **Provider privacy drift:** verify applicable Gemini data handling before

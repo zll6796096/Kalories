@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <title>Kalories プライバシーポリシー</title>
+    <style>
+      :root {
+        color: #18201d;
+        background: #f5f7f5;
+        font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+          "Yu Gothic UI", "Noto Sans JP", sans-serif;
+        line-height: 1.75;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main {
+        width: min(100% - 32px, 760px);
+        margin: 0 auto;
+        padding: 48px 0 64px;
+      }
+      header, section, aside {
+        margin-bottom: 20px;
+        padding: 24px;
+        border: 1px solid #dce3df;
+        border-radius: 16px;
+        background: #ffffff;
+      }
+      header { border-top: 5px solid #426b59; }
+      h1, h2 { line-height: 1.35; color: #16251f; }
+      h1 { margin: 0 0 8px; font-size: clamp(1.75rem, 6vw, 2.35rem); }
+      h2 { margin: 0 0 10px; font-size: 1.2rem; }
+      p, ul { margin: 0 0 12px; }
+      p:last-child, ul:last-child { margin-bottom: 0; }
+      ul { padding-left: 1.4rem; }
+      .updated { color: #59645f; font-size: 0.94rem; }
+      .notice { background: #f1f6f3; border-color: #b8ccc1; }
+      .warning { background: #fff8ec; border-color: #e7c98f; }
+      a { color: #265f49; text-underline-offset: 0.18em; }
+      a:focus-visible { outline: 3px solid #265f49; outline-offset: 3px; }
+      @media (max-width: 520px) {
+        main { width: min(100% - 20px, 760px); padding: 20px 0 36px; }
+        header, section, aside { padding: 18px; border-radius: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Kalories プライバシーポリシー</h1>
+        <p class="updated">最終更新日：2026年8月8日</p>
+        <p>
+          このポリシーは、管理されたTestFlightで招待された18歳以上のテスターだけを対象とします。
+          一般公開のApp Store配布には別途審査と確認が必要で、現時点では未完了です。
+        </p>
+      </header>
+
+      <aside class="notice" aria-label="送信前の要点">
+        <h2>送信前の要点</h2>
+        <p>
+          食事の写真は、利用者が転送案内を確認し、アプリで「分析する」を
+          タップした後にのみ送信されます。撮影または再撮影だけでは送信されません。
+        </p>
+      </aside>
+
+      <section>
+        <h2>利用目的と送信経路</h2>
+        <p>
+          写真は、一食分の料理、量、栄養情報を推定する目的だけで利用します。
+          「分析する」をタップすると、写真はHTTPSでKaloriesのバックエンドへ
+          送られ、そのリクエストの処理のためにGoogle Geminiへ転送されます。
+          分析結果はアプリへ返されます。
+        </p>
+      </section>
+
+      <section>
+        <h2>保存期間</h2>
+        <p>
+          Kaloriesのアプリとバックエンドは、食事画像や分析結果を保存しません。
+          アプリで再撮影または破棄を選ぶと、端末のメモリ内にある当該データは
+          破棄されます。クラウド上の食事履歴はありません。
+        </p>
+        <p>
+          Googleは、不正使用の検出および防止のため、プロンプト、コンテキスト情報、
+          出力を55日間保持します。55日間の保持対象には写真入力と分析出力が含まれます。
+          ゼロデータ保持（ZDR）に必要なプロジェクト承認を得ていることは
+          確認できていません。そのため、KaloriesはZDRの適用を主張しません。
+        </p>
+      </section>
+
+      <section>
+        <h2>第三者提供と必須の運用条件</h2>
+        <p>
+          上記の分析目的で、写真とリクエスト内容をGoogle Geminiへ提供します。
+          Appleが求める第三者AIへのデータ共有に関する明示的な同意は、利用者が
+          「分析する」をタップする前の転送案内で取得します。
+        </p>
+        <p>
+          Gemini APIが有料サービスとして運用されていることは、TestFlight配布の
+          必須条件です。有料サービスの規約では、プロンプト、ファイル、応答は
+          Google製品の改善に使用されません。ただし、前記の不正使用監視による
+          55日間の保持とは別の事項です。
+          現在のCloudプロジェクトを通じたGemini API利用が有料サービスとして扱われることは、まだ確認済みではありません。
+        </p>
+        <p>
+          Googleによる不正使用監視のログとは別に、Google AI Studioで設定され、
+          開発者が所有する開発者ログがあります。データセット共有は、開発者が
+          別途選択するオプトインです。Kaloriesの運用方針は、開発者ログを無効にし、
+          データセット共有を選択しないことです。
+          開発者ログが無効であることは、TestFlight配布の必須条件です。
+          データセット共有を選択しないことも、TestFlight配布の必須条件です。
+          現在のCloudプロジェクトで開発者ログが無効であることは、まだ確認済みではありません。
+          データセット共有が選択されていないことも、まだ確認済みではありません。
+          これらの条件を満たせない場合、サービスをTestFlightで配布しません。
+        </p>
+      </section>
+
+      <section lang="ja" data-integrity-disclosure="true">
+        <h2>アプリの正当性確認</h2>
+        <p>
+          Kaloriesは、分析リクエストが正規のiOSアプリから送られたことを確認し、
+          不正利用を抑えるためにFirebase App CheckとApple App Attestを使用します。
+          この確認では、アテステーション資料とApp CheckトークンがAppleおよび
+          Google/Firebaseによって処理されます。
+        </p>
+        <p>
+          Firebase App Checkはアテステーション資料を保持しません。Kaloriesは
+          リプレイ保護機能を使用しないため、通常のApp CheckトークンはFirebase
+          サービスに保持されません。ただし、Appleへ送られた資料にはAppleの条件が
+          適用されます。Firebaseのサービスデータには、IPアドレス、アプリID、
+          バンドルID、技術・運用情報が含まれる場合があります。
+        </p>
+        <p>
+          これらはアプリの正当性確認と不正利用防止のためだけに使用します。
+          KaloriesはFirebase Analyticsを追加せず、広告、行動分析、追跡には使用しません。
+        </p>
+      </section>
+
+      <section lang="zh-CN" data-integrity-disclosure="true">
+        <h2>App 完整性验证</h2>
+        <p>
+          Kalories 使用 Firebase App Check 和 Apple App Attest，验证分析请求来自正版
+          iOS App 并减少未经授权的使用。验证过程中，证明材料和 App Check 令牌会由
+          Apple 与 Google/Firebase 处理。
+        </p>
+        <p>
+          Firebase App Check 不保留证明材料。Kalories 不使用重放保护，因此标准 App
+          Check 令牌不会由 Firebase 服务保留；发送给 Apple 的材料适用 Apple 的条款。
+          Firebase 服务数据可能包括 IP 地址、应用 ID、软件包 ID，以及技术和运营信息。
+        </p>
+        <p>
+          这些数据仅用于 App 完整性验证和防止滥用。Kalories 不加入 Firebase
+          Analytics，也不用于广告、行为分析或跟踪。
+        </p>
+      </section>
+
+      <section lang="en" data-integrity-disclosure="true">
+        <h2>App integrity verification</h2>
+        <p>
+          Kalories uses Firebase App Check and Apple App Attest to verify that analysis
+          requests come from the genuine iOS app and to reduce unauthorized use.
+          Attestation material and App Check tokens are processed by Apple and
+          Google/Firebase during verification.
+        </p>
+        <p>
+          Firebase App Check does not retain attestation material. Kalories does not use
+          replay protection, so standard App Check tokens are not retained by Firebase
+          services; material sent to Apple is subject to Apple's terms. Firebase service
+          data may include IP addresses, app IDs, bundle IDs, and technical or operational
+          information.
+        </p>
+        <p>
+          This processing is used only for app integrity and abuse prevention. Kalories
+          does not add Firebase Analytics and does not use this data for advertising,
+          behavioral analytics, or tracking.
+        </p>
+      </section>
+
+      <section>
+        <h2>ログ、アカウント、追跡</h2>
+        <p>
+          Kaloriesのアプリケーションログは、画像バイト、Base64データ、モデル出力を
+          意図的に記録しません。ただし、Cloud RunはGoogle Cloudの設定に従い、
+          リクエスト時刻、状態、レイテンシなどの運用メタデータを保持する場合があります。
+        </p>
+        <p>
+          Kaloriesには利用者アカウント、広告、行動追跡、アクセス解析SDKはありません。
+          食事のクラウド履歴も作成しません。
+        </p>
+      </section>
+
+      <section>
+        <h2>同意の撤回</h2>
+        <p>
+          今後の送信への同意は、「分析する」をタップしないことで撤回できます。
+          カメラ利用を止める場合は、iOSの「設定」からKaloriesのカメラ権限を
+          取り消すこともできます。送信済みの不正使用監視データには、Googleの
+          保持期間が適用され、Kaloriesから早期消去を保証することはできません。
+        </p>
+      </section>
+
+      <section>
+        <h2>削除</h2>
+        <p>
+          Kaloriesは食事画像や結果のクラウド履歴を作成しないため、利用者単位で
+          削除するアカウントまたは食事履歴はありません。再撮影または破棄により、
+          送信前のメモリ内データを消去できます。送信済みデータの扱いは前記の
+          プロバイダー保持期間に従います。
+        </p>
+      </section>
+
+      <section class="warning">
+        <h2>推定結果と年齢の制限</h2>
+        <p>
+          結果は一食分の参考推定であり、医療診断、医療助言、個別の治療方針では
+          ありません。臨床用途には使用しないでください。管理されたTestFlightは、
+          招待された18歳以上のテスターに限ります。
+        </p>
+      </section>
+
+      <section>
+        <h2>問い合わせ</h2>
+        <p>
+          利用方法やプライバシーに関する案内は<a href="/support/">サポートページ</a>を
+          ご覧ください。公開Issueへ問い合わせる場合、個人的な食事写真、認証情報、
+          APIキー、秘密情報を添付しないでください。
+        </p>
+      </section>
+
+      <section>
+        <h2>関連資料</h2>
+        <ul>
+          <li><a href="https://ai.google.dev/gemini-api/terms">Gemini API 利用規約</a></li>
+          <li><a href="https://ai.google.dev/gemini-api/docs/usage-policies">不正使用の監視とデータ保持</a></li>
+          <li><a href="https://ai.google.dev/gemini-api/docs/logs-policy">開発者ログとデータセット共有</a></li>
+          <li><a href="https://ai.google.dev/gemini-api/docs/zdr">ゼロデータ保持（ZDR）</a></li>
+          <li><a href="https://firebase.google.com/support/privacy/">Firebaseのプライバシーとセキュリティ</a></li>
+          <li><a href="https://developer.apple.com/documentation/devicecheck">Apple DeviceCheckとApp Attest</a></li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

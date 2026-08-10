@@ -69,6 +69,9 @@ export interface Messages {
   errorImageTooLarge: string;
   errorNoFood: string;
   errorServiceNotConfigured: string;
+  errorRateLimited: string;
+  errorAppCheckFailed: string;
+  errorAppCheckUnavailable: string;
   errorAnalysisFailed: string;
   errorNetwork: string;
   errorSaveFailed: string;
@@ -142,6 +145,9 @@ export const messages: Record<Locale, Messages> = {
     errorImageTooLarge: '图片尺寸过大。',
     errorNoFood: '没有识别到食物，请重新拍摄完整餐食。',
     errorServiceNotConfigured: '分析服务尚未完成配置。',
+    errorRateLimited: '请求过于频繁，请稍后再试。',
+    errorAppCheckFailed: '无法验证此 App，请重新打开后再试。',
+    errorAppCheckUnavailable: '暂时无法验证 App，请稍后再试。',
     errorAnalysisFailed: '分析失败，请稍后重试。',
     errorNetwork: '网络连接失败。',
     errorSaveFailed: '无法保存结果。',
@@ -214,6 +220,9 @@ export const messages: Record<Locale, Messages> = {
     errorImageTooLarge: '画像サイズが大きすぎます。',
     errorNoFood: '食事を認識できませんでした。料理全体を撮り直してください。',
     errorServiceNotConfigured: '分析サービスが設定されていません。',
+    errorRateLimited: 'リクエストが多すぎます。少し待ってからお試しください。',
+    errorAppCheckFailed: 'このアプリを確認できませんでした。アプリを開き直してお試しください。',
+    errorAppCheckUnavailable: 'アプリを一時的に確認できません。しばらくしてからお試しください。',
     errorAnalysisFailed: '分析に失敗しました。しばらくしてからお試しください。',
     errorNetwork: 'ネットワークに接続できません。',
     errorSaveFailed: '結果を保存できませんでした。',
@@ -288,9 +297,52 @@ export const messages: Record<Locale, Messages> = {
     errorImageTooLarge: 'The image is too large.',
     errorNoFood: 'No meal was detected. Retake the photo with the whole meal visible.',
     errorServiceNotConfigured: 'The analysis service is not configured.',
+    errorRateLimited: 'Too many requests. Try again shortly.',
+    errorAppCheckFailed: 'This app could not be verified. Reopen it and try again.',
+    errorAppCheckUnavailable: 'The app cannot be verified right now. Try again shortly.',
     errorAnalysisFailed: 'Analysis failed. Please try again shortly.',
     errorNetwork: 'The network connection failed.',
     errorSaveFailed: 'The result could not be saved.',
+  },
+};
+
+export interface WebMessages {
+  iosOnlyTitle: string;
+  noWebUpload: string;
+  integrityTitle: string;
+  integrityBody: string;
+  legalNavigation: string;
+  privacy: string;
+  support: string;
+}
+
+export const webMessages: Record<Locale, WebMessages> = {
+  zh: {
+    iosOnlyTitle: '照片分析仅可在 iOS 版中使用。',
+    noWebUpload: '此网页不会上传或分析照片。',
+    integrityTitle: '保护分析接口',
+    integrityBody: 'iOS 版会验证 App 完整性，以减少未经授权的使用。',
+    legalNavigation: '隐私与支持',
+    privacy: '隐私政策',
+    support: '支持',
+  },
+  ja: {
+    iosOnlyTitle: '写真分析はiOS版でご利用いただけます。',
+    noWebUpload: 'このWebページでは写真の送信や分析を行いません。',
+    integrityTitle: '分析機能を保護',
+    integrityBody: 'iOS版ではアプリの正当性を確認し、不正利用を抑えます。',
+    legalNavigation: 'プライバシーとサポート',
+    privacy: 'プライバシーポリシー',
+    support: 'サポート',
+  },
+  en: {
+    iosOnlyTitle: 'Photo analysis is available in the iOS app.',
+    noWebUpload: 'This website does not upload or analyze photos.',
+    integrityTitle: 'Protected analysis',
+    integrityBody: 'The iOS app verifies app integrity to reduce unauthorized use.',
+    legalNavigation: 'Privacy and support',
+    privacy: 'Privacy policy',
+    support: 'Support',
   },
 };
 

@@ -1,0 +1,108 @@
+name: Kalories
+options:
+  minimumXcodeGenVersion: 2.45.4
+  developmentLanguage: ja
+deploymentTarget:
+  iOS: "17.0"
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    exactVersion: 12.17.0
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    DEVELOPMENT_TEAM: YMUG864233
+    SWIFT_VERSION: 6.0
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 1
+    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    TARGETED_DEVICE_FAMILY: 1
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+targets:
+  Kalories:
+    type: application
+    platform: iOS
+    sources:
+      - path: Kalories
+    dependencies:
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseAppCheck
+    configFiles:
+      Debug: Configuration/Debug.xcconfig
+      Release: Configuration/Release.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ryuaistudio.kalories
+        PRODUCT_NAME: Kalories
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Kalories/Kalories.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: Kalories App Store
+    info:
+      path: Kalories/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: カロスキャン
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        NSCameraUsageDescription: 食事を撮影し、カロリーと栄養を推定するためにカメラを使用します。
+        KaloriesAPIScheme: $(KALORIES_API_SCHEME)
+        KaloriesAPIHost: $(KALORIES_API_HOST)
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+  KaloriesTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: KaloriesTests
+      - path: ../tests/fixtures/canonical_analysis_result.json
+        buildPhase: resources
+    dependencies:
+      - target: Kalories
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.ryuaistudio.kalories.tests
+        TARGETED_DEVICE_FAMILY: "1"
+  KaloriesUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: KaloriesUITests
+    dependencies:
+      - target: Kalories
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.ryuaistudio.kalories.uitests
+        TARGETED_DEVICE_FAMILY: "1"
+schemes:
+  Kalories:
+    build:
+      targets:
+        Kalories: all
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - name: KaloriesTests
+        - name: KaloriesUITests

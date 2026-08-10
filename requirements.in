@@ -1,4 +1,5 @@
 fastapi
+firebase-admin==7.5.0
 uvicorn
 google-genai
 python-multipart

@@ -21,15 +21,23 @@ from google.genai import types
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from lib.app_check import AppCheckASGIMiddleware, FirebaseAppCheckVerifier
 from lib.nutrition import assess_nutrition
+from lib.rate_limit import TokenBucket
 
 
 env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
+APP_CHECK_VERIFIER = FirebaseAppCheckVerifier()
 app = FastAPI()
+app.add_middleware(
+    AppCheckASGIMiddleware,
+    verifier_getter=lambda: APP_CHECK_VERIFIER,
+)
 DIST_DIR = Path(__file__).resolve().parents[1] / "dist"
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 
 
 @app.exception_handler(RequestValidationError)
@@ -67,6 +75,10 @@ SUPPORTED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
 MAX_IMAGE_BYTES = 3 * 1024 * 1024
 MAX_ENCODED_IMAGE_CHARS = 4 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
+ANALYSIS_RATE_LIMITER = TokenBucket(
+    capacity=4,
+    refill_per_second=12 / 60,
+)
 
 ConfidenceLevel = Literal["low", "medium", "high"]
 AssumptionKey = Literal[
@@ -278,7 +290,18 @@ def _clean_json_schema(obj: object) -> object:
     return obj
 
 
-def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysis:
+def configured_gemini_model() -> str:
+    """Return the trimmed operator override or the stable default model."""
+    value = os.environ.get("GEMINI_MODEL", "").strip()
+    return value or DEFAULT_GEMINI_MODEL
+
+
+def call_gemini(
+    api_key: str,
+    mime_type: str,
+    file_bytes: bytes,
+    model: str | None = None,
+) -> ModelAnalysis:
     """Ask Gemini only for observable meal facts, never a health assessment."""
     response_schema = _clean_json_schema(ModelAnalysis.model_json_schema())
     with genai.Client(
@@ -286,7 +309,7 @@ def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysi
         http_options=types.HttpOptions(timeout=20_000),
     ) as client:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model=model if model is not None else configured_gemini_model(),
             contents=[
                 types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
                 (
@@ -307,7 +330,6 @@ def call_gemini(api_key: str, mime_type: str, file_bytes: bytes) -> ModelAnalysi
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=response_schema,
-                temperature=0.1,
             ),
         )
     if response.parsed is not None:
@@ -330,6 +352,12 @@ def analyze_food(request: AnalyzeRequest) -> AnalyzeResponse:
         mime_type, file_bytes = decode_image(request.image)
     except ImageValidationError as error:
         raise HTTPException(status_code=400, detail={"code": error.code}) from None
+
+    if not ANALYSIS_RATE_LIMITER.try_acquire():
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "RATE_LIMITED"},
+        )
 
     try:
         return build_response(call_gemini(api_key, mime_type, file_bytes))

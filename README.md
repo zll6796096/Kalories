@@ -15,6 +15,19 @@ Kalories 是一个相机优先的餐食营养估算器。拍摄一餐后，应�
 
 照片结果是估算，不是营养测量、个性化每日摄入建议或医疗诊断。隐藏的油、酱汁、糖、盐、馅料以及实际份量都会显著影响结果；仅凭照片估算糖和钠通常置信度较低。当前评估面向一般成年人一餐，不考虑年龄、性别、体重、疾病、过敏、运动量或全天饮食。
 
+## 隐私与支持页面
+
+生产构建会把不依赖 JavaScript 的静态页面与应用一起提供：
+
+- `/privacy/`：日文隐私政策，说明照片传输、第三方 AI、保存边界与撤回方式；
+- `/support/`：日文优先、附简短中文和英文的使用帮助与公开 Issue 安全提示。
+
+受控 TestFlight 仅限受邀的 18 岁以上测试者。公开 App Store 发布仍是独立且未完成的门禁。
+
+TestFlight 分发前必须逐项确认 Cloud 项目使用 Gemini 付费服务，并保持开发者日志关闭、不向 Google 共享数据集；任一条件不满足时不得分发。付费服务条款规定提示、文件和响应不用于改进 Google 产品，但这不等于零保存：Google 默认滥用监控仍可能保存提示、上下文和输出（包括照片输入与分析输出）最长 55 天。当前没有证据证明该项目已获零数据保留（ZDR）批准，因此页面不作 ZDR 声明。
+
+`npm run build`、本地页面测试或 `/privacy/` 与 `/support/` 返回 200，只能证明本地静态页面和组合服务可用；它们不能证明页面已部署，也不能证明 Cloud 项目的付费层级、开发者日志、数据集共享、ZDR 状态或第三方实际处理方式已经核验。相关依据见 [Gemini API 条款](https://ai.google.dev/gemini-api/terms)、[滥用监控与保存政策](https://ai.google.dev/gemini-api/docs/usage-policies)、[开发者日志政策](https://ai.google.dev/gemini-api/docs/logs-policy)和 [ZDR 说明](https://ai.google.dev/gemini-api/docs/zdr)。
+
 ## 本地运行
 
 需要 Node.js、npm 和 `uv`。仓库通过 `.python-version` 将本地干净验证和 Vercel 部署统一到 Python 3.12。
@@ -31,9 +44,23 @@ uv pip install --python .venv/bin/python -r requirements.txt
 
 ```dotenv
 GEMINI_API_KEY=your_backend_key
+GEMINI_MODEL=gemini-3.6-flash
+APP_CHECK_ENFORCEMENT=required
+FIREBASE_PROJECT_ID=zhang23-23
+FIREBASE_IOS_APP_ID=the-approved-firebase-ios-app-id
 ```
 
 不要把真实密钥提交到 Git，也不要把它放进浏览器代码、`VITE_*` 变量或前端构建产物。
+`FIREBASE_IOS_APP_ID` 是外部注册后取得的 Firebase `GOOGLE_APP_ID`，不是 Apple bundle
+ID。生产与 TestFlight 的 `POST /api/analyze` 必须验证 Firebase App Check token；
+iOS Release 使用 Apple App Attest provider。公开网页、隐私政策、支持页和健康检查保持
+可读，但网页不提供照片分析入口。
+
+后端稳定默认模型是 `gemini-3.6-flash`。`GEMINI_MODEL` 是非密钥运行配置：
+读取时会移除首尾空白，未配置或仅包含空白时回退到稳定默认值。更换模型前必须重新通过
+完整 provider 响应契约测试，并在受控门禁中完成真实图片请求验证。针对当前 3.6
+契约，`temperature`、`top_p` 和 `top_k` 等采样参数被有意省略；本地自动化不会发起
+真实模型请求，也不能代替真实图片与 schema 行为验证。
 
 分别启动 API 和界面：
 
@@ -45,26 +72,32 @@ GEMINI_API_KEY=your_backend_key
 npm run dev
 ```
 
-打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)。Vite 会把 `/api` 请求代理到本地 8000 端口。
+打开 [http://127.0.0.1:3000](http://127.0.0.1:3000) 查看静态产品与法律页面。
+真实照片分析仅由原生 iOS 客户端发起。
 
 ## Cloud Run
 
 仓库根目录的多阶段 `Dockerfile` 会先构建前端，再由同一个 FastAPI
-进程提供静态页面、`POST /api/analyze` 和 `GET /health`。部署公开 UI
-预览：
-
-```bash
-gcloud run deploy kalories \
-  --source . \
-  --project zhang23-23 \
-  --region asia-northeast1 \
-  --allow-unauthenticated
-```
+进程提供静态页面、`POST /api/analyze` 和 `GET /health`。README 不提供直接生产
+部署命令；TestFlight 后端只能按照发布手册先创建 `--no-traffic` 候选，并逐项完成
+不可变 revision、访问保护、隐私、配额、预算、真实请求与安全日志门禁。
 
 未配置 `GEMINI_API_KEY` 时，页面仍可访问，但分析接口会以
 `SERVICE_NOT_CONFIGURED` fail-closed。启用真实分析时，必须使用
-Kalories 专用 Secret Manager secret，并同时配置外部身份／滥用防护、
-速率限制、API 配额和预算告警；不要复用其他应用的 secret。
+Kalories 专用 Secret Manager secret；分析接口还必须以 Firebase App Check 验证
+Apple App Attest token，并同时配置速率限制、API 配额和预算告警。不要复用其他应用
+的 secret。
+
+TestFlight 后端发布使用只读的
+[`scripts/check-testflight-backend.sh`](scripts/check-testflight-backend.sh)
+和精确的
+[`docs/release/testflight-backend-runbook.md`](docs/release/testflight-backend-runbook.md)。
+当前本地测试与构建成功不代表已部署；线上预检目前预期返回 `NO-GO`，任何 Cloud Run
+候选部署、流量变更、密钥迁移或 TestFlight 操作都需要下一阶段的明确确认与独立证据。
+当前线上 revision 尚未配置 App Check，因此仍是硬 `NO-GO`。`allUsers` 调用权限只为
+公开页面提供传输入口，不是分析授权；受邀 18+、maxScale、进程内限流、provider RPD
+和预算告警也只是控损手段。Firebase/Apple 注册、真实 `GoogleService-Info.plist`、
+Cloud 变更和外部 TestFlight 都是独立的外部配置／发布门禁，需要再次明确批准。
 
 ## 图片与运行边界
 
@@ -80,10 +113,16 @@ npm run lint
 npm run build
 .venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 .venv/bin/python -m compileall -q api lib tests
-.venv/bin/python -c "import api.analyze, lib.nutrition"
+.venv/bin/python -c "import api.analyze, lib.app_check, lib.nutrition, lib.rate_limit"
 uv pip check --python .venv/bin/python
+scripts/check-ios-app-check-release.sh --local
 git diff --check
 ```
+
+本地 iOS 门禁验证精确 Firebase SDK 产品与版本、App Attest production entitlement、
+隐私清单和禁止的凭据／Debug provider。没有真实 `GoogleService-Info.plist` 时，分发模式
+会返回 `BLOCKED_BY_EXTERNAL_CONFIG`；`--local` PASS 不能替代 Firebase/Apple 外部配置
+与签名归档验证。
 
 自动化测试和浏览器 UI 验收不能证明实际 Gemini 调用成功。只有在后端密钥存在、真实请求返回且服务日志与响应契约都确认后，才能把模型参与标记为已验证。
 

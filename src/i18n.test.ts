@@ -75,6 +75,9 @@ const expectedMessageKeys = [
   'errorImageTooLarge',
   'errorNoFood',
   'errorServiceNotConfigured',
+  'errorRateLimited',
+  'errorAppCheckFailed',
+  'errorAppCheckUnavailable',
   'errorAnalysisFailed',
   'errorNetwork',
   'errorSaveFailed',
@@ -160,6 +163,18 @@ describe('message dictionaries', () => {
       ja: messages.ja.languageLabel,
       en: messages.en.languageLabel,
     }).toEqual({zh: '语言', ja: '言語', en: 'Language'});
+  });
+
+  it('contains the exact localized rate-limit message', () => {
+    expect({
+      zh: messages.zh.errorRateLimited,
+      ja: messages.ja.errorRateLimited,
+      en: messages.en.errorRateLimited,
+    }).toEqual({
+      zh: '请求过于频繁，请稍后再试。',
+      ja: 'リクエストが多すぎます。少し待ってからお試しください。',
+      en: 'Too many requests. Try again shortly.',
+    });
   });
 
   it('contains the exact localized deterministic finding copy', () => {

@@ -1,5 +1,5 @@
 {
   "name": "Kalories",
-  "description": "Camera-first meal nutrition estimator with Japan-first deterministic health guidance.",
-  "requestFramePermissions": ["camera"]
+  "description": "Public product, privacy, and support information for the Kalories iOS meal nutrition estimator.",
+  "requestFramePermissions": []
 }
