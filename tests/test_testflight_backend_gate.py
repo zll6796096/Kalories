@@ -158,13 +158,30 @@ elif [[ "$1 $2 $3" == "run revisions describe" ]]; then
 elif [[ "$1 $2 $3" == "run services get-iam-policy" ]]; then
   command cp "${FAKE_FIXTURES}/iam.json" /dev/stdout
 elif [[ "$1 $2" == "logging read" ]]; then
+  log_attempt="$(command grep -c '^logging read' "${FAKE_CALLS}" || true)"
   if [[ "${FAKE_LOG_EXIT:-0}" != 0 ]]; then
     exit "${FAKE_LOG_EXIT}"
   fi
-  command cp "${FAKE_FIXTURES}/logs.json" /dev/stdout
+  if (( log_attempt <= ${FAKE_LOG_FAIL_ATTEMPTS:-0} )); then
+    exit 3
+  fi
+  if [[ "${log_attempt}" == 1 && -n "${FAKE_FIRST_LOGS_FILE:-}" ]]; then
+    command cp "${FAKE_FIRST_LOGS_FILE}" /dev/stdout
+  elif (( log_attempt <= ${FAKE_LOG_EMPTY_ATTEMPTS:-0} )); then
+    printf '%s\n' '[]'
+  else
+    command cp "${FAKE_FIXTURES}/logs.json" /dev/stdout
+  fi
 else
   exit 97
 fi
+""",
+        )
+        self._write_executable(
+            "sleep",
+            """#!/usr/bin/env bash
+set -euo pipefail
+printf 'sleep %s\\n' "$*" >>"${FAKE_CALLS}"
 """,
         )
         self._write_executable(
@@ -420,6 +437,34 @@ fi
         result = self._run()
         self.assertIn("NO-GO: Cloud Run target request logs are missing", result.stdout)
 
+    def test_retries_logs_until_all_target_requests_are_visible(self) -> None:
+        result = self._run(FAKE_LOG_EMPTY_ATTEMPTS="2")
+        self._assert_pass(result)
+        log_reads = [
+            line
+            for line in self.calls.read_text().splitlines()
+            if line.startswith("logging read")
+        ]
+        self.assertEqual(len(log_reads), 3)
+        self.assertEqual(self.calls.read_text().splitlines().count("sleep 4"), 2)
+
+    def test_sensitive_partial_snapshot_cannot_be_hidden_by_clean_complete_retry(
+        self,
+    ) -> None:
+        first_logs = self.fixture_dir / "first-logs.json"
+        first_logs.write_text(
+            json.dumps(
+                self.logs[:4]
+                + [{"textPayload": f"api_key={SENTINEL}"}]
+            ),
+            encoding="utf-8",
+        )
+        result = self._run(FAKE_FIRST_LOGS_FILE=str(first_logs))
+        self.assertIn(
+            "NO-GO: Cloud Run logs contain sensitive application data",
+            result.stdout,
+        )
+
     def test_recursive_log_scan_rejects_sensitive_keys_and_values(self) -> None:
         sensitive_payloads = [
             {"x-goog-api-key": SENTINEL},
@@ -468,6 +513,19 @@ fi
     def test_log_read_failure_is_no_go(self) -> None:
         result = self._run(FAKE_LOG_EXIT="3")
         self.assertIn("NO-GO: Cloud Run log read failed", result.stdout)
+
+    def test_initial_log_read_failure_is_not_hidden_by_a_successful_retry(self) -> None:
+        result = self._run(FAKE_LOG_FAIL_ATTEMPTS="1")
+        self.assertIn("NO-GO: Cloud Run log read failed", result.stdout)
+
+    def test_invalid_initial_log_snapshot_is_not_hidden_by_a_clean_retry(self) -> None:
+        first_logs = self.fixture_dir / "invalid-first-logs.json"
+        first_logs.write_text("not-json", encoding="utf-8")
+        result = self._run(FAKE_FIRST_LOGS_FILE=str(first_logs))
+        self.assertIn(
+            "NO-GO: Cloud Run logs are not a nonempty JSON array",
+            result.stdout,
+        )
 
 
 class ReleaseDocumentationTests(unittest.TestCase):

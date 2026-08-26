@@ -1,39 +1,43 @@
 # App Store Production Backend Evidence
 
-Date: 2026-08-11
+Date: 2026-08-27
 Project/region/service: zhang23-23 / asia-northeast1 / kalories
-Source revision: `6bfbeaed23c7732460bbf1e22736d4d01132f813`
+Production source revision: `22d99e1d970913494ed8e11b63fe1cef41188328`
 
 | Gate | State |
 | --- | --- |
 | Local source | PASS |
-| Fresh production preflight | NO-GO |
+| Fresh production preflight | PASS |
 | Provider paid-service terms | PASS |
 | Developer logging disabled | PASS |
 | Dataset sharing disabled | PASS |
 | Daily model quota 200 | PASS |
 | Monthly 3000JPY budget alert | PASS |
 | Zero-traffic candidate | PASS |
-| Candidate real analysis | NOT RUN |
-| Candidate safe-log scan | NOT RUN |
-| Production promotion | NOT RUN |
+| Candidate real analysis | PASS |
+| Candidate safe-log scan | PASS |
+| Production promotion | PASS |
 | Physical-iPhone App Attest analysis | NOT RUN |
 | Legacy key deletion | NOT RUN |
 
 ## Fresh local source evidence
 
-The intended branch was clean before these documents were created, and
-`git diff --check` passed. The complete local gate produced:
+The intended branch was clean before these documents were created. The complete
+local gate was repeated after the evidence and bounded Cloud Logging polling
+change on 2026-08-27, and `git diff --check` passed:
 
 - Web tests: PASS — 23/23 tests across 3/3 test files.
 - TypeScript check and production web build: PASS.
-- Python tests: PASS — 164/164 tests.
+- Python tests: PASS — 168/168 tests.
 - Python bytecode compilation and runtime imports: PASS.
 - Python dependency compatibility: PASS — 51 installed packages checked.
 - Docker build: PASS — runtime manifest
   `sha256:4cd459c71a3863c1971deb27095160d179097ba14fa5169d29e91288cc77cef1`.
+- iOS unit and UI tests: PASS — 140 passed, 1 screenshot-generation test
+  skipped because the selected iPhone 17 Pro destination is not the required
+  Pro Max logical size.
 - Local iOS App Check release scan: PASS; external configuration remains
-  unverified.
+  separately evidenced by the live production checks below.
 
 These results prove the local source only. They do not prove provider, quota,
 budget, deployment, traffic, Firebase, App Attest, or production behavior.
@@ -122,22 +126,45 @@ Official traffic-default semantics checked on 2026-08-11:
 
 ## Fresh read-only production preflight
 
-The read-only preflight ran with the exact approved Firebase iOS app ID. Its
-exit code was `1`, and its output passed a fixed safe-output allowlist plus a
-protected-data pattern scan before being recorded. It reported only these
-fixed safe findings:
+The read-only preflight was repeated on 2026-08-27 with the exact approved
+Firebase iOS app ID and expected immutable revision. It returned:
 
-- Cloud Run production revision maxScale is not exactly 1.
-- `GEMINI_API_KEY` is not exactly one pinned secret-backed entry.
-- `GEMINI_MODEL` is not exactly one direct value set to `gemini-3.6-flash`.
-- `APP_CHECK_ENFORCEMENT` is not exactly `required`.
-- `FIREBASE_PROJECT_ID` is not exactly `zhang23-23`.
-- `FIREBASE_IOS_APP_ID` does not match the approved app.
-- `/privacy` did not return HTTP 200.
-- `/support` did not return HTTP 200.
-- App Check no-token POST did not return HTTP 401 for `/api/analyze`.
-- App Check no-token POST did not return HTTP 401 for `/`.
-- Cloud Run logs are not a nonempty JSON array.
+`PASS: TestFlight backend preflight`
+
+The live read-back proved that `kalories-00004-nan` owns 100% of aggregate
+production traffic, the required configuration remains pinned, `/health`,
+`/privacy/`, and `/support/` return HTTP 200, and both protected POST paths
+return the exact HTTP 401 App Check envelope when the token is absent. The
+preflight's target log query also passed after bounded polling for Cloud
+Logging's normal ingestion delay.
+
+## Candidate and production behavior evidence
+
+The private candidate check completed on 2026-08-27 against the immutable
+candidate-tag URL before promotion:
+
+- Synthetic non-personal meal analysis: HTTP 200.
+- Strict Pydantic response schema and `food_detected=true`: PASS.
+- End-to-end request latency: 7.823700933 seconds, below the 20-second gate.
+- Exact revision request logs: PASS.
+- Recursive sensitive-log scan: PASS.
+
+The exact immutable revision was then promoted to 100% production traffic.
+After promotion, a new temporary Firebase App Check debug token was created
+for the approved Firebase iOS app, exchanged once, used for one generated
+non-personal synthetic meal request, and revoked. The production result was:
+
+- Production `/api/analyze`: HTTP 200.
+- Strict Pydantic response schema and `food_detected=true`: PASS.
+- Client-observed latency: 6.465034 seconds; Cloud Run recorded
+  6.244399179 seconds, both below the 20-second gate.
+- Exact `kalories-00004-nan` production request log: PASS.
+- Recursive sensitive-log scan: PASS.
+- Registered App Check debug-token count after cleanup: 0.
+
+This DEBUG-provider evidence proves the protected application-layer production
+path without retaining a debug credential. It does not replace the separate
+physical-iPhone App Attest gate, which remains NOT RUN.
 
 This ledger never records credentials, tokens, billing-account IDs, IAM
 identities, images, response bodies, or log content.
