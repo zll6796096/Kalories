@@ -23,6 +23,7 @@ APPROVED_HREFS = frozenset(
         "https://firebase.google.com/support/privacy/",
         "https://developer.apple.com/documentation/devicecheck",
         "https://github.com/zll6796096/Kalories/issues/new",
+        "mailto:zll6796096@gmail.com",
     }
 )
 FORBIDDEN_TAGS = frozenset(
@@ -173,11 +174,40 @@ def focus_outline_color(raw: str) -> str:
     return outline.group(1).lower()
 
 
+def css_hex_declaration(raw: str, selector: str, property_name: str) -> str:
+    block = re.search(rf"{re.escape(selector)}\s*\{{([^}}]*)\}}", raw)
+    if block is None:
+        raise AssertionError(f"CSS selector is required: {selector}")
+    declaration = re.search(
+        rf"(?:^|;)\s*{re.escape(property_name)}\s*:\s*(#[0-9a-fA-F]{{6}})\s*;",
+        block.group(1),
+    )
+    if declaration is None:
+        raise AssertionError(
+            f"{selector} must declare {property_name} as a six-digit hex color"
+        )
+    return declaration.group(1).lower()
+
+
+def localized_section_text(raw: str, lang: str) -> str:
+    match = re.search(
+        rf'<section\b[^>]*\blang="{re.escape(lang)}"[^>]*>(.*?)</section>',
+        raw,
+        re.DOTALL,
+    )
+    if match is None:
+        raise AssertionError(f"localized section is required: {lang}")
+    section = DocumentProbe()
+    section.feed(match.group(0))
+    section.close()
+    return section.text
+
+
 class PublicPageTests(unittest.TestCase):
     def test_pages_have_static_japanese_first_document_structure(self) -> None:
         expected_titles = {
-            "privacy": "Kalories プライバシーポリシー",
-            "support": "Kalories サポート",
+            "privacy": "カロスキャン プライバシーポリシー",
+            "support": "カロスキャン サポート",
         }
         for page_name in PAGES:
             with self.subTest(page=page_name):
@@ -315,14 +345,77 @@ class PublicPageTests(unittest.TestCase):
                             contrast_ratio(focus_color, background), 3.0
                         )
 
+    def test_declared_text_colors_meet_wcag_aa_on_actual_backgrounds(self) -> None:
+        expected = {
+            "privacy": {
+                "root_text": (":root", "color", "#18201d"),
+                "page": (":root", "background", "#f5f7f5"),
+                "card": ("header, section, aside", "background", "#ffffff"),
+                "notice": (".notice", "background", "#f1f6f3"),
+                "warning": (".warning", "background", "#fff8ec"),
+                "heading": ("h1, h2", "color", "#16251f"),
+                "secondary": (".updated", "color", "#59645f"),
+                "link": ("a", "color", "#265f49"),
+            },
+            "support": {
+                "root_text": (":root", "color", "#18201d"),
+                "page": (":root", "background", "#f5f7f5"),
+                "card": ("header, section, aside", "background", "#ffffff"),
+                "warning": (".warning", "background", "#fff8ec"),
+                "heading": ("h1, h2, h3", "color", "#16251f"),
+                "secondary": (".lede", "color", "#4f5c56"),
+                "link": ("a", "color", "#265f49"),
+                "warning_strong": (".warning strong", "color", "#6d4310"),
+            },
+        }
+        combinations = {
+            "privacy": (
+                ("root_text", "page"),
+                ("root_text", "card"),
+                ("root_text", "notice"),
+                ("root_text", "warning"),
+                ("heading", "card"),
+                ("heading", "notice"),
+                ("heading", "warning"),
+                ("secondary", "card"),
+                ("link", "card"),
+            ),
+            "support": (
+                ("root_text", "page"),
+                ("root_text", "card"),
+                ("root_text", "warning"),
+                ("heading", "card"),
+                ("heading", "warning"),
+                ("secondary", "card"),
+                ("link", "card"),
+                ("warning_strong", "warning"),
+            ),
+        }
+
+        for page_name, declarations in expected.items():
+            raw, _page = read_page(page_name)
+            colors: dict[str, str] = {}
+            for name, (selector, property_name, expected_color) in declarations.items():
+                with self.subTest(page=page_name, declaration=name):
+                    color = css_hex_declaration(raw, selector, property_name)
+                    self.assertEqual(color, expected_color)
+                    colors[name] = color
+            for foreground, background in combinations[page_name]:
+                with self.subTest(
+                    page=page_name, foreground=foreground, background=background
+                ):
+                    self.assertGreaterEqual(
+                        contrast_ratio(colors[foreground], colors[background]), 4.5
+                    )
+
     def test_privacy_page_states_the_complete_conservative_provider_contract(self) -> None:
         raw, page = read_page("privacy")
         text = page.text
         required_terms = (
-            "最終更新日：2026年8月8日",
-            "分析する",
+            "最終更新日：2026年8月11日",
+            "この写真を分析",
             "HTTPS",
-            "Kaloriesのバックエンド",
+            "カロスキャンのバックエンド",
             "Google Gemini",
             "利用目的",
             "保存期間",
@@ -347,8 +440,6 @@ class PublicPageTests(unittest.TestCase):
             "オプトイン",
             "有料サービス",
             "Google製品の改善",
-            "TestFlight",
-            "18歳以上",
             "iOSの「設定」",
             "医療診断",
             "医療助言",
@@ -376,44 +467,61 @@ class PublicPageTests(unittest.TestCase):
             with self.subTest(term=term):
                 self.assertIn(term, text)
 
-        self.assertRegex(text, r"写真.+分析する.+タップ.+送信")
+        for forbidden_public_pattern in (
+            r"testflight",
+            r"\binvited\s+testers?\b",
+            r"一般公開のApp Store配布には別途審査と確認が必要",
+            r"まだ確認済みではありません",
+        ):
+            with self.subTest(
+                contract="forbidden public-release wording",
+                pattern=forbidden_public_pattern,
+            ):
+                self.assertIsNone(
+                    re.search(forbidden_public_pattern, text, re.IGNORECASE),
+                    f"public privacy page must not contain: {forbidden_public_pattern}",
+                )
+
+        for required_public_term in (
+            "カロスキャン",
+            "日本のApp Storeで公開",
+            "zll6796096@gmail.com",
+            "Google Gemini",
+            "Firebase App Check",
+            "Apple App Attest",
+            "55日間",
+            "カロスキャンが利用するGenerateContent API経路では、Google AI Studioの開発者ログを無効にし、データセット共有を利用しません。",
+            "Interactions APIのログ設定はこの説明の対象ではなく、カロスキャンはInteractions API経路を使用していません。",
+            "医療診断",
+            "医療助言",
+        ):
+            with self.subTest(
+                contract="required public privacy wording", term=required_public_term
+            ):
+                self.assertIn(required_public_term, text)
+
+        self.assertRegex(text, r"写真[^。]*この写真を分析[^。]*送信")
+        self.assertRegex(text, r"アカウント[^。]*広告[^。]*行動追跡[^。]*ありません")
         self.assertRegex(text, r"アプリ.+バックエンド.+保存しません")
         self.assertRegex(text, r"クラウド上.+食事履歴.+ありません")
         self.assertRegex(text, r"アカウント.+広告.+追跡.+解析SDK")
         self.assertRegex(text, r"再撮影.+破棄")
-        self.assertRegex(text, r"有料サービス.+必須条件")
+        self.assertRegex(text, r"有料サービス条件.+前提")
         self.assertRegex(
             text,
-            r"Google.+不正使用の検出および防止.+プロンプト.+コンテキスト情報.+出力.+55日間保持します",
+            r"Google.+不正使用の検出および防止.+プロンプト.+コンテキスト情報.+出力を55日間保持します",
         )
+        self.assertEqual(text.count("出力を55日間保持します"), 1)
+        self.assertNotIn("最大55日間保持する場合があります", text)
+        self.assertRegex(text, r"前記「保存期間」.+55日間の保持")
         self.assertRegex(text, r"55日間.+写真入力.+分析出力")
-        self.assertRegex(text, r"承認.+確認できていません")
+        self.assertIn("ゼロデータ保持の適用を主張しません", text)
         self.assertRegex(
             text,
             r"Googleによる不正使用監視のログとは別に.+Google AI Studio.+開発者が所有する開発者ログ",
         )
         self.assertRegex(text, r"データセット共有.+別.+オプトイン")
-        self.assertIn(
-            "開発者ログが無効であることは、TestFlight配布の必須条件です",
-            text,
-        )
-        self.assertIn(
-            "データセット共有を選択しないことも、TestFlight配布の必須条件です",
-            text,
-        )
-        self.assertIn(
-            "現在のCloudプロジェクトを通じたGemini API利用が有料サービスとして扱われることは、まだ確認済みではありません",
-            text,
-        )
-        self.assertIn(
-            "現在のCloudプロジェクトで開発者ログが無効であることは、まだ確認済みではありません",
-            text,
-        )
-        self.assertIn(
-            "データセット共有が選択されていないことも、まだ確認済みではありません",
-            text,
-        )
-        self.assertRegex(text, r"条件.+満たせない.+配布しません")
+        self.assertRegex(text, r"条件.+変更.+再確認.+分析機能を停止")
         self.assertRegex(text, r"送信済み.+保持期間")
         self.assertRegex(text, r"削除する.+履歴.+ありません")
         self.assertNotRegex(
@@ -427,16 +535,12 @@ class PublicPageTests(unittest.TestCase):
         retention_page = DocumentProbe()
         retention_page.feed(raw[retention_start:retention_end])
         retention_page.close()
+        self.assertEqual(retention_page.text.count("出力を55日間保持します"), 1)
         self.assertNotRegex(
             retention_page.text,
             r"(?:自動(?:的)?に|55日(?:間)?後に|保持期間後に).{0,80}(?:期限切れ|削除|消去)",
         )
 
-        self.assertRegex(text, r"管理されたTestFlight.+招待された18歳以上")
-        self.assertIn(
-            "一般公開のApp Store配布には別途審査と確認が必要で、現時点では未完了です",
-            text,
-        )
         self.assertNotIn("未解決の別のリリース門禁", text)
         self.assertNotIn("現在のCloudプロジェクトが有料サービスである", text)
 
@@ -452,6 +556,7 @@ class PublicPageTests(unittest.TestCase):
         self.assertIn("https://ai.google.dev/gemini-api/docs/zdr", hrefs)
         self.assertIn("https://firebase.google.com/support/privacy/", hrefs)
         self.assertIn("https://developer.apple.com/documentation/devicecheck", hrefs)
+        self.assertIn("mailto:zll6796096@gmail.com", hrefs)
 
         integrity_sections = [
             attrs
@@ -464,7 +569,7 @@ class PublicPageTests(unittest.TestCase):
         )
 
     def test_support_page_is_japanese_first_and_covers_safe_manual_help(self) -> None:
-        _raw, page = read_page("support")
+        raw, page = read_page("support")
         text = page.text
         localized_sections = [
             attrs
@@ -480,6 +585,19 @@ class PublicPageTests(unittest.TestCase):
             [attrs.get("aria-labelledby") for attrs in localized_sections],
             expected_heading_ids,
         )
+
+        localized_terms = {
+            "ja": ("カロスキャン", "この写真を分析"),
+            "zh-CN": ("カロスキャン", "分析这张照片"),
+            "en": ("カロスキャン", "Analyze this photo"),
+        }
+        for lang, terms in localized_terms.items():
+            section_text = localized_section_text(raw, lang)
+            for term in terms:
+                with self.subTest(lang=lang, term=term):
+                    self.assertIn(term, section_text)
+            with self.subTest(lang=lang, term="legacy display name"):
+                self.assertNotIn("Kalories", section_text)
         self.assertEqual(
             [
                 attrs["id"]
@@ -505,8 +623,6 @@ class PublicPageTests(unittest.TestCase):
             "完整性令牌",
             "once",
             "integrity token",
-            "TestFlight",
-            "18歳以上",
             "医療診断",
             "プライバシー",
             "相片",
@@ -522,6 +638,33 @@ class PublicPageTests(unittest.TestCase):
             with self.subTest(term=term):
                 self.assertIn(term, text)
 
+        for forbidden_public_pattern in (
+            r"testflight",
+            r"\binvited\s+testers?\b",
+        ):
+            with self.subTest(
+                contract="forbidden public-release wording",
+                pattern=forbidden_public_pattern,
+            ):
+                self.assertIsNone(
+                    re.search(forbidden_public_pattern, text, re.IGNORECASE),
+                    f"public support page must not contain: {forbidden_public_pattern}",
+                )
+
+        for required_public_term in (
+            "App Store",
+            "日本のApp Storeで公開するカロスキャンの利用案内です。",
+            "zll6796096@gmail.com",
+            "医療診断",
+            "medical diagnosis",
+            "临床用途",
+            "clinical purposes",
+        ):
+            with self.subTest(
+                contract="required public support wording", term=required_public_term
+            ):
+                self.assertIn(required_public_term, text)
+
         self.assertRegex(text, r"公開Issue.+個人的な食事写真.+認証情報.+APIキー.+秘密情報")
         self.assertRegex(text, r"公开 Issue.+个人餐食照片.+凭据.+API 密钥.+秘密信息")
         self.assertRegex(text, r"public issue.+personal meal photos.+credentials.+API keys.+secrets")
@@ -533,6 +676,69 @@ class PublicPageTests(unittest.TestCase):
         ]
         self.assertIn("/privacy/", hrefs)
         self.assertIn("https://github.com/zll6796096/Kalories/issues/new", hrefs)
+        self.assertIn("mailto:zll6796096@gmail.com", hrefs)
+
+    def test_public_pages_disclose_the_adult_only_on_device_confirmation_contract(
+        self,
+    ) -> None:
+        privacy_text = read_page("privacy")[1].text
+        for required in (
+            "カロスキャンは18歳以上の方のみ利用できます。",
+            "初回起動時に「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存します。",
+            "この確認は利用者の実年齢を証明するものではありません。",
+            "生年月日、氏名、本人確認書類は収集しません。",
+            "カロスキャンは、年齢確認の結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+            "端末またはシステムのバックアップと復元は、Appleおよび端末の設定に従います。",
+        ):
+            with self.subTest(page="privacy", required=required):
+                self.assertIn(required, privacy_text)
+        for forbidden_absolute_claim in (
+            "年齢確認の結果はKalories、Google、FirebaseまたはAppleへ送信しません。",
+            "確認結果を外部へ送信しません",
+        ):
+            with self.subTest(
+                page="privacy", forbidden_absolute_claim=forbidden_absolute_claim
+            ):
+                self.assertNotIn(forbidden_absolute_claim, privacy_text)
+
+        support_raw, support_page = read_page("support")
+        support_text = support_page.text
+        localized_requirements = {
+            "ja": (
+                "18歳以上の方のみ利用できます",
+                "初回起動時に一度だけ「18歳以上です」の確認を求めます。",
+                "「18歳以上です」を選択した事実を示す真偽値（Boolean）だけをアプリの設定として端末内に保存します。",
+                "生年月日、氏名、本人確認書類は収集しません。",
+                "カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。",
+                "端末またはシステムのバックアップと復元はAppleおよび端末の設定に従い、その処理にAppleが関与する場合があります。",
+            ),
+            "zh-CN": (
+                "仅限18岁以上用户",
+                "首次启动时只需确认一次“我已满18岁”。",
+                "App 仅将该选择结果作为布尔值保存在设备上的 App 设置中。",
+                "不收集出生日期、姓名或身份证明文件。",
+                "カロスキャン不会将确认结果附加到分析请求，也不会由カロスキャン发送至其后端、Google 或 Firebase。",
+                "设备或系统的备份与恢复由 Apple 和设备设置控制，其处理可能涉及 Apple。",
+            ),
+            "en": (
+                "may be used only by users aged 18 or older",
+                "On first launch, the app asks once for confirmation that you are 18 or older.",
+                "Only that Boolean choice is stored in the app's preferences on the device.",
+                "The app does not collect a date of birth, name, or identity document.",
+                "カロスキャン does not attach the confirmation result to analysis requests or send it to its backend, Google, or Firebase.",
+                "Device or system backup and restore are controlled by Apple and device settings and may involve Apple processing.",
+            ),
+        }
+        for lang, required_terms in localized_requirements.items():
+            section_text = localized_section_text(support_raw, lang)
+            for required in required_terms:
+                with self.subTest(page="support", lang=lang, required=required):
+                    self.assertIn(required, section_text)
+
+        for forbidden in ("一般の利用者", "一般用户", "general users"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, privacy_text)
+                self.assertNotIn(forbidden, support_text)
 
 
 if os.environ.get("KALORIES_REQUIRE_DIST") == "1":
@@ -572,8 +778,8 @@ if os.environ.get("KALORIES_REQUIRE_DIST") == "1":
 
             responses = asyncio.run(fetch_routes())
             expected = {
-                "/privacy/": "Kalories プライバシーポリシー",
-                "/support/": "Kalories サポート",
+                "/privacy/": "カロスキャン プライバシーポリシー",
+                "/support/": "カロスキャン サポート",
             }
             for route, heading in expected.items():
                 with self.subTest(route=route):

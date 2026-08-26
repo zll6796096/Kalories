@@ -24,12 +24,28 @@ struct KaloriesApp: App {
 
     var body: some Scene {
         WindowGroup {
-            switch bootstrapState {
-            case let .ready(environment):
-                RootView(environment: environment)
-            case let .invalidConfiguration(localizer):
-                ConfigurationFailureView(localizer: localizer)
+            #if DEBUG
+            if UITestFixtures.isScreenshotMode() {
+                rootContent
+                    .preferredColorScheme(.light)
+                    .statusBarHidden(false)
+                    .persistentSystemOverlays(.visible)
+            } else {
+                rootContent
             }
+            #else
+            rootContent
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        switch bootstrapState {
+        case let .ready(environment):
+            RootView(environment: environment)
+        case let .invalidConfiguration(localizer):
+            ConfigurationFailureView(localizer: localizer)
         }
     }
 }

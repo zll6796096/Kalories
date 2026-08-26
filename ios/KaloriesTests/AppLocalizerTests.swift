@@ -111,6 +111,36 @@ final class AppLocalizerTests: XCTestCase {
         }
     }
 
+    func testAdultAccessCopyIsCompleteInEveryLocale() {
+        let expected: [AppLocale: [String: String]] = [
+            .ja: [
+                "adultAccessTitle": "18歳以上の方のみ利用できます",
+                "adultAccessBody": "カロスキャンのAI食事分析は18歳以上の方のみ利用できます。食事写真は、別途送信内容を確認して同意した場合にのみ分析サービスへ送信されます。",
+                "adultAccessUnderage": "18歳未満の方はこのアプリを利用できません。",
+                "adultAccessConfirm": "18歳以上です",
+            ],
+            .zh: [
+                "adultAccessTitle": "仅限18岁以上用户",
+                "adultAccessBody": "卡路里扫描的AI饮食分析仅供18岁以上用户使用。只有在您另行确认发送内容并同意后，餐食照片才会发送至分析服务。",
+                "adultAccessUnderage": "未满18岁者不能使用本应用。",
+                "adultAccessConfirm": "我已满18岁",
+            ],
+            .en: [
+                "adultAccessTitle": "For users aged 18 or older",
+                "adultAccessBody": "Kalories AI meal analysis is available only to users aged 18 or older. A meal photo is sent to the analysis service only after you separately review and consent to that transfer.",
+                "adultAccessUnderage": "People under 18 cannot use this app.",
+                "adultAccessConfirm": "I am 18 or older",
+            ],
+        ]
+
+        for locale in AppLocale.allCases {
+            let localizer = AppLocalizer(locale: locale)
+            for (key, value) in expected[locale, default: [:]] {
+                XCTAssertEqual(localizer.text(key), value, "\(locale): \(key)")
+            }
+        }
+    }
+
     func testMissingLocalizationKeyReturnsTheKey() {
         XCTAssertEqual(AppLocalizer(locale: .ja).text("missing.localization.key"), "missing.localization.key")
     }

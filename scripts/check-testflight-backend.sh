@@ -341,75 +341,112 @@ if [[ "${have_gcloud}" == true && "${have_jq}" == true && "${have_rg}" == true &
     log_filter+=" AND timestamp>=\"${request_started_at}\""
   fi
 
-  if gcloud logging read "${log_filter}" \
-    --project "${PROJECT_ID}" \
-    --limit 200 \
-    --order desc \
-    --format=json >"${logs_json}" 2>/dev/null; then
-    if ! jq -e 'type == "array" and length > 0' "${logs_json}" >/dev/null 2>&1; then
-      add_finding 'Cloud Run logs are not a nonempty JSON array'
+  target_logs_present() {
+    [[ -n "${production_revision}" ]] && jq -e \
+      --arg revision "${production_revision}" \
+      --arg service_url "${service_url}" '
+      def target($suffix):
+        any(.[];
+          .resource.labels.revision_name? == $revision
+          and ((.httpRequest.requestUrl? // "") | endswith($suffix)));
+      def protected_post($path):
+        any(.[];
+          .resource.labels.revision_name? == $revision
+          and .httpRequest.requestMethod? == "POST"
+          and .httpRequest.status? == 401
+          and .httpRequest.requestUrl? == ($service_url + $path));
+      target("/health") and target("/privacy/") and target("/support/")
+      and protected_post("/api/analyze") and protected_post("/")
+    ' "${logs_json}" >/dev/null 2>&1
+  }
+
+  sensitive_log_data=false
+  log_safety_scan_failed=false
+  scan_log_snapshot() {
+    local jq_scan_status literal_scan_status
+    if jq -e '
+      def normalized_key: ascii_downcase | gsub("[-_]"; "");
+      def sensitive_key:
+        normalized_key as $key
+        | [
+            "authorization", "xgoogapikey", "xfirebaseappcheck",
+            "appchecktoken", "apikey", "geminiapikey",
+            "request", "requestbody", "providerrequest", "providerresponse",
+            "response", "responsebody", "assessment", "nutrients",
+            "fooddetected", "image", "prompt", "contents", "candidates"
+          ]
+        | index($key) != null;
+      any(.. | objects | keys_unsorted[]?; sensitive_key)
+      or any(.. | strings;
+        test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|x-firebase-app-check|app[_-]?check[_-]?token|api[_-]?key)\\\"?[[:space:]]*[:=]"))
+    ' "${logs_json}" >/dev/null 2>&1; then
+      sensitive_log_data=true
     else
-      sensitive_log_data=false
-      if jq -e '
-        def normalized_key: ascii_downcase | gsub("[-_]"; "");
-        def sensitive_key:
-          normalized_key as $key
-          | [
-              "authorization", "xgoogapikey", "xfirebaseappcheck",
-              "appchecktoken", "apikey", "geminiapikey",
-              "request", "requestbody", "providerrequest", "providerresponse",
-              "response", "responsebody", "assessment", "nutrients",
-              "fooddetected", "image", "prompt", "contents", "candidates"
-            ]
-          | index($key) != null;
-        any(.. | objects | keys_unsorted[]?; sensitive_key)
-        or any(.. | strings;
-          test("(?i)data:image/|bearer[[:space:]]+[A-Za-z0-9._~+/-]+=*|AIza[0-9A-Za-z_-]{35}|[A-Za-z0-9+/]{256,}={0,2}|(^|[^[:alnum:]_])\\\"?(food_detected|nutrients|assessment|request|response|provider[ _-]?(request|response)|authorization|x-goog-api-key|x-firebase-app-check|app[_-]?check[_-]?token|api[_-]?key)\\\"?[[:space:]]*[:=]"))
-      ' "${logs_json}" >/dev/null 2>&1; then
-        sensitive_log_data=true
-      else
-        jq_scan_status=$?
-        if [[ "${jq_scan_status}" -ne 1 ]]; then
-          add_finding 'Cloud Run log safety scan failed'
+      jq_scan_status=$?
+      if [[ "${jq_scan_status}" -ne 1 ]]; then
+        log_safety_scan_failed=true
+      fi
+    fi
+
+    set +e
+    rg -q -F \
+      -e 'data:image/' \
+      -e 'GEMINI_API_KEY' \
+      -e 'Authorization:' \
+      -e 'X-Firebase-AppCheck:' \
+      -e 'api_key=' \
+      "${logs_json}"
+    literal_scan_status=$?
+    set -e
+    case "${literal_scan_status}" in
+      0) sensitive_log_data=true ;;
+      1) ;;
+      *) log_safety_scan_failed=true ;;
+    esac
+  }
+
+  log_read_succeeded=false
+  log_snapshot_invalid=false
+  for log_attempt in 1 2 3 4; do
+    log_read_succeeded=false
+    if gcloud logging read "${log_filter}" \
+      --project "${PROJECT_ID}" \
+      --limit 200 \
+      --order desc \
+      --format=json >"${logs_json}" 2>/dev/null; then
+      log_read_succeeded=true
+      if ! jq -e 'type == "array"' "${logs_json}" >/dev/null 2>&1; then
+        log_snapshot_invalid=true
+        break
+      elif jq -e 'length > 0' \
+        "${logs_json}" >/dev/null 2>&1; then
+        scan_log_snapshot
+        if [[ "${sensitive_log_data}" == true ||
+          "${log_safety_scan_failed}" == true ]] || target_logs_present; then
+          break
         fi
       fi
+    else
+      break
+    fi
+    if [[ "${log_attempt}" -lt 4 ]]; then
+      sleep 4
+    fi
+  done
 
-      set +e
-      rg -q -F \
-        -e 'data:image/' \
-        -e 'GEMINI_API_KEY' \
-        -e 'Authorization:' \
-        -e 'X-Firebase-AppCheck:' \
-        -e 'api_key=' \
-        "${logs_json}"
-      literal_scan_status=$?
-      set -e
-      case "${literal_scan_status}" in
-        0) sensitive_log_data=true ;;
-        1) ;;
-        *) add_finding 'Cloud Run log safety scan failed' ;;
-      esac
-
+  if [[ "${log_read_succeeded}" == true ]]; then
+    if [[ "${log_snapshot_invalid}" == true ]] ||
+      ! jq -e 'type == "array" and length > 0' "${logs_json}" >/dev/null 2>&1; then
+      add_finding 'Cloud Run logs are not a nonempty JSON array'
+    else
+      if [[ "${log_safety_scan_failed}" == true ]]; then
+        add_finding 'Cloud Run log safety scan failed'
+      fi
       if [[ "${sensitive_log_data}" == true ]]; then
         add_finding 'Cloud Run logs contain sensitive application data'
       fi
 
-      if [[ -z "${production_revision}" ]] || ! jq -e \
-        --arg revision "${production_revision}" \
-        --arg service_url "${service_url}" '
-        def target($suffix):
-          any(.[];
-            .resource.labels.revision_name? == $revision
-            and ((.httpRequest.requestUrl? // "") | endswith($suffix)));
-        def protected_post($path):
-          any(.[];
-            .resource.labels.revision_name? == $revision
-            and .httpRequest.requestMethod? == "POST"
-            and .httpRequest.status? == 401
-            and .httpRequest.requestUrl? == ($service_url + $path));
-        target("/health") and target("/privacy/") and target("/support/")
-        and protected_post("/api/analyze") and protected_post("/")
-      ' "${logs_json}" >/dev/null 2>&1; then
+      if ! target_logs_present; then
         add_finding 'Cloud Run target request logs are missing'
       fi
     fi

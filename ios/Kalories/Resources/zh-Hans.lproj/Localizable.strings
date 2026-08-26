@@ -1,3 +1,7 @@
+"adultAccessBody" = "卡路里扫描的AI饮食分析仅供18岁以上用户使用。只有在您另行确认发送内容并同意后，餐食照片才会发送至分析服务。";
+"adultAccessConfirm" = "我已满18岁";
+"adultAccessTitle" = "仅限18岁以上用户";
+"adultAccessUnderage" = "未满18岁者不能使用本应用。";
 "adviceTitle" = "让它更均衡";
 "analyzePhoto" = "分析这张照片";
 "analyzingBody" = "正在识别份量与营养结构。";

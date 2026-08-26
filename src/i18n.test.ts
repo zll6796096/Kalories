@@ -11,6 +11,10 @@ import * as i18n from './i18n';
 const expectedMessageKeys = [
   'appName',
   'languageLabel',
+  'adultAccessTitle',
+  'adultAccessBody',
+  'adultAccessUnderage',
+  'adultAccessConfirm',
   'introEyebrow',
   'introTitle',
   'introBody',
@@ -163,6 +167,51 @@ describe('message dictionaries', () => {
       ja: messages.ja.languageLabel,
       en: messages.en.languageLabel,
     }).toEqual({zh: '语言', ja: '言語', en: 'Language'});
+  });
+
+  it('contains the exact approved adult access copy in every language', () => {
+    expect({
+      zh: {
+        title: messages.zh.adultAccessTitle,
+        body: messages.zh.adultAccessBody,
+        underage: messages.zh.adultAccessUnderage,
+        confirm: messages.zh.adultAccessConfirm,
+      },
+      ja: {
+        title: messages.ja.adultAccessTitle,
+        body: messages.ja.adultAccessBody,
+        underage: messages.ja.adultAccessUnderage,
+        confirm: messages.ja.adultAccessConfirm,
+      },
+      en: {
+        title: messages.en.adultAccessTitle,
+        body: messages.en.adultAccessBody,
+        underage: messages.en.adultAccessUnderage,
+        confirm: messages.en.adultAccessConfirm,
+      },
+    }).toEqual({
+      zh: {
+        title: '仅限18岁以上用户',
+        body:
+          '卡路里扫描的AI饮食分析仅供18岁以上用户使用。只有在您另行确认发送内容并同意后，餐食照片才会发送至分析服务。',
+        underage: '未满18岁者不能使用本应用。',
+        confirm: '我已满18岁',
+      },
+      ja: {
+        title: '18歳以上の方のみ利用できます',
+        body:
+          'カロスキャンのAI食事分析は18歳以上の方のみ利用できます。食事写真は、別途送信内容を確認して同意した場合にのみ分析サービスへ送信されます。',
+        underage: '18歳未満の方はこのアプリを利用できません。',
+        confirm: '18歳以上です',
+      },
+      en: {
+        title: 'For users aged 18 or older',
+        body:
+          'Kalories AI meal analysis is available only to users aged 18 or older. A meal photo is sent to the analysis service only after you separately review and consent to that transfer.',
+        underage: 'People under 18 cannot use this app.',
+        confirm: 'I am 18 or older',
+      },
+    });
   });
 
   it('contains the exact localized rate-limit message', () => {

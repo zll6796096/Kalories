@@ -1,3 +1,7 @@
+"adultAccessBody" = "カロスキャンのAI食事分析は18歳以上の方のみ利用できます。食事写真は、別途送信内容を確認して同意した場合にのみ分析サービスへ送信されます。";
+"adultAccessConfirm" = "18歳以上です";
+"adultAccessTitle" = "18歳以上の方のみ利用できます";
+"adultAccessUnderage" = "18歳未満の方はこのアプリを利用できません。";
 "adviceTitle" = "より良くするには";
 "analyzePhoto" = "この写真を分析";
 "analyzingBody" = "量と栄養バランスを確認しています。";

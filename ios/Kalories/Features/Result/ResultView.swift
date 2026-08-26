@@ -7,9 +7,29 @@ struct ResultView: View {
     let localizer: AppLocalizer
     let onRetake: () -> Void
 
+    #if DEBUG
+    @State private var screenshotFrameReady = false
+
+    private enum ScreenshotAnchor: Hashable {
+        case nutrition
+    }
+    #endif
+
     var body: some View {
         let presentation = ResultPresenter(localizer: localizer).present(result)
 
+        #if DEBUG
+        if let frame = UITestFixtures.resultScreenshotFrame() {
+            framedResult(presentation, frame: frame)
+        } else {
+            productResult(presentation)
+        }
+        #else
+        productResult(presentation)
+        #endif
+    }
+
+    private func productResult(_ presentation: ResultPresentation) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 mealHeader(presentation)
@@ -24,6 +44,14 @@ struct ResultView: View {
                 metricGroup(
                     metrics(in: presentation, kinds: [.calories])
                 )
+
+                #if DEBUG
+                if UITestFixtures.resultScreenshotFrame() == .summary {
+                    Color.clear
+                        .frame(height: 100)
+                        .accessibilityHidden(true)
+                }
+                #endif
 
                 metricGroup(
                     metrics(in: presentation, kinds: [.protein, .carbs, .fat])
@@ -59,6 +87,14 @@ struct ResultView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .accessibilityIdentifier("result.retake")
+
+                #if DEBUG
+                if UITestFixtures.resultScreenshotFrame() == .uncertainty {
+                    Color.clear
+                        .frame(height: 440)
+                        .accessibilityHidden(true)
+                }
+                #endif
             }
             .padding(20)
             .frame(maxWidth: 640)
@@ -67,6 +103,54 @@ struct ResultView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .accessibilityIdentifier("result.page")
     }
+
+    #if DEBUG
+    private func framedResult(
+        _ presentation: ResultPresentation,
+        frame: UITestFixtures.ResultScreenshotFrame
+    ) -> some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: 1)
+                .accessibilityHidden(true)
+
+            ScrollViewReader { proxy in
+                productResult(presentation)
+                    .overlay(alignment: .topLeading) {
+                        if screenshotFrameReady {
+                            Text("Ready")
+                                .font(.system(size: 1))
+                                .foregroundStyle(Color(uiColor: .systemGroupedBackground))
+                                .frame(width: 1, height: 1)
+                                .clipped()
+                                .accessibilityIdentifier("result.screenshot.ready")
+                        }
+                    }
+                    .task {
+                        screenshotFrameReady = false
+                        await Task.yield()
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            switch frame {
+                            case .summary:
+                                break
+                            case .nutrition:
+                                proxy.scrollTo(ScreenshotAnchor.nutrition, anchor: .top)
+                            case .uncertainty:
+                                proxy.scrollTo(NutritionMetricKind.portion, anchor: .top)
+                            }
+                        }
+                        await Task.yield()
+                        await Task.yield()
+                        try? await Task.sleep(for: .milliseconds(750))
+                        screenshotFrameReady = true
+                    }
+            }
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+    }
+    #endif
 
     @ViewBuilder
     private func mealHeader(_ presentation: ResultPresentation) -> some View {
@@ -85,9 +169,23 @@ struct ResultView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            #if DEBUG
+            if UITestFixtures.resultScreenshotFrame() == .nutrition {
+                Text(presentation.foodName)
+                    .font(.largeTitle.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 80)
+                    .id(ScreenshotAnchor.nutrition)
+            } else {
+                Text(presentation.foodName)
+                    .font(.largeTitle.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            #else
             Text(presentation.foodName)
                 .font(.largeTitle.bold())
                 .fixedSize(horizontal: false, vertical: true)
+            #endif
 
             Label(
                 "\(localizer.text("confidence")): \(presentation.overallConfidenceLabel)",
@@ -136,10 +234,22 @@ struct ResultView: View {
     private func metricGroup(_ metrics: [NutritionMetricPresentation]) -> some View {
         VStack(spacing: 12) {
             ForEach(metrics, id: \.kind) { metric in
+                #if DEBUG
+                if UITestFixtures.resultScreenshotFrame() == .nutrition,
+                   metric.kind == .carbs {
+                    Color.clear
+                        .frame(height: 180)
+                        .accessibilityHidden(true)
+                }
+                #endif
+
                 NutritionMetricView(
                     metric: metric,
                     confidenceTitle: localizer.text("confidence")
                 )
+                #if DEBUG
+                .id(metric.kind)
+                #endif
             }
         }
     }

@@ -158,13 +158,30 @@ elif [[ "$1 $2 $3" == "run revisions describe" ]]; then
 elif [[ "$1 $2 $3" == "run services get-iam-policy" ]]; then
   command cp "${FAKE_FIXTURES}/iam.json" /dev/stdout
 elif [[ "$1 $2" == "logging read" ]]; then
+  log_attempt="$(command grep -c '^logging read' "${FAKE_CALLS}" || true)"
   if [[ "${FAKE_LOG_EXIT:-0}" != 0 ]]; then
     exit "${FAKE_LOG_EXIT}"
   fi
-  command cp "${FAKE_FIXTURES}/logs.json" /dev/stdout
+  if (( log_attempt <= ${FAKE_LOG_FAIL_ATTEMPTS:-0} )); then
+    exit 3
+  fi
+  if [[ "${log_attempt}" == 1 && -n "${FAKE_FIRST_LOGS_FILE:-}" ]]; then
+    command cp "${FAKE_FIRST_LOGS_FILE}" /dev/stdout
+  elif (( log_attempt <= ${FAKE_LOG_EMPTY_ATTEMPTS:-0} )); then
+    printf '%s\n' '[]'
+  else
+    command cp "${FAKE_FIXTURES}/logs.json" /dev/stdout
+  fi
 else
   exit 97
 fi
+""",
+        )
+        self._write_executable(
+            "sleep",
+            """#!/usr/bin/env bash
+set -euo pipefail
+printf 'sleep %s\\n' "$*" >>"${FAKE_CALLS}"
 """,
         )
         self._write_executable(
@@ -420,6 +437,34 @@ fi
         result = self._run()
         self.assertIn("NO-GO: Cloud Run target request logs are missing", result.stdout)
 
+    def test_retries_logs_until_all_target_requests_are_visible(self) -> None:
+        result = self._run(FAKE_LOG_EMPTY_ATTEMPTS="2")
+        self._assert_pass(result)
+        log_reads = [
+            line
+            for line in self.calls.read_text().splitlines()
+            if line.startswith("logging read")
+        ]
+        self.assertEqual(len(log_reads), 3)
+        self.assertEqual(self.calls.read_text().splitlines().count("sleep 4"), 2)
+
+    def test_sensitive_partial_snapshot_cannot_be_hidden_by_clean_complete_retry(
+        self,
+    ) -> None:
+        first_logs = self.fixture_dir / "first-logs.json"
+        first_logs.write_text(
+            json.dumps(
+                self.logs[:4]
+                + [{"textPayload": f"api_key={SENTINEL}"}]
+            ),
+            encoding="utf-8",
+        )
+        result = self._run(FAKE_FIRST_LOGS_FILE=str(first_logs))
+        self.assertIn(
+            "NO-GO: Cloud Run logs contain sensitive application data",
+            result.stdout,
+        )
+
     def test_recursive_log_scan_rejects_sensitive_keys_and_values(self) -> None:
         sensitive_payloads = [
             {"x-goog-api-key": SENTINEL},
@@ -468,6 +513,19 @@ fi
     def test_log_read_failure_is_no_go(self) -> None:
         result = self._run(FAKE_LOG_EXIT="3")
         self.assertIn("NO-GO: Cloud Run log read failed", result.stdout)
+
+    def test_initial_log_read_failure_is_not_hidden_by_a_successful_retry(self) -> None:
+        result = self._run(FAKE_LOG_FAIL_ATTEMPTS="1")
+        self.assertIn("NO-GO: Cloud Run log read failed", result.stdout)
+
+    def test_invalid_initial_log_snapshot_is_not_hidden_by_a_clean_retry(self) -> None:
+        first_logs = self.fixture_dir / "invalid-first-logs.json"
+        first_logs.write_text("not-json", encoding="utf-8")
+        result = self._run(FAKE_FIRST_LOGS_FILE=str(first_logs))
+        self.assertIn(
+            "NO-GO: Cloud Run logs are not a nonempty JSON array",
+            result.stdout,
+        )
 
 
 class ReleaseDocumentationTests(unittest.TestCase):
@@ -575,6 +633,10 @@ class ReleaseDocumentationTests(unittest.TestCase):
         self.assertIn("--update-secrets", self.runbook)
         self.assertIn("--update-env-vars", self.runbook)
         self.assertIn("resourceVersion", self.runbook)
+        self.assertIn("--arg runtime_sa", self.runbook)
+        self.assertIn(".spec.serviceAccountName == $runtime_sa", self.runbook)
+        self.assertIn(".spec.containerConcurrency == 4", self.runbook)
+        self.assertIn(".spec.timeoutSeconds == 30", self.runbook)
 
     def test_iam_mutation_is_private_and_readback_requires_exact_accessor(self) -> None:
         self.assertIn("roles/secretmanager.secretAccessor", self.runbook)
@@ -966,6 +1028,9 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                     "annotations": {"autoscaling.knative.dev/maxScale": "1"},
                 },
                 "spec": {
+                    "serviceAccountName": self.runtime_sa,
+                    "containerConcurrency": 4,
+                    "timeoutSeconds": 30,
                     "containers": [
                         {
                             "image": "image@sha256:" + ("c" * 64),
@@ -1108,6 +1173,7 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                 "TMPDIR": str(self.tmp_dir),
                 "KALORIES_APP_CHECK_TOKEN_FILE": str(self.app_check_token_file),
                 "KALORIES_FIREBASE_IOS_APP_ID": FIREBASE_IOS_APP_ID,
+                "KALORIES_RUNTIME_SA": self.runtime_sa,
             }
         )
         env.update(overrides)
@@ -1219,19 +1285,19 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self.assertIn("NO-GO: secret accessor read-back is not exact", result.stdout)
 
     def test_iam_block_rejects_inherited_accessor_and_ancestor_read_failure(self) -> None:
+        other_subject = f"serviceAccount:{SENTINEL}@ancestor.invalid"
         inherited = {
             "etag": "folder",
             "bindings": [
                 {
                     "role": "roles/secretmanager.secretAccessor",
-                    "members": [f"serviceAccount:{SENTINEL}@ancestor.invalid"],
+                    "members": [other_subject],
                 }
             ],
         }
         self._write("folder-iam", inherited)
         result = self._run_block("iam_mutation_json=")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("NO-GO: inherited secret accessor exists", result.stdout)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
         self._write_defaults()
         self._write(
@@ -1240,14 +1306,13 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                 "bindings": [
                     {
                         "role": "roles/secretmanager.admin",
-                        "members": [f"serviceAccount:{SENTINEL}@ancestor.invalid"],
+                        "members": [other_subject],
                     }
                 ]
             },
         )
         result = self._run_block("iam_mutation_json=")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("NO-GO: inherited secret accessor exists", result.stdout)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
         self._write_defaults()
         self._write(
@@ -1256,7 +1321,44 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                 "bindings": [
                     {
                         "role": "organizations/67890/roles/customAccessor",
-                        "members": [f"serviceAccount:{SENTINEL}@ancestor.invalid"],
+                        "members": [other_subject],
+                    }
+                ]
+            },
+        )
+        result = self._run_block("iam_mutation_json=")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+        for inherited_member in (
+            f"serviceAccount:{self.runtime_sa}",
+            "allUsers",
+            "allAuthenticatedUsers",
+        ):
+            with self.subTest(inherited_member=inherited_member):
+                self._write_defaults()
+                self._write(
+                    "folder-iam",
+                    {
+                        "bindings": [
+                            {
+                                "role": "roles/secretmanager.admin",
+                                "members": [inherited_member],
+                            }
+                        ]
+                    },
+                )
+                result = self._run_block("iam_mutation_json=")
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("NO-GO: inherited secret accessor exists", result.stdout)
+
+        self._write_defaults()
+        self._write(
+            "organization-iam",
+            {
+                "bindings": [
+                    {
+                        "role": "organizations/67890/roles/customAccessor",
+                        "members": [f"serviceAccount:{self.runtime_sa}"],
                     }
                 ]
             },
@@ -1360,7 +1462,39 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
         self.assertNotEqual(0, result.returncode)
         self.assertIn("NO-GO: immutable candidate revision is noncompliant", result.stdout)
 
-    def test_candidate_rejects_missing_or_non_numeric_percent_and_bad_tag_url(self) -> None:
+        bad_revision_fields = (
+            ("serviceAccountName", "wrong@example.invalid"),
+            ("containerConcurrency", 5),
+            ("timeoutSeconds", 31),
+        )
+        for field, value in bad_revision_fields:
+            with self.subTest(field=field):
+                self._write_defaults()
+                revision = json.loads(
+                    (self.fixture_dir / "revision.json").read_text(encoding="utf-8")
+                )
+                revision["spec"][field] = value
+                self._write("revision", revision)
+                result = self._run_block(
+                    "candidate_traffic_total=", KALORIES_SECRET_VERSION="7"
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(
+                    "NO-GO: immutable candidate revision is noncompliant",
+                    result.stdout,
+                )
+
+    def test_candidate_accepts_omitted_zero_percent_and_rejects_invalid_traffic(self) -> None:
+        service = json.loads(
+            (self.fixture_dir / "service.json").read_text(encoding="utf-8")
+        )
+        service["status"]["traffic"][0].pop("percent")
+        self._write("service", service)
+        result = self._run_block(
+            "candidate_traffic_total=", KALORIES_SECRET_VERSION="7"
+        )
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
         for bad_percent in (None, "0"):
             with self.subTest(percent=bad_percent):
                 self._write_defaults()
@@ -1368,10 +1502,7 @@ exit "${FAKE_POSTCHECK_EXIT:-0}"
                     (self.fixture_dir / "service.json").read_text(encoding="utf-8")
                 )
                 tag_entry = service["status"]["traffic"][0]
-                if bad_percent is None:
-                    tag_entry.pop("percent")
-                else:
-                    tag_entry["percent"] = bad_percent
+                tag_entry["percent"] = bad_percent
                 self._write("service", service)
                 result = self._run_block(
                     "candidate_traffic_total=", KALORIES_SECRET_VERSION="7"

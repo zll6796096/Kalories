@@ -5,6 +5,10 @@ export const LOCALE_STORAGE_KEY = 'kalories.locale';
 export interface Messages {
   appName: string;
   languageLabel: string;
+  adultAccessTitle: string;
+  adultAccessBody: string;
+  adultAccessUnderage: string;
+  adultAccessConfirm: string;
   introEyebrow: string;
   introTitle: string;
   introBody: string;
@@ -81,6 +85,11 @@ export const messages: Record<Locale, Messages> = {
   zh: {
     appName: 'Kalories',
     languageLabel: '语言',
+    adultAccessTitle: '仅限18岁以上用户',
+    adultAccessBody:
+      '卡路里扫描的AI饮食分析仅供18岁以上用户使用。只有在您另行确认发送内容并同意后，餐食照片才会发送至分析服务。',
+    adultAccessUnderage: '未满18岁者不能使用本应用。',
+    adultAccessConfirm: '我已满18岁',
     introEyebrow: 'AI 饮食分析',
     introTitle: '一张照片，更了解这一餐。',
     introBody: '通过照片估算热量与营养结构。',
@@ -155,6 +164,11 @@ export const messages: Record<Locale, Messages> = {
   ja: {
     appName: 'Kalories',
     languageLabel: '言語',
+    adultAccessTitle: '18歳以上の方のみ利用できます',
+    adultAccessBody:
+      'カロスキャンのAI食事分析は18歳以上の方のみ利用できます。食事写真は、別途送信内容を確認して同意した場合にのみ分析サービスへ送信されます。',
+    adultAccessUnderage: '18歳未満の方はこのアプリを利用できません。',
+    adultAccessConfirm: '18歳以上です',
     introEyebrow: 'AI 食事分析',
     introTitle: '一枚の写真から、食事をもっと理解する。',
     introBody: 'カロリーと栄養バランスを写真から推定します。',
@@ -230,6 +244,11 @@ export const messages: Record<Locale, Messages> = {
   en: {
     appName: 'Kalories',
     languageLabel: 'Language',
+    adultAccessTitle: 'For users aged 18 or older',
+    adultAccessBody:
+      'Kalories AI meal analysis is available only to users aged 18 or older. A meal photo is sent to the analysis service only after you separately review and consent to that transfer.',
+    adultAccessUnderage: 'People under 18 cannot use this app.',
+    adultAccessConfirm: 'I am 18 or older',
     introEyebrow: 'AI meal analysis',
     introTitle: 'Understand your meal from one photo.',
     introBody: 'Estimate calories and nutritional balance from a photo.',

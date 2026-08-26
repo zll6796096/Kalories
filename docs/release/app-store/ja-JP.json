@@ -1,0 +1,92 @@
+{
+  "apple_app_id": "6799957568",
+  "bundle_id": "com.ryuaistudio.kalories",
+  "version": "1.0.0",
+  "build": "1",
+  "locale": "ja-JP",
+  "name": "カロスキャン",
+  "subtitle": "食事写真から栄養をかんたん推定",
+  "promotional_text": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真からカロリーと栄養バランスの目安を確認できます。",
+  "description": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析機能を利用できます。\n\n主な機能\n・「カメラを開く」で食事を撮影、または「写真から選ぶ」で写真を選択\n・カロリーと主要な栄養情報を推定\n・認識した料理、推定の前提、推定精度を確認\n・食事バランスの参考情報をわかりやすく表示\n\n写真は、送信内容を確認して「この写真を分析」を選んだ場合にのみ、分析のためKaloriesサービスとGoogle Geminiへ送信されます。\n\n年齢確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類は収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\nカロスキャンにはアカウント、広告、行動追跡、クラウド上の食事履歴はありません。\n\n表示内容は写真に基づく一食分の推定値です。正確な測定値、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "keywords": "カロリー,栄養管理,食事分析,食事写真,料理写真,栄養分析,健康管理",
+  "support_url": "https://kalories-sxielk4wua-an.a.run.app/support/",
+  "privacy_policy_url": "https://kalories-sxielk4wua-an.a.run.app/privacy/",
+  "marketing_url": null,
+  "contact_email": "zll6796096@gmail.com",
+  "copyright": "2026 RYU AI Studio",
+  "primary_category": "FOOD_AND_DRINK",
+  "secondary_category": null,
+  "territories": ["JPN"],
+  "price": "FREE",
+  "in_app_purchases": false,
+  "subscriptions": false,
+  "kids_category": false,
+  "release_type": "AFTER_APPROVAL",
+  "review_notes": "カロスキャンは18歳以上の方のみ利用できます。初回起動時に「18歳以上です」を選択すると、食事写真の分析画面へ進めます。この確認では「18歳以上です」を選択した事実だけをアプリの設定として端末内に保存し、生年月日、氏名、本人確認書類を収集しません。カロスキャンは確認結果を分析リクエストに添付せず、カロスキャンのバックエンド、GoogleまたはFirebaseへ送信しません。端末またはシステムのバックアップと復元はAppleおよび端末の設定に従います。\n\n確認手順:\n1. 初回画面で「18歳以上です」を選択します。\n2. 「カメラを開く」または「写真から選ぶ」を選びます。\n3. 食事写真を確認します。\n4. 写真がKaloriesサービスとGoogle Geminiへ送信される案内を確認し、「この写真を分析」をタップします。\n5. カロリー、栄養情報、推定の前提、推定精度を確認します。\n\nアカウント、課金、アプリ内購入、サブスクリプション、広告、追跡はありません。写真に食事が明確に写っていない場合は、食事を認識できない旨を表示します。表示内容は写真に基づく推定値であり、医療診断、医療助言、個別の治療・栄養指導ではありません。",
+  "adult_access": {
+    "minimum_age": 18,
+    "confirmation_required": true,
+    "storage_key": "kalories.adult-access.confirmed.v1",
+    "granting_value": true,
+    "confirmation_boolean_only": true,
+    "birth_date_collected": false,
+    "name_collected": false,
+    "identity_document_collected": false,
+    "confirmation_in_analysis_request": false,
+    "confirmation_sent_to_backend_google_or_firebase": false,
+    "backup_restore_follows_apple_and_device_settings": true
+  },
+  "age_rating": {
+    "age_assurance": true,
+    "health_or_wellness_topics": true,
+    "higher_age_rating_override_target": "18+",
+    "japan_ios_26_or_later_readback": null,
+    "japan_earlier_os_readback": null
+  },
+  "health_disclaimer": {
+    "medical_diagnosis": false,
+    "medical_advice": false,
+    "individual_treatment_or_nutrition_guidance": false
+  },
+  "release_gates": {
+    "support_url": {
+      "http_200": null,
+      "content_verified": null,
+      "status": "PENDING_PRODUCTION"
+    },
+    "privacy_policy_url": {
+      "http_200": null,
+      "content_verified": null,
+      "status": "PENDING_PRODUCTION"
+    },
+    "signed_archive_reconciliation_required": true,
+    "signed_archive_privacy_reconciliation_verified": null,
+    "signed_archive_status": "PENDING_SIGNED_ARCHIVE"
+  },
+  "privacy": {
+    "tracking": false,
+    "collected_data": [
+      {"type": "PHOTOS_OR_VIDEOS", "purpose": "APP_FUNCTIONALITY", "linked_to_user": false, "tracking": false},
+      {"type": "OTHER_DIAGNOSTIC_DATA", "purpose": "ANALYTICS", "linked_to_user": false, "tracking": false}
+    ]
+  },
+  "privacy_evidence": {
+    "sources": {
+      "project": "ios/project.yml",
+      "package_resolved": "ios/Kalories.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "app_privacy_manifest": "ios/Kalories/Resources/PrivacyInfo.xcprivacy"
+    },
+    "firebase_ios_sdk": {
+      "project_requirement": "12.17.0",
+      "resolved_version": "12.17.0",
+      "resolved_revision": "33a468adfdb75b53f05a37e7c886ca7c962b5c17"
+    },
+    "firebase_diagnostic_data_basis": "FIREBASE_INSTALLATIONS_PRIVACY_MANIFEST",
+    "app_privacy_manifest_photos_contract": {
+      "type": "NSPrivacyCollectedDataTypePhotosorVideos",
+      "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+      "linked_to_user": false,
+      "tracking": false
+    }
+  }
+}
