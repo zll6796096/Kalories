@@ -80,8 +80,8 @@ class AppStoreMetadataTests(unittest.TestCase):
     def test_identity_distribution_and_release_are_exact(self) -> None:
         self.assertEqual(self.document["apple_app_id"], "6799957568")
         self.assertEqual(self.document["bundle_id"], "com.ryuaistudio.kalories")
-        self.assertEqual(self.document["version"], "1.0.0")
-        self.assertEqual(self.document["build"], "1")
+        self.assertEqual(self.document["version"], "1.0")
+        self.assertEqual(self.document["build"], "2")
         self.assertEqual(self.document["territories"], ["JPN"])
         self.assertEqual(self.document["price"], "FREE")
         self.assertEqual(self.document["release_type"], "AFTER_APPROVAL")
