@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = ROOT / "docs" / "release" / "app-store" / "ja-JP.json"
 PROJECT_YML_PATH = ROOT / "ios" / "project.yml"
+PROJECT_PBXPROJ_PATH = ROOT / "ios" / "Kalories.xcodeproj" / "project.pbxproj"
 PACKAGE_RESOLVED_PATH = (
     ROOT
     / "ios"
@@ -81,7 +82,7 @@ class AppStoreMetadataTests(unittest.TestCase):
         self.assertEqual(self.document["apple_app_id"], "6799957568")
         self.assertEqual(self.document["bundle_id"], "com.ryuaistudio.kalories")
         self.assertEqual(self.document["version"], "1.0")
-        self.assertEqual(self.document["build"], "2")
+        self.assertEqual(self.document["build"], "3")
         self.assertEqual(self.document["territories"], ["JPN"])
         self.assertEqual(self.document["price"], "FREE")
         self.assertEqual(self.document["release_type"], "AFTER_APPROVAL")
@@ -92,6 +93,12 @@ class AppStoreMetadataTests(unittest.TestCase):
         self.assertEqual(self.document["primary_category"], "FOOD_AND_DRINK")
         self.assertIsNone(self.document["secondary_category"])
         self.assertIsNone(self.document["marketing_url"])
+
+        project_yml = PROJECT_YML_PATH.read_text(encoding="utf-8")
+        self.assertRegex(project_yml, r"(?m)^    CURRENT_PROJECT_VERSION: 3$")
+
+        project_pbxproj = PROJECT_PBXPROJ_PATH.read_text(encoding="utf-8")
+        self.assertEqual(project_pbxproj.count("CURRENT_PROJECT_VERSION = 3;"), 2)
 
     def test_adult_access_and_age_rating_are_explicit_and_pending_readback(self) -> None:
         self.assertEqual(
